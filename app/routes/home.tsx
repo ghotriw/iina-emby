@@ -1,10 +1,11 @@
-import { Button, Container, Group, Stack, Text, ThemeIcon, Title } from "@mantine/core";
-import { IconArrowRight, IconServer } from "@tabler/icons-react";
-import { useNavigate } from "react-router";
+import { Button } from "@mantine/core";
+import { IconServer } from "@tabler/icons-react";
+import { Navigate, useNavigate } from "react-router";
 import { ContinueWatching } from "../components/ContinueWatching";
 import { LibraryShelf } from "../components/LibraryShelf";
 import { useIINABridge } from "../hooks/useIINABridge";
 import { useLibrarySections } from "../hooks/useLibrarySections";
+import styles from "./home.module.css";
 
 export function meta() {
   return [{ title: "Home - IINA Emby" }, { name: "description", content: "Emby Media Browser" }];
@@ -12,50 +13,60 @@ export function meta() {
 
 export default function HomeRoute() {
   const navigate = useNavigate();
-  const { activeServer, servers, playMedia } = useIINABridge();
-  const { sections, isLoading: isLoadingSections } = useLibrarySections(activeServer);
+  const { activeServer, servers, isLoading, playMedia } = useIINABridge();
+  const { sections } = useLibrarySections(activeServer);
 
+  // Wait for IINA bridge to report servers list before redirecting
+  if (isLoading) {
+    return null;
+  }
+
+  // If no server is connected or configured, redirect directly to servers page
   if (servers.length === 0 || !activeServer) {
-    return (
-      <Container size="sm" py="xl">
-        <Stack align="center" gap="md" ta="center">
-          <ThemeIcon size={64} radius="xl" color="teal" variant="light">
-            <IconServer size={36} />
-          </ThemeIcon>
-          <Title order={2}>No Emby Server Connected</Title>
-          <Text c="dimmed" size="sm" maw={400}>
-            To start browsing movies and series, connect your Emby server first.
-          </Text>
-          <Button size="md" rightSection={<IconArrowRight size={18} />} onClick={() => navigate("/servers")}>
-            Connect Server
-          </Button>
-        </Stack>
-      </Container>
-    );
+    return <Navigate to="/servers" replace />;
   }
 
   return (
-    <Container size="md" py="xl">
-      <Stack gap="xl">
-        <Group justify="space-between" align="center">
-          <div>
-            <Title order={2}>{activeServer.serverName || "Emby Server"}</Title>
-            <Text c="dimmed" size="sm">
-              Logged in as{" "}
-              <Text span fw={600}>
-                {activeServer.username}
-              </Text>
-            </Text>
+    <div className={styles.container}>
+      {/* Native macOS toolbar header */}
+      <header className={styles.toolbar}>
+        <div className={styles.toolbarLeft}>
+          <div className={styles.serverBadge}>
+            <span className={styles.activeDot} />
+            <span className={styles.serverName}>{activeServer.serverName || "Emby"}</span>
+            {activeServer.username && (
+              <span className={styles.userName}>({activeServer.username})</span>
+            )}
           </div>
-          <Button variant="light" size="xs" leftSection={<IconServer size={14} />} onClick={() => navigate("/servers")}>
+        </div>
+
+        <div className={styles.toolbarRight}>
+          <Button
+            variant="subtle"
+            size="xs"
+            radius="md"
+            color="gray"
+            leftSection={<IconServer size={14} />}
+            onClick={() => navigate("/servers")}
+            styles={{
+              root: {
+                backgroundColor: "rgba(255, 255, 255, 0.12)",
+                color: "#ffffff",
+                fontWeight: 500,
+              },
+            }}
+          >
             Switch Server
           </Button>
-        </Group>
+        </div>
+      </header>
 
-        {/* 1. Continue Watching shelf (16:9 landscape previews with progress) */}
+      {/* Main shelves content */}
+      <main className={styles.content}>
+        {/* 1. Continue Watching shelf */}
         <ContinueWatching server={activeServer} onPlayMedia={playMedia} />
 
-        {/* 2. Library shelves (Movies, TV shows, etc.) with 2:3 vertical posters */}
+        {/* 2. Library shelves (Movies, TV shows, etc.) */}
         {sections.map(({ view, items }) => (
           <LibraryShelf
             key={view.Id}
@@ -64,7 +75,7 @@ export default function HomeRoute() {
             server={activeServer}
           />
         ))}
-      </Stack>
-    </Container>
+      </main>
+    </div>
   );
 }

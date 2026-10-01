@@ -35,6 +35,8 @@ export function createBrowserWindowManager({ core, sidebar, standaloneWindow, pr
         saWithProps.setProperty({
           title: "Emby Browser",
           resizable: true,
+          hudWindow: true,
+          fullSizeContentView: true,
           enableWebInspector: true,
         });
       }

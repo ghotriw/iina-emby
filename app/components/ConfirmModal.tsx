@@ -1,6 +1,6 @@
-import { Button, Group, type MantineColor, Modal, Stack, Text, ThemeIcon } from "@mantine/core";
-import { IconAlertTriangle } from "@tabler/icons-react";
+import { Modal } from "@mantine/core";
 import type React from "react";
+import styles from "./ConfirmModal.module.css";
 
 export interface ConfirmModalProps {
   opened: boolean;
@@ -10,7 +10,7 @@ export interface ConfirmModalProps {
   message?: React.ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
-  confirmColor?: MantineColor;
+  confirmColor?: string;
   isLoading?: boolean;
 }
 
@@ -18,34 +18,50 @@ export function ConfirmModal({
   opened,
   onClose,
   onConfirm,
-  title = "Confirm action",
+  title = "Confirm Action",
   message = "Are you sure you want to proceed?",
-  confirmLabel = "Delete",
+  confirmLabel = "Remove",
   cancelLabel = "Cancel",
-  confirmColor = "red",
   isLoading = false,
 }: ConfirmModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title={title} centered size="sm" closeOnClickOutside={!isLoading} closeOnEscape={!isLoading}>
-      <Stack gap="md">
-        <Group align="flex-start" wrap="nowrap" gap="sm">
-          <ThemeIcon color={confirmColor} variant="light" size="lg" radius="xl">
-            <IconAlertTriangle size={20} />
-          </ThemeIcon>
-          <Text size="sm" c="dimmed">
-            {message}
-          </Text>
-        </Group>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      withCloseButton={false}
+      centered
+      size="21.5rem"
+      closeOnClickOutside={!isLoading}
+      closeOnEscape={!isLoading}
+      classNames={{
+        content: styles.modalContent,
+        overlay: styles.modalOverlay,
+      }}
+      transitionProps={{ transition: "pop", duration: 150 }}
+    >
+      <div className={styles.body}>
+        {title && <h4 className={styles.title}>{title}</h4>}
+        {message && <div className={styles.message}>{message}</div>}
 
-        <Group justify="flex-end" gap="xs" mt="sm">
-          <Button variant="default" onClick={onClose} disabled={isLoading} size="xs">
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className={styles.cancelBtn}
+            onClick={onClose}
+            disabled={isLoading}
+          >
             {cancelLabel}
-          </Button>
-          <Button color={confirmColor} onClick={onConfirm} loading={isLoading} size="xs">
-            {confirmLabel}
-          </Button>
-        </Group>
-      </Stack>
+          </button>
+          <button
+            type="button"
+            className={styles.destructiveBtn}
+            onClick={onConfirm}
+            disabled={isLoading}
+          >
+            {isLoading ? "Removing..." : confirmLabel}
+          </button>
+        </div>
+      </div>
     </Modal>
   );
 }

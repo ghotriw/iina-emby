@@ -1,0 +1,94 @@
+.modalOverlay {
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(0.25rem);
+  -webkit-backdrop-filter: blur(0.25rem);
+}
+
+.modalContent {
+  background: rgba(26, 26, 32, 0.9) !important;
+  backdrop-filter: blur(2rem) !important;
+  -webkit-backdrop-filter: blur(2rem) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 0.5rem !important; /* 8px macOS dialog radius */
+  box-shadow: 0 1.25rem 2.5rem rgba(0, 0, 0, 0.6) !important;
+  padding: 1.25rem 1.25rem 1rem !important;
+  box-sizing: border-box;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.title {
+  font-size: 0.875rem; /* 14px */
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.message {
+  font-size: 0.75rem; /* 12px */
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.cancelBtn {
+  height: 1.75rem; /* 28px macOS button */
+  padding: 0 0.875rem;
+  border-radius: 0.375rem; /* 6px */
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  font-family: inherit;
+}
+
+.cancelBtn:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.cancelBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.destructiveBtn {
+  height: 1.75rem; /* 28px macOS button */
+  padding: 0 0.875rem;
+  border-radius: 0.375rem; /* 6px */
+  background: #ff453a; /* macOS system destructive red */
+  border: none;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  transition: background 0.12s ease, opacity 0.12s ease;
+  font-family: inherit;
+}
+
+.destructiveBtn:hover {
+  background: #e0382e;
+}
+
+.destructiveBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

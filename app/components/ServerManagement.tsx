@@ -1,25 +1,19 @@
-import {
-  ActionIcon,
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Container,
-  Group,
-  Paper,
-  PasswordInput,
-  Stack,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
+import { Alert, Tooltip } from "@mantine/core";
 import type { EmbyServer } from "@shared";
-import { IconAlertCircle, IconCheck, IconPlus, IconServer, IconTrash } from "@tabler/icons-react";
+import {
+  IconAlertCircle,
+  IconCheck,
+  IconPlus,
+  IconServer,
+  IconTrash,
+} from "@tabler/icons-react";
 import type React from "react";
 import { useState } from "react";
 import { useIINABridge } from "../hooks/useIINABridge";
 import { authenticateByName } from "../lib/emby-auth-client";
 import { ConfirmModal } from "./ConfirmModal";
+import { IINAEmbyLogo } from "./IINAEmbyLogo";
+import styles from "./ServerManagement.module.css";
 
 interface ServerManagementProps {
   onServerSelected?: (serverId: string) => void;
@@ -31,6 +25,7 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
   const [serverToDelete, setServerToDelete] = useState<EmbyServer | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const showForm = isAdding || servers.length === 0;
+
   const [serverUrl, setServerUrl] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -71,144 +66,203 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
   };
 
   return (
-    <Container size="sm" py="xl">
-      <Stack gap="lg">
-        <div>
-          <Title order={2} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <IconServer size={28} />
-            Emby Servers
-          </Title>
-          <Text c="dimmed" size="sm">
-            Select a connected Emby server or add a new one.
-          </Text>
+    <div className={styles.container}>
+      {/* Left sidebar matching IINA welcome window */}
+      <aside className={styles.sidebar}>
+        <div className={styles.sidebarDragRegion} />
+        <div className={styles.sidebarContent}>
+          <IINAEmbyLogo size={80} />
+          <h1 className={styles.sidebarTitle}>IINA</h1>
+          <p className={styles.sidebarSubtitle}>Emby Browser</p>
+          <span className={styles.sidebarVersion}>v1.0.0</span>
         </div>
+      </aside>
 
+      {/* Right content pane */}
+      <main className={styles.content}>
+        <div className={styles.contentDragRegion} />
+
+        {/* Saved servers section */}
         {servers.length > 0 && (
-          <Stack gap="xs">
-            <Text fw={500} size="sm">
-              Saved Servers
-            </Text>
-            {servers.map((server) => {
-              const isActive = server.id === activeServerId;
-              return (
-                <Card
-                  key={server.id}
-                  padding="md"
-                  radius="md"
-                  withBorder
-                  style={{
-                    cursor: "pointer",
-                    borderColor: isActive ? "var(--mantine-color-teal-6)" : undefined,
-                    backgroundColor: isActive ? "rgba(18, 184, 134, 0.08)" : undefined,
-                    transition: "all 0.15s ease",
-                  }}
-                  onClick={() => handleSelect(server.id)}
-                >
-                  <Group justify="space-between" wrap="nowrap">
-                    <Stack gap={2} style={{ overflow: "hidden" }}>
-                      <Group gap="xs">
-                        <Text fw={600} truncate>
-                          {server.serverName || "Emby Server"}
-                        </Text>
-                        {isActive && (
-                          <Badge color="teal" size="sm" variant="light">
-                            Active
-                          </Badge>
-                        )}
-                      </Group>
-                      <Text size="xs" c="dimmed" truncate>
-                        {server.serverUrl}
-                      </Text>
-                      {server.username && (
-                        <Text size="xs" c="dimmed">
-                          User:{" "}
-                          <Text span fw={500}>
-                            {server.username}
-                          </Text>
-                        </Text>
-                      )}
-                    </Stack>
+          <>
+            <div className={styles.sectionHeader}>
+              <span className={styles.sectionTitle}>Saved Servers</span>
+            </div>
 
-                    <Group gap="xs">
-                      <ActionIcon
-                        variant="subtle"
-                        color="red"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setServerToDelete(server);
-                        }}
-                        title="Remove server"
-                      >
-                        <IconTrash size={16} />
-                      </ActionIcon>
-                    </Group>
-                  </Group>
-                </Card>
-              );
-            })}
-          </Stack>
+            <div className={styles.serverList}>
+              {servers.map((server) => {
+                const isActive = server.id === activeServerId;
+                return (
+                  <div
+                    key={server.id}
+                    className={`${styles.serverRow} ${isActive ? styles.serverRowActive : ""}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleSelect(server.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") handleSelect(server.id);
+                    }}
+                  >
+                    <div className={styles.serverRowLeft}>
+                      <span className={styles.serverRowIcon}>
+                        <IconServer size={18} stroke={1.8} />
+                      </span>
+                      <div className={styles.serverRowDetails}>
+                        <div className={styles.serverRowNameRow}>
+                          <span className={styles.serverRowName}>
+                            {server.serverName || "Emby Server"}
+                          </span>
+                          {isActive && <span className={styles.activeDot} title="Active Server" />}
+                        </div>
+                        <span className={styles.serverRowSub}>
+                          {server.serverUrl}
+                          {server.username ? ` · ${server.username}` : ""}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className={styles.serverRowActions}>
+                      <Tooltip label="Remove server" withArrow>
+                        <button
+                          type="button"
+                          className={styles.deleteBtn}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setServerToDelete(server);
+                          }}
+                          aria-label="Remove server"
+                        >
+                          <IconTrash size={17} stroke={1.8} />
+                        </button>
+                      </Tooltip>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
 
-        {!showForm && (
-          <Button variant="light" leftSection={<IconPlus size={16} />} onClick={() => setIsAdding(true)}>
-            Add Another Server
-          </Button>
+        {/* Add server button (placed below saved servers) */}
+        {!showForm && servers.length > 0 && (
+          <div
+            className={styles.actionRow}
+            role="button"
+            tabIndex={0}
+            onClick={() => setIsAdding(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") setIsAdding(true);
+            }}
+          >
+            <div className={styles.actionLeft}>
+              <IconPlus size={15} stroke={2.2} />
+              <span>Add Another Server...</span>
+            </div>
+            <span className={styles.shortcutGlyph}>⌘N</span>
+          </div>
         )}
 
+        {/* Native macOS Form Sheet/Panel */}
         {showForm && (
-          <Paper withBorder p="lg" radius="md">
+          <div className={styles.formPanel}>
             <form onSubmit={handleConnect}>
-              <Stack gap="md">
-                <Group justify="space-between">
-                  <Title order={4}>Add Emby Server</Title>
-                  {servers.length > 0 && (
-                    <Button variant="subtle" size="xs" onClick={() => setIsAdding(false)}>
-                      Cancel
-                    </Button>
-                  )}
-                </Group>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <h3 className={styles.formTitle}>
+                  {servers.length === 0 ? "Connect to Emby" : "Add Emby Server"}
+                </h3>
 
                 {error && (
-                  <Alert icon={<IconAlertCircle size={16} />} title="Error" color="red" variant="light">
+                  <Alert
+                    icon={<IconAlertCircle size={15} />}
+                    title="Connection Error"
+                    color="red"
+                    variant="light"
+                    styles={{
+                      root: {
+                        backgroundColor: "rgba(250, 82, 82, 0.12)",
+                        borderColor: "rgba(250, 82, 82, 0.3)",
+                        padding: "6px 10px",
+                      },
+                      message: { fontSize: "12px" },
+                      title: { fontSize: "12px", fontWeight: 600 },
+                    }}
+                  >
                     {error}
                   </Alert>
                 )}
 
-                <TextInput
-                  label="Server URL"
-                  placeholder="http://myserver:8096"
-                  description="Address of your Emby server (port 8096 by default)"
-                  required
-                  value={serverUrl}
-                  onChange={(e) => setServerUrl(e.currentTarget.value)}
-                  disabled={isLoading}
-                />
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel} htmlFor="serverUrl">
+                    Server Address
+                  </label>
+                  <input
+                    id="serverUrl"
+                    type="url"
+                    className={styles.nativeInput}
+                    placeholder="http://192.168.1.100:8096"
+                    required
+                    value={serverUrl}
+                    onChange={(e) => setServerUrl(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
 
-                <TextInput
-                  label="Username"
-                  placeholder="Your username"
-                  required
-                  value={username}
-                  onChange={(e) => setUsername(e.currentTarget.value)}
-                  disabled={isLoading}
-                />
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel} htmlFor="serverUsername">
+                    Username
+                  </label>
+                  <input
+                    id="serverUsername"
+                    type="text"
+                    className={styles.nativeInput}
+                    placeholder="Username"
+                    required
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
 
-                <PasswordInput
-                  label="Password"
-                  placeholder="Your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.currentTarget.value)}
-                  disabled={isLoading}
-                />
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel} htmlFor="serverPassword">
+                    Password
+                  </label>
+                  <input
+                    id="serverPassword"
+                    type="password"
+                    className={styles.nativeInput}
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
 
-                <Button type="submit" fullWidth loading={isLoading} leftSection={!isLoading ? <IconCheck size={18} /> : undefined}>
-                  Connect & Sign In
-                </Button>
-              </Stack>
+                <div className={styles.formActions}>
+                  {servers.length > 0 && (
+                    <button
+                      type="button"
+                      className={styles.macCancelBtn}
+                      onClick={() => setIsAdding(false)}
+                      disabled={isLoading}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className={styles.macPrimaryBtn}
+                    disabled={isLoading}
+                  >
+                    {!isLoading && <IconCheck size={14} />}
+                    {isLoading ? "Connecting..." : "Connect"}
+                  </button>
+                </div>
+              </div>
             </form>
-          </Paper>
+          </div>
         )}
-      </Stack>
+      </main>
 
       <ConfirmModal
         opened={serverToDelete !== null}
@@ -223,15 +277,15 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
         message={
           <>
             Are you sure you want to remove{" "}
-            <Text span fw={600} c="var(--mantine-color-text)">
+            <span style={{ fontWeight: 600, color: "#ffffff" }}>
               {serverToDelete?.serverName || "this server"}
-            </Text>
+            </span>
             ? You will need to sign in again to reconnect.
           </>
         }
         confirmLabel="Remove"
         confirmColor="red"
       />
-    </Container>
+    </div>
   );
 }

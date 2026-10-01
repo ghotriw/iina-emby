@@ -1,5 +1,6 @@
 import type { EmbyServer, PlayMediaPayload, TypedIinaBridge } from "@shared";
-import { useCallback, useEffect, useState } from "react";
+import type React from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { setClientIdentity } from "../lib/emby-auth-client";
 
 declare global {
@@ -11,15 +12,26 @@ declare global {
 const LOCAL_STORAGE_SERVERS_KEY = "emby_saved_servers";
 const LOCAL_STORAGE_ACTIVE_KEY = "emby_active_server_id";
 
-export function useIINABridge() {
+export interface IINABridgeContextType {
+  servers: EmbyServer[];
+  activeServer: EmbyServer | null;
+  activeServerId: string | null;
+  isIinaAvailable: boolean;
+  isStandalone: boolean;
+  isLoading: boolean;
+  saveServer: (server: EmbyServer) => void;
+  selectServer: (serverId: string) => void;
+  removeServer: (serverId: string) => void;
+  playMedia: (payload: PlayMediaPayload) => void;
+}
+
+const IINABridgeContext = createContext<IINABridgeContextType | null>(null);
+
+export function IINABridgeProvider({ children }: { children: React.ReactNode }) {
+  const hasIina = typeof window !== "undefined" && Boolean(window?.iina?.postMessage);
+
   const [servers, setServers] = useState<EmbyServer[]>(() => {
-    if (typeof window !== "undefined" && window?.iina?.postMessage) {
-      try {
-        localStorage.removeItem(LOCAL_STORAGE_SERVERS_KEY);
-        localStorage.removeItem(LOCAL_STORAGE_ACTIVE_KEY);
-      } catch {
-        // Ignore
-      }
+    if (hasIina) {
       return [];
     }
     try {
@@ -31,14 +43,15 @@ export function useIINABridge() {
   });
 
   const [activeServerId, setActiveServerId] = useState<string | null>(() => {
-    if (typeof window !== "undefined" && window?.iina?.postMessage) {
+    if (hasIina) {
       return null;
     }
     return localStorage.getItem(LOCAL_STORAGE_ACTIVE_KEY);
   });
 
-  const [isIinaAvailable, setIsIinaAvailable] = useState<boolean>(false);
+  const [isIinaAvailable, setIsIinaAvailable] = useState<boolean>(hasIina);
   const [isStandalone, setIsStandalone] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(hasIina);
 
   // Standalone web dev fallback: synchronize servers and active server ID to localStorage only when NOT in IINA
   useEffect(() => {
@@ -59,7 +72,6 @@ export function useIINABridge() {
 
   // Setup IINA bridge listeners on mount
   useEffect(() => {
-    const hasIina = typeof window !== "undefined" && Boolean(window?.iina?.postMessage);
     setIsIinaAvailable(hasIina);
 
     if (hasIina && window.iina) {
@@ -80,6 +92,7 @@ export function useIINABridge() {
           setServers(data.servers);
           setActiveServerId(data.activeServerId || (data.servers[0]?.id ?? null));
         }
+        setIsLoading(false);
       });
 
       window.iina.onMessage("servers-updated", (data) => {
@@ -89,13 +102,23 @@ export function useIINABridge() {
             setActiveServerId(data.activeServerId);
           }
         }
+        setIsLoading(false);
       });
 
       // Request identity and servers list on mount
       window.iina.postMessage("get-client-identity");
       window.iina.postMessage("get-servers");
+
+      // Timeout fallback to stop loading state if IINA takes too long
+      const timer = setTimeout(() => {
+        setIsLoading(false);
+      }, 1000);
+
+      return () => clearTimeout(timer);
     }
-  }, []);
+
+    setIsLoading(false);
+  }, [hasIina]);
 
   // Persist standalone window size changes
   useEffect(() => {
@@ -170,15 +193,26 @@ export function useIINABridge() {
 
   const activeServer = servers.find((s) => s.id === activeServerId) || servers[0] || null;
 
-  return {
+  const value: IINABridgeContextType = {
     servers,
     activeServer,
     activeServerId,
     isIinaAvailable,
     isStandalone,
+    isLoading,
     saveServer,
     selectServer,
     removeServer,
     playMedia,
   };
+
+  return <IINABridgeContext.Provider value={value}>{children}</IINABridgeContext.Provider>;
+}
+
+export function useIINABridge(): IINABridgeContextType {
+  const context = useContext(IINABridgeContext);
+  if (!context) {
+    throw new Error("useIINABridge must be used within an IINABridgeProvider");
+  }
+  return context;
 }

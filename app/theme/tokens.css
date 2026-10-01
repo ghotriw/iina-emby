@@ -1,0 +1,61 @@
+:root {
+  /* ========================================================================
+     macOS / IINA Design System Tokens (All values in rem, 1rem = 16px)
+     ======================================================================== */
+
+  /* Materials & Translucent Backgrounds */
+  --macos-bg-window: rgba(34, 34, 42, 0.55);
+  --macos-bg-sidebar: linear-gradient(180deg, #1e1e1e 0%, #121212 100%);
+  --macos-bg-panel: rgba(255, 255, 255, 0.04);
+  --macos-bg-control: rgba(255, 255, 255, 0.12);
+  --macos-bg-control-hover: rgba(255, 255, 255, 0.18);
+  --macos-bg-control-active: rgba(255, 255, 255, 0.24);
+  --macos-bg-row-hover: rgba(255, 255, 255, 0.08);
+  --macos-bg-row-active: rgba(255, 255, 255, 0.05);
+  --macos-bg-input: rgba(0, 0, 0, 0.3);
+  --macos-bg-dialog: rgba(26, 26, 32, 0.92);
+  --macos-bg-overlay: rgba(0, 0, 0, 0.45);
+
+  /* Borders & Dividers */
+  --macos-border-subtle: rgba(255, 255, 255, 0.08);
+  --macos-border-control: rgba(255, 255, 255, 0.12);
+  --macos-border-focus: #007aff;
+
+  /* Typography Colors (Apple HIG) */
+  --macos-text-primary: #ffffff;
+  --macos-text-secondary: rgba(255, 255, 255, 0.65);
+  --macos-text-tertiary: rgba(255, 255, 255, 0.42);
+  --macos-text-disabled: rgba(255, 255, 255, 0.25);
+
+  /* Accent Colors */
+  --macos-accent-blue: #007aff;
+  --macos-accent-blue-hover: #0069d9;
+  --macos-accent-teal: #12b886;
+  --macos-accent-red: #ff453a;
+  --macos-accent-red-hover: #e0382e;
+
+  /* Corner Radii (IINA Native Standard: 6px = 0.375rem) */
+  --radius-control: 0.375rem; /* 6px — buttons, inputs, rows, action capsules */
+  --radius-panel: 0.375rem;   /* 6px — inset forms, grouped boxes */
+  --radius-dialog: 0.5rem;    /* 8px — alert sheets, dialogs */
+  --radius-card: 0.5rem;      /* 8px — media posters, cards */
+
+  /* Standard Heights */
+  --height-input: 1.75rem;     /* 28px — macOS standard control height */
+  --height-btn-sm: 1.625rem;   /* 26px — compact buttons (Cancel/Connect) */
+  --height-btn-md: 1.75rem;    /* 28px — standard buttons */
+  --height-action: 2.125rem;   /* 34px — IINA Open... / Add Server capsule */
+  --height-toolbar: 2.75rem;   /* 44px — clean toolbar without traffic lights indent */
+
+  /* Typography Scale */
+  --font-size-caption: 0.6875rem; /* 11px */
+  --font-size-sub: 0.75rem;       /* 12px */
+  --font-size-body: 0.8125rem;    /* 13px — standard macOS UI font size */
+  --font-size-title: 0.875rem;    /* 14px */
+  --font-size-h2: 1.125rem;       /* 18px */
+  --font-size-h1: 1.375rem;       /* 22px */
+
+  /* Font Families */
+  --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+}
