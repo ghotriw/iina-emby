@@ -1,8 +1,10 @@
-import { Badge, Button, Card, Code, Container, Group, Stack, Text, ThemeIcon, Title } from "@mantine/core";
-import { IconArrowRight, IconMovie, IconServer } from "@tabler/icons-react";
+import { Button, Container, Group, Stack, Text, ThemeIcon, Title } from "@mantine/core";
+import { IconArrowRight, IconServer } from "@tabler/icons-react";
 import { useNavigate } from "react-router";
 import { ContinueWatching } from "../components/ContinueWatching";
+import { LibraryShelf } from "../components/LibraryShelf";
 import { useIINABridge } from "../hooks/useIINABridge";
+import { useLibrarySections } from "../hooks/useLibrarySections";
 
 export function meta() {
   return [{ title: "Home - IINA Emby" }, { name: "description", content: "Emby Media Browser" }];
@@ -11,6 +13,7 @@ export function meta() {
 export default function HomeRoute() {
   const navigate = useNavigate();
   const { activeServer, servers, playMedia } = useIINABridge();
+  const { sections, isLoading: isLoadingSections } = useLibrarySections(activeServer);
 
   if (servers.length === 0 || !activeServer) {
     return (
@@ -33,7 +36,7 @@ export default function HomeRoute() {
 
   return (
     <Container size="md" py="xl">
-      <Stack gap="lg">
+      <Stack gap="xl">
         <Group justify="space-between" align="center">
           <div>
             <Title order={2}>{activeServer.serverName || "Emby Server"}</Title>
@@ -49,22 +52,18 @@ export default function HomeRoute() {
           </Button>
         </Group>
 
-        <Card withBorder p="xl" radius="md">
-          <Stack align="center" gap="xs" py="md">
-            <ThemeIcon size={48} radius="xl" color="teal" variant="light">
-              <IconMovie size={28} />
-            </ThemeIcon>
-            <Title order={3}>Server Connected!</Title>
-            <Text c="dimmed" size="sm" ta="center" maw={460}>
-              Server URL: <Code>{activeServer.serverUrl}</Code>
-            </Text>
-            <Badge color="teal" variant="dot">
-              Ready for Media Browser
-            </Badge>
-          </Stack>
-        </Card>
-
+        {/* 1. Continue Watching shelf (16:9 landscape previews with progress) */}
         <ContinueWatching server={activeServer} onPlayMedia={playMedia} />
+
+        {/* 2. Library shelves (Movies, TV shows, etc.) with 2:3 vertical posters */}
+        {sections.map(({ view, items }) => (
+          <LibraryShelf
+            key={view.Id}
+            view={view}
+            items={items}
+            server={activeServer}
+          />
+        ))}
       </Stack>
     </Container>
   );

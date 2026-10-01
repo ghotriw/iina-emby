@@ -44,6 +44,7 @@ export interface EmbyUserData {
   PlayCount?: number;
   IsFavorite?: boolean;
   Played?: boolean;
+  UnplayedItemCount?: number;
   Key?: string;
   [key: string]: unknown;
 }
@@ -58,6 +59,13 @@ export interface EmbyMediaStream {
   DeliveryUrl?: string;
   Index?: number;
   Path?: string;
+  Width?: number;
+  Height?: number;
+  RealFrameRate?: number;
+  AverageFrameRate?: number;
+  VideoRange?: string;
+  ExtendedVideoType?: string;
+  ExtendedVideoSubType?: string;
   [key: string]: unknown;
 }
 
@@ -66,6 +74,7 @@ export interface EmbyMediaSource {
   Name?: string;
   Path?: string;
   Protocol?: string;
+  Size?: number;
   MediaStreams?: EmbyMediaStream[];
   RunTimeTicks?: number;
   [key: string]: unknown;
@@ -82,6 +91,13 @@ export interface EmbyItemMetadata {
   IndexNumber?: number;
   ProductionYear?: number;
   RunTimeTicks?: number;
+  CommunityRating?: number;
+  PremiereDate?: string;
+  Overview?: string;
+  OfficialRating?: string;
+  Genres?: string[];
+  GenreItems?: Array<{ Name: string; Id?: string | number }>;
+  MediaStreams?: EmbyMediaStream[];
   UserData?: EmbyUserData;
   MediaSources?: EmbyMediaSource[];
   ImageTags?: Record<string, string>;
@@ -91,6 +107,15 @@ export interface EmbyItemMetadata {
   ParentBackdropItemId?: string;
   ParentBackdropImageTags?: string[];
   SeriesPrimaryImageTag?: string;
+  [key: string]: unknown;
+}
+
+export interface EmbyView {
+  Id: string;
+  Name: string;
+  CollectionType?: "movies" | "tvshows" | "music" | "homevideos" | string;
+  Type?: string;
+  ImageTags?: Record<string, string>;
   [key: string]: unknown;
 }
 

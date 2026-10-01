@@ -1,4 +1,4 @@
-import type { EmbyItemMetadata, EmbyItemsResponse, EmbyServer } from "@shared";
+import type { EmbyItemMetadata, EmbyItemsResponse, EmbyServer, EmbyView } from "@shared";
 import { buildAuthHeaders } from "./emby-auth-client";
 
 /**
@@ -29,6 +29,103 @@ export async function fetchResumeItems(server: EmbyServer, limit = 12): Promise<
 
   const data = (await response.json()) as EmbyItemsResponse<EmbyItemMetadata>;
   return data.Items || [];
+}
+
+/**
+ * Fetch root user library views (e.g. Movies, TV shows).
+ */
+export async function fetchUserViews(server: EmbyServer): Promise<EmbyView[]> {
+  const base = server.serverUrl.replace(/\/+$/, "");
+  const url = `${base}/Users/${encodeURIComponent(server.userId)}/Views`;
+
+  const response = await fetch(url, {
+    headers: buildAuthHeaders(server.accessToken, {
+      Accept: "application/json",
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch user views: ${response.status} ${response.statusText}`);
+  }
+
+  const data = (await response.json()) as EmbyItemsResponse<EmbyView>;
+  return data.Items || [];
+}
+
+/**
+ * Fetch latest items for a specific library (ParentId).
+ */
+export async function fetchLatestItems(server: EmbyServer, parentId: string, limit = 16): Promise<EmbyItemMetadata[]> {
+  const base = server.serverUrl.replace(/\/+$/, "");
+  const query = new URLSearchParams({
+    ParentId: parentId,
+    Limit: String(limit),
+    Fields:
+      "CommunityRating,ProductionYear,ImageTags,BackdropImageTags,UserData,PrimaryImageAspectRatio,SeriesName",
+    EnableImageTypes: "Primary,Backdrop,Thumb",
+    ImageTypeLimit: "1",
+  });
+
+  const url = `${base}/Users/${encodeURIComponent(server.userId)}/Items/Latest?${query.toString()}`;
+  const response = await fetch(url, {
+    headers: buildAuthHeaders(server.accessToken, {
+      Accept: "application/json",
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch latest items for library ${parentId}: ${response.status} ${response.statusText}`);
+  }
+
+  const data = (await response.json()) as EmbyItemMetadata[];
+  return Array.isArray(data) ? data : [];
+}
+
+/**
+ * Fetch next up episode for a series.
+ */
+export async function fetchNextUp(server: EmbyServer, seriesId: string): Promise<EmbyItemMetadata | null> {
+  const base = server.serverUrl.replace(/\/+$/, "");
+  const query = new URLSearchParams({
+    SeriesId: seriesId,
+    UserId: server.userId,
+    Limit: "1",
+    Fields: "UserData,MediaSources,MediaStreams,ImageTags,Overview,RunTimeTicks,PremiereDate,ParentIndexNumber,IndexNumber",
+  });
+
+  const url = `${base}/Shows/NextUp?${query.toString()}`;
+  const response = await fetch(url, {
+    headers: buildAuthHeaders(server.accessToken, {
+      Accept: "application/json",
+    }),
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = (await response.json()) as EmbyItemsResponse<EmbyItemMetadata>;
+  return data.Items?.[0] || null;
+}
+
+/**
+ * Fetch full details for a single item.
+ */
+export async function fetchItemDetails(server: EmbyServer, itemId: string): Promise<EmbyItemMetadata> {
+  const base = server.serverUrl.replace(/\/+$/, "");
+  const url = `${base}/Users/${encodeURIComponent(server.userId)}/Items/${encodeURIComponent(itemId)}`;
+
+  const response = await fetch(url, {
+    headers: buildAuthHeaders(server.accessToken, {
+      Accept: "application/json",
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch item details: ${response.status} ${response.statusText}`);
+  }
+
+  return (await response.json()) as EmbyItemMetadata;
 }
 
 /**
