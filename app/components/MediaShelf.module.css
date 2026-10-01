@@ -8,15 +8,15 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 0.625rem;
 }
 
 .title {
   margin: 0;
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 700;
-  color: #ffffff;
-  letter-spacing: -0.2px;
+  color: var(--macos-text-primary);
+  letter-spacing: -0.0125rem;
 }
 
 .scroller {
@@ -26,8 +26,8 @@
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   /* Extra vertical padding so hover scale and focus rings don't get clipped */
-  padding: 6px 2px 12px 2px;
-  margin: -6px -2px -12px -2px;
+  padding: 0.375rem 0.125rem 0.75rem 0.125rem;
+  margin: -0.375rem -0.125rem -0.75rem -0.125rem;
   scrollbar-width: none;
 }
 

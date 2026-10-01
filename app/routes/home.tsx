@@ -44,17 +44,9 @@ export default function HomeRoute() {
           <Button
             variant="subtle"
             size="xs"
-            radius="md"
-            color="gray"
             leftSection={<IconServer size={14} />}
             onClick={() => navigate("/servers")}
-            styles={{
-              root: {
-                backgroundColor: "rgba(255, 255, 255, 0.12)",
-                color: "#ffffff",
-                fontWeight: 500,
-              },
-            }}
+            className={styles.switchServerBtn}
           >
             Switch Server
           </Button>

@@ -3,7 +3,7 @@
   min-height: 100vh;
   width: 100%;
   background: transparent;
-  color: #ffffff;
+  color: var(--macos-text-primary);
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
@@ -134,7 +134,7 @@
   font-size: 32px;
   font-weight: 800;
   line-height: 1.15;
-  color: #ffffff;
+  color: var(--macos-text-primary);
   margin: 0;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
   letter-spacing: -0.5px;
@@ -165,11 +165,11 @@
   align-items: center;
   gap: 4px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--macos-text-primary);
 }
 
 .starIcon {
-  color: #ff4d4f;
+  color: var(--macos-accent-red);
   font-size: 15px;
   line-height: 1;
 }
@@ -181,7 +181,7 @@
   padding: 1px 6px;
   font-size: 11px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--macos-text-primary);
   letter-spacing: 0.5px;
   line-height: 1.3;
 }
@@ -222,6 +222,6 @@
 }
 
 .overviewPrefix {
-  color: #ffffff;
+  color: var(--macos-text-primary);
   font-weight: 600;
 }

@@ -108,7 +108,7 @@ export function MediaShelf({ title, rightSection, children, itemWidth = 260, gap
           })}
         </div>
       ) : emptyText ? (
-        <div style={{ color: "#909296", fontSize: 13, padding: "8px 0" }}>{emptyText}</div>
+        <div style={{ color: "var(--macos-text-tertiary)", fontSize: "var(--font-size-body)", padding: "0.5rem 0" }}>{emptyText}</div>
       ) : null}
     </section>
   );

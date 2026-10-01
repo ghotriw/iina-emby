@@ -24,12 +24,12 @@
   overflow: hidden;
   background-color: rgba(20, 20, 26, 0.8);
   border: none;
-  box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.3), 0 0.0625rem 0.1875rem rgba(0, 0, 0, 0.2);
+  box-shadow: var(--macos-shadow-card);
   transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.25s ease;
 }
 
 .card:hover .preview {
-  box-shadow: 0 0.375rem 1.125rem rgba(0, 0, 0, 0.45), 0 0.125rem 0.375rem rgba(0, 0, 0, 0.25);
+  box-shadow: var(--macos-shadow-thumb-hover);
 }
 
 .image {
@@ -77,11 +77,11 @@
   background: rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(0.375rem);
   -webkit-backdrop-filter: blur(0.375rem);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid var(--macos-border-control);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  color: var(--macos-text-primary);
   box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.4);
   transform: scale(0.9);
   transition: transform 0.2s ease;
@@ -113,7 +113,7 @@
 }
 
 .timeText {
-  color: #ffffff;
+  color: var(--macos-text-primary);
   font-size: 0.6875rem;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -127,13 +127,13 @@
   left: 0;
   right: 0;
   height: 0.1875rem;
-  background-color: rgba(255, 255, 255, 0.25);
+  background-color: var(--macos-text-disabled);
   pointer-events: none;
 }
 
 .progressBarFill {
   height: 100%;
-  background-color: #ffffff;
+  background-color: var(--macos-text-primary);
   box-shadow: 0 0 0.25rem rgba(255, 255, 255, 0.5);
   border-radius: 0 0.0625rem 0.0625rem 0;
   transition: width 0.2s ease;

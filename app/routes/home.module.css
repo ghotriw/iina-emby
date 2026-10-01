@@ -15,7 +15,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 1.25rem; /* symmetric padding */
-  background: rgba(18, 18, 24, 0.5);
+  background: var(--macos-bg-toolbar);
   backdrop-filter: blur(1.5rem);
   -webkit-backdrop-filter: blur(1.5rem);
   border-bottom: 1px solid var(--macos-border-subtle);
@@ -70,6 +70,19 @@
   align-items: center;
   gap: 0.5rem;
   -webkit-app-region: no-drag;
+}
+
+.switchServerBtn {
+  background-color: var(--macos-bg-control) !important;
+  color: var(--macos-text-primary) !important;
+  font-weight: 500;
+  border: none;
+  border-radius: var(--radius-control);
+  transition: background-color 0.12s ease;
+}
+
+.switchServerBtn:hover {
+  background-color: var(--macos-bg-control-hover) !important;
 }
 
 /* Main scrollable body */

@@ -361,7 +361,7 @@
   border-radius: var(--radius-control);
   background: var(--macos-accent-blue);
   border: none;
-  color: #ffffff;
+  color: var(--macos-text-primary);
   font-size: var(--font-size-sub);
   font-weight: 500;
   cursor: pointer;
