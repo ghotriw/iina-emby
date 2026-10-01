@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Emby Plugin Preferences</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        padding: 16px;
+        margin: 0;
+        font-size: 13px;
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
+          'Open Sans', 'Helvetica Neue', sans-serif;
+      }
+
+      p {
+        margin: 0;
+      }
+
+      small,
+      .small {
+        font-size: 11px;
+      }
+
+      .secondary {
+        color: rgba(0, 0, 0, 0.5);
+      }
+
+      .pref-section {
+        margin-bottom: 12px;
+      }
+
+      .pref-help {
+        margin-top: 2px;
+      }
+
+      .section-header {
+        font-weight: bold;
+        font-size: 14px;
+        margin: 20px 0 10px 0;
+        padding-bottom: 5px;
+        border-bottom: 1px solid #e0e0e0;
+      }
+
+      .section-header:first-child {
+        margin-top: 0;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="section-header">Authentication & Session</div>
+
+    <div class="pref-section">
+      <label>
+        <input type="checkbox" data-type="bool" data-pref-key="auto_login_enabled" />
+        Enable automatic login from Emby URLs
+      </label>
+      <p class="small secondary pref-help">
+        Automatically extract server URL and API key from Emby URLs (like download links) and use
+        them to auto-login to the sidebar browser. Server credentials are stored permanently until
+        manually removed via the server management panel.
+      </p>
+    </div>
+
+    <div class="section-header">Media Playback</div>
+
+    <div class="pref-section">
+      <label>
+        <input type="checkbox" data-type="bool" data-pref-key="auto_download_enabled" />
+        Enable automatic subtitle download
+      </label>
+      <p class="small secondary pref-help">
+        Automatically download external subtitle files when opening Emby media URLs in IINA.
+        Subtitles embedded in the media file are not downloaded — IINA reads those directly from the
+        file.
+      </p>
+    </div>
+
+    <div class="pref-section">
+      <label>
+        <input type="checkbox" data-type="bool" data-pref-key="set_video_title" />
+        Set video title from Emby metadata
+      </label>
+      <p class="small secondary pref-help">
+        Replace the default filename with the actual movie/show title from Emby. Shows proper titles
+        instead of generic "Download?ApiKey=..." names.
+      </p>
+    </div>
+
+    <div class="pref-section">
+      <label>
+        <input type="checkbox" data-type="bool" data-pref-key="open_in_new_window" />
+        Open media in new IINA window
+      </label>
+      <p class="small secondary pref-help">
+        When playing media from Emby browser, open it in a new IINA window instead of the current
+        one. This allows you to keep browsing while watching.
+      </p>
+    </div>
+
+    <div class="pref-section">
+      <label>
+        <input type="checkbox" data-type="bool" data-pref-key="sync_playback_progress" />
+        Sync playback progress to Emby
+      </label>
+      <p class="small secondary pref-help">
+        Report your playback progress to Emby while watching. Videos will be automatically marked as
+        "watched" when you complete 95% of the content. This keeps your Emby library in sync with
+        what you've watched in IINA.
+      </p>
+    </div>
+
+    <div class="pref-section">
+      <label>
+        <input type="checkbox" data-type="bool" data-pref-key="use_connected_account" />
+        Report to my connected account (ignore link's API key)
+      </label>
+      <p class="small secondary pref-help">
+        When on, progress, resume and watched status are reported to the Emby account you logged
+        into via the Emby browser sidebar — instead of the account whose api_key is in the playing
+        URL. Ideal for Syncplay watch-togethers: everyone opens the same shared link, but each
+        viewer's progress records into their own account. Requires being logged in via the sidebar;
+        falls back to the URL's api_key if no account is connected.
+      </p>
+    </div>
+
+    <div class="section-header">TV Series Playback</div>
+
+    <div class="pref-section">
+      <label>
+        <input type="checkbox" data-type="bool" data-pref-key="autoplay_next_episode" />
+        Autoplay next episode
+      </label>
+      <p class="small secondary pref-help">
+        When a TV episode ends, automatically play the next episode of the series if available. The
+        player will create a playlist of all available episodes and play them sequentially.
+      </p>
+    </div>
+
+    <div class="section-header">Subtitle Settings</div>
+
+    <div class="pref-section">
+      <label>
+        Preferred languages:
+        <input
+          type="text"
+          data-pref-key="preferred_languages"
+          style="width: 100%; margin-top: 2px"
+        />
+      </label>
+      <p class="small secondary pref-help">
+        Comma-separated list of language codes to download (e.g.,
+        <code>en,eng,pol,pl</code>). Use ISO 639-1 (2-letter) or ISO 639-2 (3-letter) language
+        codes.
+      </p>
+    </div>
+
+    <div class="pref-section">
+      <label>
+        <input type="checkbox" data-type="bool" data-pref-key="download_all_subtitles" />
+        Download all available subtitles
+      </label>
+      <p class="small secondary pref-help">
+        Download every external subtitle track regardless of language preferences. When enabled, the
+        preferred languages setting is ignored.
+      </p>
+    </div>
+
+    <div class="section-header">Notifications & UI</div>
+
+    <div class="pref-section">
+      <label>
+        <input type="checkbox" data-type="bool" data-pref-key="show_notifications" />
+        Show on-screen notifications
+      </label>
+      <p class="small secondary pref-help">
+        Display OSD messages when subtitles are downloaded or when errors occur.
+      </p>
+    </div>
+
+    <div class="section-header">Developer & Debug</div>
+
+    <div class="pref-section">
+      <label>
+        <input type="checkbox" data-type="bool" data-pref-key="debug_logging" />
+        Enable debug logging
+      </label>
+      <p class="small secondary pref-help">
+        Show detailed debug information in the console for troubleshooting. This will log parsing
+        details, API responses, and other internal operations.
+      </p>
+    </div>
+  </body>
+</html>

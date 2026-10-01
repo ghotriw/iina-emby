@@ -1,0 +1,246 @@
+/**
+ * IINA Emby Plugin
+ */
+
+import { isSameEmbyHost } from "@shared";
+import { createAutoplayManager } from "./lib/autoplay-manager";
+import { createBrowserWindowManager } from "./lib/browser-window";
+import { createDebugLogger } from "./lib/debug-log";
+import { createEmbyApi } from "./lib/emby-api";
+import { createMediaActionsManager } from "./lib/media-actions";
+import { createPlaybackCoordinator } from "./lib/playback-coordinator";
+import { createPlaybackTrackingManager } from "./lib/playback-tracking";
+import { createServerSessionStore } from "./lib/server-session-store";
+import type { WebviewBridgeDeps } from "./lib/webview-bridge";
+
+const { core, console: iinaConsole, menu, event, http, utils, preferences, mpv, sidebar, global: iinaGlobal, standaloneWindow } = iina;
+
+const debugLog = createDebugLogger(preferences, iinaConsole);
+
+const {
+  getClientIdentity,
+  buildEmbyHeaders,
+  parseEmbyUrl,
+  isEmbyUrl,
+  fetchPlaybackInfo,
+  fetchItemMetadata,
+  secondsToTicks,
+  ticksToSeconds,
+} = createEmbyApi({
+  http,
+  preferences,
+  log: debugLog,
+});
+
+const {
+  loadStoredServers,
+  getActiveServerId,
+  setActiveServerId,
+  addOrUpdateServer,
+  removeServer,
+  switchActiveServer,
+  storeEmbySession,
+  getStoredEmbySession,
+  clearEmbySession,
+} = createServerSessionStore({
+  preferences,
+  sidebar,
+  standaloneWindow,
+  log: debugLog,
+});
+
+debugLog("Emby Plugin loaded");
+
+const { startPlaybackTracking, stopPlaybackTracking, handlePauseChange, getCurrentPlaybackSession } = createPlaybackTrackingManager({
+  core,
+  http,
+  preferences,
+  buildEmbyHeaders,
+  fetchPlaybackInfo,
+  fetchItemMetadata,
+  secondsToTicks,
+  ticksToSeconds,
+  log: debugLog,
+});
+
+const { setupAutoplayForEpisode, resetForNewFile, clearQueuedFlag, isQueued } = createAutoplayManager({
+  http,
+  mpv,
+  core,
+  preferences,
+  buildEmbyHeaders,
+  fetchItemMetadata,
+  log: debugLog,
+});
+
+const { setVideoTitleFromMetadata, downloadAllSubtitles, manualDownloadSubtitles, manualSetTitle, updateFromFileUrl } =
+  createMediaActionsManager({
+    core,
+    http,
+    utils,
+    preferences,
+    mpv,
+    parseEmbyUrl,
+    isEmbyUrl,
+    fetchPlaybackInfo,
+    fetchItemMetadata,
+    log: debugLog,
+  });
+
+const { handlePlayMedia, handlePlayMediaList, flushPendingPlaylistQueue, consumeReplacementGuard } = createPlaybackCoordinator({
+  core,
+  mpv,
+  preferences,
+  global: iinaGlobal,
+  getCurrentPlaybackSession,
+  clearQueuedFlag,
+  log: debugLog,
+});
+
+/**
+ * Handle file loaded event
+ */
+function onFileLoaded(fileUrl?: string): void {
+  debugLog(`File loaded: ${fileUrl}`);
+
+  // The first item of a queued list is playing now, so the rest can be added
+  flushPendingPlaylistQueue(fileUrl);
+
+  // Stop any existing playback tracking from previous file
+  stopPlaybackTracking();
+
+  const embyInfo = updateFromFileUrl(fileUrl);
+  if (embyInfo) {
+    // Decide which credentials playback reporting (progress/resume/watched)
+    // should use. By default it's the api_key embedded in the playing URL, so
+    // it records into whoever owns that key. When "use_connected_account" is on
+    // and a server is logged in via the Emby browser sidebar, report to
+    // that account instead — the item id still comes from the URL, only the
+    // server + token change. This lets several people open the SAME shared link
+    // (e.g. over Syncplay) while each records progress into their own account.
+    let reportServerBase = embyInfo.serverBase;
+    let reportApiKey = embyInfo.apiKey;
+    if (preferences.get("use_connected_account")) {
+      const session = getStoredEmbySession();
+      if (session && session.accessToken) {
+        // Only the credentials may change, never the item id — reporting a
+        // URL's item to a different server would 404 on every request.
+        if (isSameEmbyHost(session.serverUrl, embyInfo.serverBase)) {
+          reportServerBase = session.serverUrl;
+          reportApiKey = session.accessToken;
+          debugLog(
+            `Connected-account mode: reporting as ${session.username || session.serverName} @ ${reportServerBase} (ignoring URL api_key)`,
+          );
+        } else {
+          debugLog(
+            `Connected-account mode ON but the logged-in server (${session.serverUrl}) is not the one in the URL (${embyInfo.serverBase}); using URL api_key`,
+          );
+        }
+      } else {
+        debugLog("Connected-account mode ON but no logged-in server; falling back to URL api_key");
+      }
+    } else if (preferences.get("auto_login_enabled")) {
+      // Default behaviour: remember this URL's session for auto-login.
+      storeEmbySession(embyInfo.serverBase, embyInfo.apiKey);
+    } else {
+      debugLog("Auto-login from Emby URLs disabled, not storing the URL credentials");
+    }
+
+    // Start playback tracking for progress sync
+    if (preferences.get("sync_playback_progress")) {
+      debugLog(`Starting playback tracking for: ${embyInfo.itemId}`);
+      startPlaybackTracking(reportServerBase, embyInfo.itemId, reportApiKey);
+    }
+
+    // Set video title from metadata if enabled
+    if (preferences.get("set_video_title")) {
+      debugLog(`Setting video title from metadata for: ${embyInfo.itemId}`);
+      setVideoTitleFromMetadata(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+    }
+
+    // Setup autoplay for TV episodes if enabled
+    if (preferences.get("autoplay_next_episode")) {
+      debugLog(`Setting up autoplay for episode (itemId): ${embyInfo.itemId}`);
+      resetForNewFile(embyInfo.itemId);
+      setupAutoplayForEpisode(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+    }
+
+    // Only auto-download if enabled
+    if (preferences.get("auto_download_enabled")) {
+      debugLog(`Auto-downloading subtitles for: ${embyInfo.itemId}`);
+      downloadAllSubtitles(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+    } else {
+      debugLog("Auto download disabled, but Emby URL stored for manual download");
+    }
+  }
+}
+
+// Setup unified webview bridge dependencies
+const bridgeDeps: WebviewBridgeDeps = {
+  core,
+  utils,
+  log: debugLog,
+  getClientIdentity,
+  getStoredEmbySession,
+  clearEmbySession,
+  loadStoredServers,
+  getActiveServerId,
+  setActiveServerId,
+  addOrUpdateServer,
+  removeServer,
+  switchActiveServer,
+  onPlayMedia: handlePlayMedia,
+  onPlayMediaList: handlePlayMediaList,
+};
+
+// Browser window manager (sidebar & standalone window)
+const { showEmbyBrowser, initSidebar } = createBrowserWindowManager({
+  core,
+  sidebar,
+  standaloneWindow,
+  bridgeDeps,
+  log: debugLog,
+});
+
+// Menu items
+menu.addItem(menu.item("Download Emby Subtitles", manualDownloadSubtitles));
+menu.addItem(menu.item("Set Emby Title", manualSetTitle));
+menu.addItem(
+  menu.item("Show Emby Browser", showEmbyBrowser, {
+    keyBinding: "Meta+Shift+e",
+  }),
+);
+
+// Event handlers
+event.on("iina.file-loaded", onFileLoaded);
+event.on("mpv.pause.changed", handlePauseChange);
+
+// Handle file ending (includes both natural end and replacement)
+event.on("mpv.end-file", () => {
+  const queuedForAutoplay = isQueued();
+  const isReplacingPlayback = consumeReplacementGuard();
+  debugLog(`mpv.end-file triggered, isReplacingPlayback=${isReplacingPlayback}, autoplayQueued=${queuedForAutoplay}`);
+  if (isReplacingPlayback) {
+    debugLog("File replacement in progress, skipping stop report");
+    return;
+  }
+  if (queuedForAutoplay) {
+    debugLog("Autoplay queued, mpv will play next episode — skipping stop cleanup");
+    clearQueuedFlag();
+    return;
+  }
+  stopPlaybackTracking();
+});
+
+event.on("iina.window-will-close", () => {
+  debugLog("Window closing, stopping playback tracking");
+  stopPlaybackTracking();
+});
+
+event.on("iina.application-will-terminate", () => {
+  debugLog("Application terminating, stopping playback tracking");
+  stopPlaybackTracking();
+});
+
+// Initialize sidebar when window is loaded
+event.on("iina.window-loaded", initSidebar);

@@ -1,0 +1,22 @@
+{
+  "include": ["app/**/*", "shared/**/*", "plugin/src/**/*", "vite.config.ts", "tsup.config.ts"],
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "types": ["node", "vite/client", "iina-plugin-definition"],
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "paths": {
+      "~/*": ["./app/*"],
+      "@shared": ["./shared/index.ts"],
+      "@shared/*": ["./shared/*"]
+    },
+    "esModuleInterop": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true
+  }
+}
