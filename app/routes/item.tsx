@@ -1,8 +1,9 @@
 import type { EmbyItemMetadata, EmbyMediaStream } from "@shared";
 import { getEmbyImageUrl, getItemImageUrl } from "@shared";
-import { IconChevronLeft, IconHome, IconPlayerPlayFilled } from "@tabler/icons-react";
+import { IconChevronLeft, IconPlayerPlayFilled } from "@tabler/icons-react";
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
+import { GlassButton } from "../components/GlassButton";
 import { useIINABridge } from "../hooks/useIINABridge";
 import { buildStreamUrl, fetchItemDetails, fetchNextUp } from "../lib/emby-library-client";
 import styles from "./item.module.css";
@@ -249,14 +250,17 @@ export default function ItemDetailRoute() {
 
       {/* Top Floating Navigation */}
       <header className={styles.topNav}>
-        <div className={styles.navPill}>
-          <button type="button" className={styles.navButton} onClick={() => navigate(-1)} aria-label="Back" title="Back">
-            <IconChevronLeft size={20} />
-          </button>
-          <button type="button" className={styles.navButton} onClick={() => navigate("/")} aria-label="Home" title="Home">
-            <IconHome size={18} />
-          </button>
-        </div>
+        <GlassButton
+          variant="glass"
+          shape="circle"
+          size="md"
+          isIconOnly
+          onClick={() => navigate(-1)}
+          aria-label="Back"
+          title="Back"
+        >
+          <IconChevronLeft size={22} />
+        </GlassButton>
       </header>
 
       {/* Hero Bottom Layout */}
@@ -275,10 +279,18 @@ export default function ItemDetailRoute() {
 
         <div className={styles.row}>
           <div className={styles.leftColumn}>
-            <button type="button" className={styles.playButton} onClick={handlePlay} disabled={isPlaying} aria-label="Play">
-              <IconPlayerPlayFilled size={18} />
+            <GlassButton
+              variant="primary"
+              size="lg"
+              shape="pill"
+              fullWidth
+              onClick={handlePlay}
+              disabled={isPlaying}
+              aria-label="Play"
+              leftSection={<IconPlayerPlayFilled size={18} />}
+            >
               <span>Play{resumeTimeClock ? ` ${resumeTimeClock}` : ""}</span>
-            </button>
+            </GlassButton>
           </div>
 
           {/* Right Column: Rating, Genres, Technical Specs, Overview */}
