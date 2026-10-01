@@ -129,9 +129,47 @@ export async function fetchItemDetails(server: EmbyServer, itemId: string): Prom
 }
 
 /**
+ * Image descriptor returned by /Items/{id}/Images.
+ */
+export interface EmbyImageInfo {
+  ImageType: string;
+  ImageIndex?: number;
+  Path?: string;
+  Filename?: string;
+  Height?: number;
+  Width?: number;
+  Size?: number;
+}
+
+/**
+ * Fetch all available images for an item.
+ */
+export async function fetchItemImages(server: EmbyServer, itemId: string): Promise<EmbyImageInfo[]> {
+  const base = server.serverUrl.replace(/\/+$/, "");
+  const url = `${base}/Items/${encodeURIComponent(itemId)}/Images?api_key=${encodeURIComponent(server.accessToken)}`;
+
+  try {
+    const response = await fetch(url, {
+      headers: buildAuthHeaders(server.accessToken, {
+        Accept: "application/json",
+      }),
+    });
+
+    if (!response.ok) {
+      return [];
+    }
+
+    return (await response.json()) as EmbyImageInfo[];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Builds the direct static video stream URL for playing an item in IINA.
  */
 export function buildStreamUrl(server: EmbyServer, itemId: string): string {
   const base = server.serverUrl.replace(/\/+$/, "");
   return `${base}/Videos/${encodeURIComponent(itemId)}/stream?static=true&api_key=${encodeURIComponent(server.accessToken)}`;
 }
+

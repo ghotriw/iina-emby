@@ -107,11 +107,11 @@ export default function ItemDetailRoute() {
   // The active playable target (episode if Series has NextUp, or the item itself)
   const targetItem = nextUpEpisode || item;
 
-  // Backdrop image (favor Backdrop from item, fallback to parent or Primary)
+  // Backdrop image (high-res fanart backdrop priority)
   const backdropUrl = item
     ? getItemImageUrl(activeServer.serverUrl, item, {
-        prefer: "thumb",
-        maxWidth: 1920,
+        prefer: "backdrop",
+        maxWidth: 2560,
         accessToken: activeServer.accessToken,
       })
     : undefined;
@@ -317,6 +317,7 @@ export default function ItemDetailRoute() {
           </div>
         </div>
       </main>
+
     </div>
   );
 }

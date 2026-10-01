@@ -42,16 +42,19 @@ export interface ItemImageUrlOptions {
   accessToken?: string;
   /**
    * Priority strategy:
+   * - "backdrop": Favors high-res fanart backdrop first (Backdrop -> Parent Backdrop -> Thumb -> Parent Thumb -> Primary).
+   *   Ideal for fullscreen item hero views.
    * - "thumb": Favors landscape 16:9 images (Thumb -> Backdrop -> Parent Backdrop/Thumb -> Primary).
    *   Ideal for Continue Watching and horizontal media cards.
    * - "primary": Favors the item's primary image first (Primary -> Thumb -> Backdrop -> Parent images).
    *   Ideal for series detail page episodes or posters.
    */
-  prefer?: "thumb" | "primary";
+  prefer?: "backdrop" | "thumb" | "primary";
 }
 
 /**
  * Resolves the best available image URL for an Emby item with configurable priority and fallback hierarchy:
+ * - "backdrop" priority: Backdrop -> Parent Backdrop -> Thumb -> Parent Thumb -> Primary
  * - "thumb" priority (default for cards/Continue Watching): Thumb -> Backdrop -> Parent Backdrop -> Parent Thumb -> Primary
  * - "primary" priority (for series detail view): Primary -> Thumb -> Backdrop -> Parent Backdrop/Thumb
  */
@@ -60,6 +63,64 @@ export function getItemImageUrl(serverUrl: string, item: EmbyItemImageInfo, opti
   const prefer = options?.prefer || "thumb";
 
   const { prefer: _, ...imageOptions } = options || {};
+
+  if (prefer === "backdrop") {
+    // 1. Item Backdrop (high-res fanart)
+    if (item.BackdropImageTags && item.BackdropImageTags.length > 0) {
+      return getEmbyImageUrl(cleanServer, item.Id, {
+        imageType: "Backdrop",
+        tag: item.BackdropImageTags[0],
+        ...imageOptions,
+      });
+    }
+
+    // 2. Parent Series Backdrop for episodes
+    if (item.ParentBackdropItemId && item.ParentBackdropImageTags && item.ParentBackdropImageTags.length > 0) {
+      return getEmbyImageUrl(cleanServer, item.ParentBackdropItemId, {
+        imageType: "Backdrop",
+        tag: item.ParentBackdropImageTags[0],
+        ...imageOptions,
+      });
+    }
+
+    // 3. Item Thumb (16:9 landscape)
+    if (item.ImageTags?.Thumb) {
+      return getEmbyImageUrl(cleanServer, item.Id, {
+        imageType: "Thumb",
+        tag: item.ImageTags.Thumb,
+        ...imageOptions,
+      });
+    }
+
+    // 4. Parent Series Thumb for episodes
+    if (item.ParentThumbItemId && item.ParentThumbImageTag) {
+      return getEmbyImageUrl(cleanServer, item.ParentThumbItemId, {
+        imageType: "Thumb",
+        tag: item.ParentThumbImageTag,
+        ...imageOptions,
+      });
+    }
+
+    // 5. Item Primary (fallback)
+    if (item.ImageTags?.Primary) {
+      return getEmbyImageUrl(cleanServer, item.Id, {
+        imageType: "Primary",
+        tag: item.ImageTags.Primary,
+        ...imageOptions,
+      });
+    }
+
+    // 6. Series Primary (fallback)
+    if (item.SeriesId && item.SeriesPrimaryImageTag) {
+      return getEmbyImageUrl(cleanServer, item.SeriesId, {
+        imageType: "Primary",
+        tag: item.SeriesPrimaryImageTag,
+        ...imageOptions,
+      });
+    }
+
+    return undefined;
+  }
 
   if (prefer === "thumb") {
     // 1. Item Thumb (16:9 landscape)

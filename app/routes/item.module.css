@@ -24,9 +24,11 @@
   object-fit: cover;
   object-position: center center;
   /*filter: blur(80px) saturate(1.4) brightness(0.6);*/
-  filter: blur(80px) saturate(1.5) brightness(1);
-  transform: scale(1.15); /* Prevents blur feathering at the viewport edges */
-  opacity: 0.85;
+  filter: blur(100px) saturate(1.5) brightness(1);
+  /* Prevents blur feathering at the viewport edges */
+  /*transform: scale(1.15);*/
+  /*opacity: 0.85;*/
+  opacity: 1;
 }
 
 .ambientOverlay {
