@@ -7,7 +7,7 @@ export interface PlaybackTrackingDeps {
   preferences: typeof iina.preferences;
   buildEmbyHeaders: (apiKey?: string, extraHeaders?: Record<string, string>) => Record<string, string>;
   fetchPlaybackInfo: (serverBase: string, itemId: string, apiKey: string) => Promise<EmbyPlaybackInfo>;
-  fetchItemMetadata: (serverBase: string, itemId: string, apiKey: string) => Promise<EmbyItemMetadata>;
+  fetchItemMetadata: (serverBase: string, itemId: string, apiKey: string, userId?: string) => Promise<EmbyItemMetadata>;
   secondsToTicks: (seconds: number) => number;
   ticksToSeconds: (ticks: number) => number;
   log: DebugLogger;
@@ -17,6 +17,7 @@ export interface PlaybackSession {
   serverBase: string;
   itemId: string;
   apiKey: string;
+  userId?: string;
   playSessionId: string | null;
   mediaSourceId: string | null;
   startTime: number;
@@ -63,14 +64,14 @@ export function createPlaybackTrackingManager({
   const PROGRESS_REPORT_TICKS = 10;
   const WATCHED_THRESHOLD = 0.95;
 
-  async function fetchResumePosition(serverBase: string, itemId: string, apiKey: string): Promise<number | null> {
+  async function fetchResumePosition(serverBase: string, itemId: string, apiKey: string, userId?: string): Promise<number | null> {
     try {
       if (!preferences.get("sync_playback_progress")) {
         log("Playback progress sync disabled, skipping resume position fetch");
         return null;
       }
 
-      const metadata = await fetchItemMetadata(serverBase, itemId, apiKey);
+      const metadata = await fetchItemMetadata(serverBase, itemId, apiKey, userId);
 
       if (!metadata?.UserData) {
         log("No UserData found in metadata");
@@ -101,11 +102,11 @@ export function createPlaybackTrackingManager({
     }
   }
 
-  async function resumeFromEmby(serverBase: string, itemId: string, apiKey: string) {
+  async function resumeFromEmby(serverBase: string, itemId: string, apiKey: string, userId?: string) {
     const session = currentPlaybackSession;
 
     try {
-      const resumePosition = await fetchResumePosition(serverBase, itemId, apiKey);
+      const resumePosition = await fetchResumePosition(serverBase, itemId, apiKey, userId);
 
       if (session) {
         session.resumePosition = resumePosition ?? 0;
@@ -320,7 +321,7 @@ export function createPlaybackTrackingManager({
     }
   }
 
-  async function startPlaybackTracking(serverBase: string, itemId: string, apiKey: string) {
+  async function startPlaybackTracking(serverBase: string, itemId: string, apiKey: string, userId?: string) {
     stopPlaybackTracking();
 
     if (!preferences.get("sync_playback_progress")) {
@@ -357,6 +358,7 @@ export function createPlaybackTrackingManager({
       serverBase,
       itemId,
       apiKey,
+      userId,
       playSessionId,
       mediaSourceId,
       startTime: Date.now(),
@@ -366,7 +368,7 @@ export function createPlaybackTrackingManager({
     };
 
     reportPlaybackStart(serverBase, itemId, apiKey, playSessionId, mediaSourceId);
-    resumeFromEmby(serverBase, itemId, apiKey);
+    resumeFromEmby(serverBase, itemId, apiKey, userId);
 
     try {
       const duration = core.status.duration;

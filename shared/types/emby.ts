@@ -84,6 +84,13 @@ export interface EmbyItemMetadata {
   RunTimeTicks?: number;
   UserData?: EmbyUserData;
   MediaSources?: EmbyMediaSource[];
+  ImageTags?: Record<string, string>;
+  BackdropImageTags?: string[];
+  ParentThumbItemId?: string;
+  ParentThumbImageTag?: string;
+  ParentBackdropItemId?: string;
+  ParentBackdropImageTags?: string[];
+  SeriesPrimaryImageTag?: string;
   [key: string]: unknown;
 }
 

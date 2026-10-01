@@ -19,7 +19,7 @@ export interface WebviewTarget {
 }
 
 export interface WebviewBridgeDeps {
-  core: typeof iina.core;
+  core?: typeof iina.core;
   utils: typeof iina.utils;
   log: DebugLogger;
   getClientIdentity: () => ClientIdentity;
@@ -100,9 +100,9 @@ export function registerBridgeHandlers(view: WebviewTarget, deps: WebviewBridgeD
         if (success) {
           deps.log("Successfully opened URL in browser");
           if (data.title) {
-            deps.core.osd(`Opened ${data.title} in browser`);
+            deps.core?.osd(`Opened ${data.title} in browser`);
           } else {
-            deps.core.osd("Opened Emby page in browser");
+            deps.core?.osd("Opened Emby page in browser");
           }
         } else {
           throw new Error("utils.open returned false");
@@ -110,7 +110,7 @@ export function registerBridgeHandlers(view: WebviewTarget, deps: WebviewBridgeD
       } catch (error: unknown) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         deps.log.error(`Failed to open external URL: ${errorMsg}`);
-        deps.core.osd("Failed to open Emby page in browser");
+        deps.core?.osd("Failed to open Emby page in browser");
         deps.log.error(`URL that failed to open: ${data.url}`);
       }
     } else {

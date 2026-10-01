@@ -11,7 +11,7 @@ import { createMediaActionsManager } from "./lib/media-actions";
 import { createPlaybackCoordinator } from "./lib/playback-coordinator";
 import { createPlaybackTrackingManager } from "./lib/playback-tracking";
 import { createServerSessionStore } from "./lib/server-session-store";
-import type { WebviewBridgeDeps } from "./lib/webview-bridge";
+import type { PlayMediaListMessage, PlayMediaMessage, WebviewBridgeDeps } from "./lib/webview-bridge";
 
 const { core, console: iinaConsole, menu, event, http, utils, preferences, mpv, sidebar, global: iinaGlobal, standaloneWindow } = iina;
 
@@ -87,7 +87,15 @@ const { setVideoTitleFromMetadata, downloadAllSubtitles, manualDownloadSubtitles
     log: debugLog,
   });
 
-const { handlePlayMedia, handlePlayMediaList, flushPendingPlaylistQueue, consumeReplacementGuard } = createPlaybackCoordinator({
+const {
+  handlePlayMedia,
+  handlePlayMediaList,
+  flushPendingPlaylistQueue,
+  consumeReplacementGuard,
+  markLaunchedFromBrowser,
+  clearLaunchedFromBrowser,
+  consumeLaunchedFromBrowser,
+} = createPlaybackCoordinator({
   core,
   mpv,
   preferences,
@@ -96,6 +104,32 @@ const { handlePlayMedia, handlePlayMediaList, flushPendingPlaylistQueue, consume
   clearQueuedFlag,
   log: debugLog,
 });
+
+// Check if this player window was spawned specifically for Emby playback
+if (iinaGlobal && typeof iinaGlobal.getLabel === "function") {
+  const label = iinaGlobal.getLabel();
+  if (label && label.startsWith("emby-")) {
+    debugLog(`Player instance opened with label ${label}, marking as browser playback`);
+    markLaunchedFromBrowser();
+  }
+}
+
+// Register with global entry
+if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
+  iinaGlobal.postMessage("player-registered", {});
+}
+
+// Listen for playback commands forwarded from global standalone window
+if (iinaGlobal && typeof iinaGlobal.onMessage === "function") {
+  iinaGlobal.onMessage("play-media-command", (data?: PlayMediaMessage) => {
+    debugLog("Received play-media-command from global entry", data);
+    handlePlayMedia(data);
+  });
+  iinaGlobal.onMessage("play-media-list-command", (data?: PlayMediaListMessage) => {
+    debugLog("Received play-media-list-command from global entry", data);
+    handlePlayMediaList(data);
+  });
+}
 
 /**
  * Handle file loaded event
@@ -110,7 +144,9 @@ function onFileLoaded(fileUrl?: string): void {
   stopPlaybackTracking();
 
   const embyInfo = updateFromFileUrl(fileUrl);
-  if (embyInfo) {
+  if (!embyInfo) {
+    clearLaunchedFromBrowser();
+  } else {
     // Decide which credentials playback reporting (progress/resume/watched)
     // should use. By default it's the api_key embedded in the playing URL, so
     // it records into whoever owns that key. When "use_connected_account" is on
@@ -120,25 +156,20 @@ function onFileLoaded(fileUrl?: string): void {
     // (e.g. over Syncplay) while each records progress into their own account.
     let reportServerBase = embyInfo.serverBase;
     let reportApiKey = embyInfo.apiKey;
-    if (preferences.get("use_connected_account")) {
-      const session = getStoredEmbySession();
-      if (session && session.accessToken) {
-        // Only the credentials may change, never the item id — reporting a
-        // URL's item to a different server would 404 on every request.
-        if (isSameEmbyHost(session.serverUrl, embyInfo.serverBase)) {
-          reportServerBase = session.serverUrl;
-          reportApiKey = session.accessToken;
-          debugLog(
-            `Connected-account mode: reporting as ${session.username || session.serverName} @ ${reportServerBase} (ignoring URL api_key)`,
-          );
-        } else {
-          debugLog(
-            `Connected-account mode ON but the logged-in server (${session.serverUrl}) is not the one in the URL (${embyInfo.serverBase}); using URL api_key`,
-          );
-        }
-      } else {
-        debugLog("Connected-account mode ON but no logged-in server; falling back to URL api_key");
+    let reportUserId: string | undefined;
+
+    const session = getStoredEmbySession();
+    if (session && session.accessToken && isSameEmbyHost(session.serverUrl, embyInfo.serverBase)) {
+      reportUserId = session.userId;
+      if (preferences.get("use_connected_account")) {
+        reportServerBase = session.serverUrl;
+        reportApiKey = session.accessToken;
+        debugLog(
+          `Connected-account mode: reporting as ${session.username || session.serverName} @ ${reportServerBase} (ignoring URL api_key)`,
+        );
       }
+    } else if (session && session.userId && isSameEmbyHost(session.serverUrl, embyInfo.serverBase)) {
+      reportUserId = session.userId;
     } else if (preferences.get("auto_login_enabled")) {
       // Default behaviour: remember this URL's session for auto-login.
       storeEmbySession(embyInfo.serverBase, embyInfo.apiKey);
@@ -146,10 +177,17 @@ function onFileLoaded(fileUrl?: string): void {
       debugLog("Auto-login from Emby URLs disabled, not storing the URL credentials");
     }
 
+    // Reset mpv start property once file has loaded
+    try {
+      mpv.set("start", "none");
+    } catch {
+      // Ignore
+    }
+
     // Start playback tracking for progress sync
     if (preferences.get("sync_playback_progress")) {
-      debugLog(`Starting playback tracking for: ${embyInfo.itemId}`);
-      startPlaybackTracking(reportServerBase, embyInfo.itemId, reportApiKey);
+      debugLog(`Starting playback tracking for: ${embyInfo.itemId}, userId: ${reportUserId || "none"}`);
+      startPlaybackTracking(reportServerBase, embyInfo.itemId, reportApiKey, reportUserId);
     }
 
     // Set video title from metadata if enabled
@@ -194,22 +232,35 @@ const bridgeDeps: WebviewBridgeDeps = {
 };
 
 // Browser window manager (sidebar & standalone window)
-const { showEmbyBrowser, initSidebar } = createBrowserWindowManager({
+const { showEmbyBrowser, openEmbyStandaloneWindow, initSidebar } = createBrowserWindowManager({
   core,
   sidebar,
   standaloneWindow,
+  preferences,
   bridgeDeps,
   log: debugLog,
 });
 
-// Menu items
+/**
+ * Automatically reopen the standalone content browser if media that originated
+ * from the browser has finished or its window was closed by the user.
+ */
+function handlePlaybackTermination(reason: "end-file" | "window-close"): void {
+  const shouldReopen = preferences.get("reopen_browser_on_playback_end") !== false;
+  if (shouldReopen && consumeLaunchedFromBrowser()) {
+    console.log(`[iina-emby] Playback terminated (${reason}), requesting global reopen`);
+    debugLog(`Playback terminated (${reason}) for media launched from browser, requesting global reopen`);
+    if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
+      iinaGlobal.postMessage("reopen-browser", {});
+    } else {
+      openEmbyStandaloneWindow();
+    }
+  }
+}
+
+// Menu items (Show Emby Browser is registered in globalEntry so it is always available without duplicates)
 menu.addItem(menu.item("Download Emby Subtitles", manualDownloadSubtitles));
 menu.addItem(menu.item("Set Emby Title", manualSetTitle));
-menu.addItem(
-  menu.item("Show Emby Browser", showEmbyBrowser, {
-    keyBinding: "Meta+Shift+e",
-  }),
-);
 
 // Event handlers
 event.on("iina.file-loaded", onFileLoaded);
@@ -230,11 +281,16 @@ event.on("mpv.end-file", () => {
     return;
   }
   stopPlaybackTracking();
+  handlePlaybackTermination("end-file");
 });
 
 event.on("iina.window-will-close", () => {
   debugLog("Window closing, stopping playback tracking");
+  if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
+    iinaGlobal.postMessage("player-unregistered", {});
+  }
   stopPlaybackTracking();
+  handlePlaybackTermination("window-close");
 });
 
 event.on("iina.application-will-terminate", () => {

@@ -73,23 +73,41 @@ export function createPlaybackCoordinator({
     return true;
   }
 
+  // Tracks whether current playback was launched from the Emby browser
+  // (standalone window or sidebar) so the browser can be reopened when finished.
+  let launchedFromBrowser = false;
+
+  function markLaunchedFromBrowser(): void {
+    launchedFromBrowser = true;
+  }
+
+  function clearLaunchedFromBrowser(): void {
+    launchedFromBrowser = false;
+  }
+
+  function consumeLaunchedFromBrowser(): boolean {
+    const wasLaunched = launchedFromBrowser;
+    launchedFromBrowser = false;
+    return wasLaunched;
+  }
+
   /**
    * Open media in a new IINA instance
    */
-  function openInNewInstance(streamUrl: string, title?: string): void {
+  function openInNewInstance(streamUrl: string, title?: string, startPositionSeconds?: number): void {
     if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
       log("Requesting new player instance from global entry");
-      iinaGlobal.postMessage("create-player", { url: streamUrl, title });
+      iinaGlobal.postMessage("create-player", { url: streamUrl, title, startPositionSeconds });
     } else {
       log("Global entry not available, opening in current window");
-      core.open(streamUrl);
+      openInCurrentWindow(streamUrl, title, startPositionSeconds);
     }
   }
 
   /**
    * Open media in the current window, replacing what is playing
    */
-  function openInCurrentWindow(streamUrl: string, title?: string): void {
+  function openInCurrentWindow(streamUrl: string, title?: string, startPositionSeconds?: number): void {
     log("Opening media in current window: " + streamUrl);
 
     // Set replacement guard so end-file handler doesn't send spurious stop
@@ -115,6 +133,16 @@ export function createPlaybackCoordinator({
     if (title) {
       mpv.set("force-media-title", title);
     }
+
+    if (typeof startPositionSeconds === "number" && startPositionSeconds > 0) {
+      log(`Setting initial start position to ${startPositionSeconds}s`);
+      try {
+        mpv.set("start", `${startPositionSeconds}`);
+      } catch (err: unknown) {
+        log(`Could not set mpv start position: ${String(err)}`);
+      }
+    }
+
     core.open(streamUrl);
   }
 
@@ -196,10 +224,12 @@ export function createPlaybackCoordinator({
       const firstItemId = (String(firstItem.streamUrl).match(/\/(?:Items|Videos|Audio)\/([^/?]+)/) || [])[1] || null;
       pendingPlaylistQueue = queuedItems.length > 0 ? { items: queuedItems, at: Date.now(), itemId: firstItemId } : null;
 
+      markLaunchedFromBrowser();
       openInCurrentWindow(firstItem.streamUrl, firstItem.title);
 
       log(`Holding ${queuedItems.length} item(s) until the first one loads`);
     } catch (error: unknown) {
+      clearLaunchedFromBrowser();
       const errorMsg = error instanceof Error ? error.message : String(error);
       log.error("Error playing media list: " + errorMsg);
       core.osd("Failed to play tracks");
@@ -225,21 +255,29 @@ export function createPlaybackCoordinator({
 
     log(`Opening media: ${title} - ${streamUrl}`);
 
+    const startPositionTicks = message?.startPositionTicks as number | undefined;
+    const startPositionSeconds =
+      typeof startPositionTicks === "number" && startPositionTicks > 0
+        ? Math.floor(startPositionTicks / 10000000)
+        : (message?.startPositionSeconds as number | undefined);
+
     try {
+      markLaunchedFromBrowser();
       const openInNewWindow = preferences.get("open_in_new_window");
       log("open_in_new_window preference: " + openInNewWindow);
 
       if (openInNewWindow) {
         log("Opening media in new instance: " + streamUrl);
         core.osd(`Opening in new window: ${title || ""}`);
-        openInNewInstance(streamUrl, title);
+        openInNewInstance(streamUrl, title, startPositionSeconds);
       } else {
         core.osd(`Opening: ${title || ""}`);
-        openInCurrentWindow(streamUrl, title);
+        openInCurrentWindow(streamUrl, title, startPositionSeconds);
       }
 
       log("Successfully initiated media opening: " + streamUrl);
     } catch (error: unknown) {
+      clearLaunchedFromBrowser();
       const errorMsg = error instanceof Error ? error.message : String(error);
       log.error("Error opening media: " + errorMsg);
       core.osd("Failed to open media");
@@ -274,6 +312,9 @@ export function createPlaybackCoordinator({
   return {
     markReplacingPlayback,
     consumeReplacementGuard,
+    markLaunchedFromBrowser,
+    clearLaunchedFromBrowser,
+    consumeLaunchedFromBrowser,
     openInNewInstance,
     openInCurrentWindow,
     flushPendingPlaylistQueue,

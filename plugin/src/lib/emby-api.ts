@@ -161,9 +161,11 @@ export function createEmbyApi({ http, preferences, log }: EmbyApiDeps) {
     }
   }
 
-  async function fetchItemMetadata(serverBase: string, itemId: string, apiKey: string): Promise<EmbyItemMetadata> {
+  async function fetchItemMetadata(serverBase: string, itemId: string, apiKey: string, userId?: string): Promise<EmbyItemMetadata> {
     try {
-      const metadataUrl = `${serverBase}/Items/${itemId}?api_key=${apiKey}`;
+      const metadataUrl = userId
+        ? `${serverBase}/Users/${encodeURIComponent(userId)}/Items/${encodeURIComponent(itemId)}?api_key=${apiKey}`
+        : `${serverBase}/Items/${encodeURIComponent(itemId)}?api_key=${apiKey}`;
       log(`Fetching item metadata from: ${metadataUrl}`);
 
       const response = await http.get(metadataUrl, {

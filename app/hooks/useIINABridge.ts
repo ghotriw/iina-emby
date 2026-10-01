@@ -1,4 +1,4 @@
-import type { EmbyServer, TypedIinaBridge } from "@shared";
+import type { EmbyServer, PlayMediaPayload, TypedIinaBridge } from "@shared";
 import { useCallback, useEffect, useState } from "react";
 import { setClientIdentity } from "../lib/emby-auth-client";
 
@@ -38,6 +38,7 @@ export function useIINABridge() {
   });
 
   const [isIinaAvailable, setIsIinaAvailable] = useState<boolean>(false);
+  const [isStandalone, setIsStandalone] = useState<boolean>(false);
 
   // Standalone web dev fallback: synchronize servers and active server ID to localStorage only when NOT in IINA
   useEffect(() => {
@@ -62,6 +63,12 @@ export function useIINABridge() {
     setIsIinaAvailable(hasIina);
 
     if (hasIina && window.iina) {
+      window.iina.onMessage("window-context", (data) => {
+        if (data && typeof data.isStandalone === "boolean") {
+          setIsStandalone(data.isStandalone);
+        }
+      });
+
       window.iina.onMessage("client-identity", (identity) => {
         if (identity) {
           setClientIdentity(identity);
@@ -89,6 +96,32 @@ export function useIINABridge() {
       window.iina.postMessage("get-servers");
     }
   }, []);
+
+  // Persist standalone window size changes
+  useEffect(() => {
+    if (!isIinaAvailable || !isStandalone || typeof window === "undefined") {
+      return;
+    }
+
+    let timer: ReturnType<typeof setTimeout>;
+
+    const handleResize = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        if (width >= 320 && height >= 400 && window.iina?.postMessage) {
+          window.iina.postMessage("save-window-size", { width, height });
+        }
+      }, 500);
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [isIinaAvailable, isStandalone]);
 
   const saveServer = useCallback((server: EmbyServer) => {
     setServers((prev) => {
@@ -127,6 +160,14 @@ export function useIINABridge() {
     }
   }, []);
 
+  const playMedia = useCallback((payload: PlayMediaPayload) => {
+    if (window?.iina?.postMessage) {
+      window.iina.postMessage("play-media", payload);
+    } else {
+      console.log("[Dev Playback] play-media:", payload);
+    }
+  }, []);
+
   const activeServer = servers.find((s) => s.id === activeServerId) || servers[0] || null;
 
   return {
@@ -134,8 +175,10 @@ export function useIINABridge() {
     activeServer,
     activeServerId,
     isIinaAvailable,
+    isStandalone,
     saveServer,
     selectServer,
     removeServer,
+    playMedia,
   };
 }

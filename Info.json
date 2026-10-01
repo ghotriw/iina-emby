@@ -23,6 +23,7 @@
     "auto_login_enabled": true,
     "autoplay_next_episode": true,
     "sync_playback_progress": true,
+    "reopen_browser_on_playback_end": true,
     "use_connected_account": false
   }
 }

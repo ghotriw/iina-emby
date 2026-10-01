@@ -17,6 +17,8 @@ export interface ServersListPayload {
 export interface PlayMediaPayload {
   streamUrl: string;
   title?: string;
+  startPositionTicks?: number;
+  startPositionSeconds?: number;
   [key: string]: unknown;
 }
 
@@ -45,6 +47,15 @@ export interface OpenExternalUrlPayload {
   [key: string]: unknown;
 }
 
+export interface WindowSizePayload {
+  width: number;
+  height: number;
+}
+
+export interface WindowContextPayload {
+  isStandalone: boolean;
+}
+
 /**
  * Messages sent from IINA plugin to WebView (inbound to React)
  */
@@ -54,6 +65,7 @@ export interface BridgeInboundMap {
   "servers-updated": ServersListPayload;
   "session-data": StoredSessionPayload | null;
   "session-available": StoredSessionPayload;
+  "window-context": WindowContextPayload;
 }
 
 /**
@@ -70,6 +82,7 @@ export interface BridgeOutboundMap {
   "play-media": PlayMediaPayload;
   "play-media-list": PlayMediaListPayload;
   "open-external-url": OpenExternalUrlPayload;
+  "save-window-size": WindowSizePayload;
 }
 
 export interface TypedIinaBridge {

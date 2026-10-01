@@ -1,6 +1,7 @@
 import { Badge, Button, Card, Code, Container, Group, Stack, Text, ThemeIcon, Title } from "@mantine/core";
 import { IconArrowRight, IconMovie, IconServer } from "@tabler/icons-react";
 import { useNavigate } from "react-router";
+import { ContinueWatching } from "../components/ContinueWatching";
 import { useIINABridge } from "../hooks/useIINABridge";
 
 export function meta() {
@@ -9,7 +10,7 @@ export function meta() {
 
 export default function HomeRoute() {
   const navigate = useNavigate();
-  const { activeServer, servers } = useIINABridge();
+  const { activeServer, servers, playMedia } = useIINABridge();
 
   if (servers.length === 0 || !activeServer) {
     return (
@@ -62,6 +63,8 @@ export default function HomeRoute() {
             </Badge>
           </Stack>
         </Card>
+
+        <ContinueWatching server={activeServer} onPlayMedia={playMedia} />
       </Stack>
     </Container>
   );
