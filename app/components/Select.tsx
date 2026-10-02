@@ -1,5 +1,5 @@
 import { IconChevronDown } from "@tabler/icons-react";
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import classes from "./Select.module.css";
 
 export interface SelectOption {
@@ -14,7 +14,6 @@ export interface SelectProps {
   allowDeselect?: boolean;
   className?: string;
   placeholder?: string;
-  comboboxProps?: Record<string, unknown>;
 }
 
 export function Select({ data, value, onChange, allowDeselect = false, className, placeholder = "Select..." }: SelectProps) {

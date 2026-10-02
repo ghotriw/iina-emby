@@ -1,8 +1,8 @@
-import type { EmbyItemMetadata, EmbyMediaStream } from "@shared";
+import { type EmbyItemMetadata, type EmbyMediaStream, ticksToSeconds } from "@shared";
 
 export function formatDuration(ticks?: number): string | null {
   if (!ticks || ticks <= 0) return null;
-  const totalMinutes = Math.round(ticks / (10000000 * 60));
+  const totalMinutes = Math.round(ticksToSeconds(ticks) / 60);
   const hours = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
   if (hours > 0) {
@@ -28,7 +28,7 @@ export function formatPremiereDate(isoDate?: string): string | null {
 
 export function formatResumeTime(ticks?: number): string | null {
   if (!ticks || ticks <= 0) return null;
-  const totalSeconds = Math.floor(ticks / 10000000);
+  const totalSeconds = ticksToSeconds(ticks);
   const hrs = Math.floor(totalSeconds / 3600);
   const mins = Math.floor((totalSeconds % 3600) / 60);
   const secs = totalSeconds % 60;
@@ -44,10 +44,7 @@ export interface MediaBadges {
   sizeBadge: string | null;
 }
 
-export function getMediaBadges(
-  targetItem?: EmbyItemMetadata,
-  fallbackItem?: EmbyItemMetadata,
-): MediaBadges {
+export function getMediaBadges(targetItem?: EmbyItemMetadata, fallbackItem?: EmbyItemMetadata): MediaBadges {
   const activeMediaStreams: EmbyMediaStream[] = Array.isArray(targetItem?.MediaStreams)
     ? (targetItem.MediaStreams as EmbyMediaStream[])
     : [];

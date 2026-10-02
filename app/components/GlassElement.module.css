@@ -164,7 +164,7 @@
 }
 
 .shapeRounded {
-  border-radius: var(--radius-card, 0.75rem);
+  border-radius: var(--radius-l);
 }
 
 /* ==============================================================

@@ -99,7 +99,7 @@
   justify-content: space-between;
   padding: 0 0.75rem;
   height: var(--height-action);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-m);
   background: var(--bg-control);
   border: none;
   color: var(--text-primary);
@@ -162,7 +162,7 @@
   justify-content: space-between;
   padding: 0.5rem 0.75rem;
   min-height: 2.75rem;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-m);
   background: transparent;
   cursor: pointer;
   transition: background 0.12s ease;
@@ -201,7 +201,7 @@
 .serverSelectBtn:focus-visible {
   outline: 2px solid var(--border-focus);
   outline-offset: 2px;
-  border-radius: calc(var(--radius-control) - 2px);
+  border-radius: calc(var(--radius-m) - 2px);
 }
 
 .serverRowLeft {
@@ -282,7 +282,7 @@
   color: var(--text-secondary);
   background: transparent;
   border: none;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-m);
   width: 1.75rem;
   height: 1.75rem;
   padding: 0;
@@ -304,7 +304,7 @@
 .formPanel {
   background: var(--bg-panel);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-m);
   padding: 1rem;
   display: flex;
   flex-direction: column;
@@ -335,7 +335,7 @@
   height: var(--height-input);
   background: var(--bg-input);
   border: 1px solid var(--border-control);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-m);
   padding: 0 0.5rem;
   font-size: var(--font-size-sub);
   color: var(--text-primary);
@@ -368,7 +368,7 @@
 .macCancelBtn {
   height: var(--height-btn-sm);
   padding: 0 0.75rem;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-m);
   background: var(--bg-control);
   border: 1px solid var(--border-subtle);
   color: var(--text-primary);
@@ -385,7 +385,7 @@
 .macPrimaryBtn {
   height: var(--height-btn-sm);
   padding: 0 0.875rem;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-m);
   background: var(--accent-blue);
   border: none;
   color: var(--text-primary);

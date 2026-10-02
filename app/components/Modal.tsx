@@ -7,17 +7,13 @@ export interface ModalProps {
   opened: boolean;
   onClose: () => void;
   children?: React.ReactNode;
-  centered?: boolean;
   size?: string | number;
-  withCloseButton?: boolean;
   closeOnClickOutside?: boolean;
   closeOnEscape?: boolean;
   classNames?: {
     content?: string;
     overlay?: string;
   };
-  transitionProps?: Record<string, unknown>;
-  title?: React.ReactNode;
 }
 
 export function Modal({ opened, onClose, children, size, closeOnClickOutside = true, closeOnEscape = true, classNames }: ModalProps) {

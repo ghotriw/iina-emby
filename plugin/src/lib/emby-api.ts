@@ -8,6 +8,8 @@ import {
   type EmbyItemMetadata,
   type EmbyPlaybackInfo,
   type ParsedEmbyUrl,
+  secondsToTicks,
+  ticksToSeconds,
 } from "@shared";
 import type { DebugLogger } from "./debug-log";
 
@@ -195,14 +197,6 @@ export function createEmbyApi({ http, preferences, log }: EmbyApiDeps) {
       log(`Error fetching item metadata: ${errorMsg}`);
       throw error;
     }
-  }
-
-  function secondsToTicks(seconds: number): number {
-    return Math.round(seconds * 10000000);
-  }
-
-  function ticksToSeconds(ticks: number): number {
-    return ticks / 10000000;
   }
 
   return {

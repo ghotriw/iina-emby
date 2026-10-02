@@ -14,7 +14,7 @@ export type { OpenExternalUrlMessage, PlayMediaListMessage, PlayMediaMessage, Se
 
 export interface WebviewTarget {
   postMessage: (name: string, data?: unknown) => void;
-  onMessage: (name: string, callback: (data?: any) => void) => void;
+  onMessage: <T = unknown>(name: string, callback: (data?: T) => void) => void;
   close?: () => void;
 }
 
@@ -33,6 +33,52 @@ export interface WebviewBridgeDeps {
   switchActiveServer: (serverId: string) => void;
   onPlayMedia: (data?: PlayMediaMessage) => void;
   onPlayMediaList: (data?: PlayMediaListMessage) => void;
+}
+
+export interface CreateBridgeDepsParams {
+  utils: typeof iina.utils;
+  log: DebugLogger;
+  getClientIdentity: () => ClientIdentity;
+  serverStore: {
+    getStoredEmbySession: () => StoredSessionData | null;
+    clearEmbySession: () => void;
+    loadStoredServers: () => EmbyServer[];
+    getActiveServerId: () => string | null;
+    setActiveServerId: (id: string) => void;
+    addOrUpdateServer: (server: Partial<EmbyServer> & { serverUrl: string; accessToken: string }) => EmbyServer | null;
+    removeServer: (serverId: string) => void;
+    switchActiveServer: (serverId: string) => void;
+  };
+  onPlayMedia: (data?: PlayMediaMessage) => void;
+  onPlayMediaList: (data?: PlayMediaListMessage) => void;
+  core?: typeof iina.core;
+}
+
+export function createBridgeDeps({
+  utils,
+  log,
+  getClientIdentity,
+  serverStore,
+  onPlayMedia,
+  onPlayMediaList,
+  core,
+}: CreateBridgeDepsParams): WebviewBridgeDeps {
+  return {
+    core,
+    utils,
+    log,
+    getClientIdentity,
+    getStoredEmbySession: serverStore.getStoredEmbySession,
+    clearEmbySession: serverStore.clearEmbySession,
+    loadStoredServers: serverStore.loadStoredServers,
+    getActiveServerId: serverStore.getActiveServerId,
+    setActiveServerId: serverStore.setActiveServerId,
+    addOrUpdateServer: serverStore.addOrUpdateServer,
+    removeServer: serverStore.removeServer,
+    switchActiveServer: serverStore.switchActiveServer,
+    onPlayMedia,
+    onPlayMediaList,
+  };
 }
 
 export interface SetupBridgeOptions {

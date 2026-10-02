@@ -58,7 +58,7 @@ Always use the CSS variables defined in [`app/theme/tokens.css`](file:///Users/g
 ## 4. UI Patterns & Best Practices
 1. **Lists (NSTableView style):**
    * Transparent background by default, no thick card borders.
-   * `min-height: 2.75rem` (44px), `padding: 0.5rem 0.75rem`, `border-radius: var(--radius-control)`.
+   * `min-height: 2.75rem` (44px), `padding: 0.5rem 0.75rem`, `border-radius: var(--radius-m)`.
    * Action icons (like trash) should be hidden by default (`opacity: 0`) and fade in on row hover (`opacity: 1`) to keep the interface calm.
 2. **Forms & Dialogs (NSAlert / Sheet style):**
    * Never render web close buttons ("X" in the corner) in alert dialogs.

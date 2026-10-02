@@ -4,7 +4,6 @@ import classes from "./Tooltip.module.css";
 export interface TooltipProps {
   label: React.ReactNode;
   children: React.ReactElement;
-  withArrow?: boolean;
 }
 
 export function Tooltip({ label, children }: TooltipProps) {

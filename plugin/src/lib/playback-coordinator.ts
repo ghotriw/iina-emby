@@ -1,4 +1,4 @@
-import { sanitizeStreamUrl } from "@shared";
+import { sanitizeStreamUrl, ticksToSeconds } from "@shared";
 import type { DebugLogger } from "./debug-log";
 import type { PlayMediaListMessage, PlayMediaMessage } from "./webview-bridge";
 
@@ -198,7 +198,7 @@ export function createPlaybackCoordinator({
   function handlePlayMediaList(message?: PlayMediaListMessage): void {
     const rawItems = message?.items || [];
     const items: PlaylistItem[] = rawItems
-      .filter((item): item is PlayMediaMessage & { streamUrl: string } => Boolean(item && item.streamUrl))
+      .filter((item): item is PlayMediaMessage & { streamUrl: string } => Boolean(item?.streamUrl))
       .map((item) => ({
         ...item,
         streamUrl: sanitizeStreamUrl(item.streamUrl) || item.streamUrl,
@@ -258,7 +258,7 @@ export function createPlaybackCoordinator({
     const startPositionTicks = message?.startPositionTicks as number | undefined;
     const startPositionSeconds =
       typeof startPositionTicks === "number" && startPositionTicks > 0
-        ? Math.floor(startPositionTicks / 10000000)
+        ? ticksToSeconds(startPositionTicks)
         : (message?.startPositionSeconds as number | undefined);
 
     try {

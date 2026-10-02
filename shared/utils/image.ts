@@ -52,6 +52,14 @@ export interface ItemImageUrlOptions {
   prefer?: "backdrop" | "thumb" | "primary";
 }
 
+type ImageCandidateKey = "itemBackdrop" | "parentBackdrop" | "itemThumb" | "parentThumb" | "itemPrimary" | "seriesPrimary";
+
+const STRATEGY_ORDER: Record<NonNullable<ItemImageUrlOptions["prefer"]>, ImageCandidateKey[]> = {
+  backdrop: ["itemBackdrop", "parentBackdrop", "itemThumb", "parentThumb", "itemPrimary", "seriesPrimary"],
+  thumb: ["itemThumb", "itemBackdrop", "parentBackdrop", "parentThumb", "itemPrimary", "seriesPrimary"],
+  primary: ["itemPrimary", "itemThumb", "itemBackdrop", "parentBackdrop", "parentThumb", "seriesPrimary"],
+};
+
 /**
  * Resolves the best available image URL for an Emby item with configurable priority and fallback hierarchy:
  * - "backdrop" priority: Backdrop -> Parent Backdrop -> Thumb -> Parent Thumb -> Primary
@@ -61,178 +69,34 @@ export interface ItemImageUrlOptions {
 export function getItemImageUrl(serverUrl: string, item: EmbyItemImageInfo, options?: ItemImageUrlOptions): string | undefined {
   const cleanServer = serverUrl.replace(/\/+$/, "");
   const prefer = options?.prefer || "thumb";
-
   const { prefer: _, ...imageOptions } = options || {};
 
-  if (prefer === "backdrop") {
-    // 1. Item Backdrop (high-res fanart)
-    if (item.BackdropImageTags && item.BackdropImageTags.length > 0) {
-      return getEmbyImageUrl(cleanServer, item.Id, {
-        imageType: "Backdrop",
-        tag: item.BackdropImageTags[0],
+  const candidates: Record<ImageCandidateKey, { itemId: string; type: "Primary" | "Backdrop" | "Thumb"; tag: string } | null> = {
+    itemBackdrop: item.BackdropImageTags?.[0] ? { itemId: item.Id, type: "Backdrop", tag: item.BackdropImageTags[0] } : null,
+    parentBackdrop:
+      item.ParentBackdropItemId && item.ParentBackdropImageTags?.[0]
+        ? { itemId: item.ParentBackdropItemId, type: "Backdrop", tag: item.ParentBackdropImageTags[0] }
+        : null,
+    itemThumb: item.ImageTags?.Thumb ? { itemId: item.Id, type: "Thumb", tag: item.ImageTags.Thumb } : null,
+    parentThumb:
+      item.ParentThumbItemId && item.ParentThumbImageTag
+        ? { itemId: item.ParentThumbItemId, type: "Thumb", tag: item.ParentThumbImageTag }
+        : null,
+    itemPrimary: item.ImageTags?.Primary ? { itemId: item.Id, type: "Primary", tag: item.ImageTags.Primary } : null,
+    seriesPrimary:
+      item.SeriesId && item.SeriesPrimaryImageTag ? { itemId: item.SeriesId, type: "Primary", tag: item.SeriesPrimaryImageTag } : null,
+  };
+
+  const order = STRATEGY_ORDER[prefer] || STRATEGY_ORDER.thumb;
+  for (const key of order) {
+    const candidate = candidates[key];
+    if (candidate) {
+      return getEmbyImageUrl(cleanServer, candidate.itemId, {
+        imageType: candidate.type,
+        tag: candidate.tag,
         ...imageOptions,
       });
     }
-
-    // 2. Parent Series Backdrop for episodes
-    if (item.ParentBackdropItemId && item.ParentBackdropImageTags && item.ParentBackdropImageTags.length > 0) {
-      return getEmbyImageUrl(cleanServer, item.ParentBackdropItemId, {
-        imageType: "Backdrop",
-        tag: item.ParentBackdropImageTags[0],
-        ...imageOptions,
-      });
-    }
-
-    // 3. Item Thumb (16:9 landscape)
-    if (item.ImageTags?.Thumb) {
-      return getEmbyImageUrl(cleanServer, item.Id, {
-        imageType: "Thumb",
-        tag: item.ImageTags.Thumb,
-        ...imageOptions,
-      });
-    }
-
-    // 4. Parent Series Thumb for episodes
-    if (item.ParentThumbItemId && item.ParentThumbImageTag) {
-      return getEmbyImageUrl(cleanServer, item.ParentThumbItemId, {
-        imageType: "Thumb",
-        tag: item.ParentThumbImageTag,
-        ...imageOptions,
-      });
-    }
-
-    // 5. Item Primary (fallback)
-    if (item.ImageTags?.Primary) {
-      return getEmbyImageUrl(cleanServer, item.Id, {
-        imageType: "Primary",
-        tag: item.ImageTags.Primary,
-        ...imageOptions,
-      });
-    }
-
-    // 6. Series Primary (fallback)
-    if (item.SeriesId && item.SeriesPrimaryImageTag) {
-      return getEmbyImageUrl(cleanServer, item.SeriesId, {
-        imageType: "Primary",
-        tag: item.SeriesPrimaryImageTag,
-        ...imageOptions,
-      });
-    }
-
-    return undefined;
-  }
-
-  if (prefer === "thumb") {
-    // 1. Item Thumb (16:9 landscape)
-    if (item.ImageTags?.Thumb) {
-      return getEmbyImageUrl(cleanServer, item.Id, {
-        imageType: "Thumb",
-        tag: item.ImageTags.Thumb,
-        ...imageOptions,
-      });
-    }
-
-    // 2. Item Backdrop (16:9 widescreen)
-    if (item.BackdropImageTags && item.BackdropImageTags.length > 0) {
-      return getEmbyImageUrl(cleanServer, item.Id, {
-        imageType: "Backdrop",
-        tag: item.BackdropImageTags[0],
-        ...imageOptions,
-      });
-    }
-
-    // 3. Parent Series Backdrop for episodes
-    if (item.ParentBackdropItemId && item.ParentBackdropImageTags && item.ParentBackdropImageTags.length > 0) {
-      return getEmbyImageUrl(cleanServer, item.ParentBackdropItemId, {
-        imageType: "Backdrop",
-        tag: item.ParentBackdropImageTags[0],
-        ...imageOptions,
-      });
-    }
-
-    // 4. Parent Series Thumb for episodes
-    if (item.ParentThumbItemId && item.ParentThumbImageTag) {
-      return getEmbyImageUrl(cleanServer, item.ParentThumbItemId, {
-        imageType: "Thumb",
-        tag: item.ParentThumbImageTag,
-        ...imageOptions,
-      });
-    }
-
-    // 5. Item Primary (fallback)
-    if (item.ImageTags?.Primary) {
-      return getEmbyImageUrl(cleanServer, item.Id, {
-        imageType: "Primary",
-        tag: item.ImageTags.Primary,
-        ...imageOptions,
-      });
-    }
-
-    // 6. Series Primary (fallback)
-    if (item.SeriesId && item.SeriesPrimaryImageTag) {
-      return getEmbyImageUrl(cleanServer, item.SeriesId, {
-        imageType: "Primary",
-        tag: item.SeriesPrimaryImageTag,
-        ...imageOptions,
-      });
-    }
-
-    return undefined;
-  }
-
-  // prefer === "primary" (e.g. series detail episode view or poster)
-  // 1. Item Primary
-  if (item.ImageTags?.Primary) {
-    return getEmbyImageUrl(cleanServer, item.Id, {
-      imageType: "Primary",
-      tag: item.ImageTags.Primary,
-      ...imageOptions,
-    });
-  }
-
-  // 2. Item Thumb
-  if (item.ImageTags?.Thumb) {
-    return getEmbyImageUrl(cleanServer, item.Id, {
-      imageType: "Thumb",
-      tag: item.ImageTags.Thumb,
-      ...imageOptions,
-    });
-  }
-
-  // 3. Item Backdrop
-  if (item.BackdropImageTags && item.BackdropImageTags.length > 0) {
-    return getEmbyImageUrl(cleanServer, item.Id, {
-      imageType: "Backdrop",
-      tag: item.BackdropImageTags[0],
-      ...imageOptions,
-    });
-  }
-
-  // 4. Parent Backdrop
-  if (item.ParentBackdropItemId && item.ParentBackdropImageTags && item.ParentBackdropImageTags.length > 0) {
-    return getEmbyImageUrl(cleanServer, item.ParentBackdropItemId, {
-      imageType: "Backdrop",
-      tag: item.ParentBackdropImageTags[0],
-      ...imageOptions,
-    });
-  }
-
-  // 5. Parent Thumb
-  if (item.ParentThumbItemId && item.ParentThumbImageTag) {
-    return getEmbyImageUrl(cleanServer, item.ParentThumbItemId, {
-      imageType: "Thumb",
-      tag: item.ParentThumbImageTag,
-      ...imageOptions,
-    });
-  }
-
-  // 6. Series Primary
-  if (item.SeriesId && item.SeriesPrimaryImageTag) {
-    return getEmbyImageUrl(cleanServer, item.SeriesId, {
-      imageType: "Primary",
-      tag: item.SeriesPrimaryImageTag,
-      ...imageOptions,
-    });
   }
 
   return undefined;

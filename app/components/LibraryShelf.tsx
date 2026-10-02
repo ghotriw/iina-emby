@@ -1,8 +1,8 @@
-import { Skeleton } from "./Skeleton";
 import type { EmbyItemMetadata, EmbyServer, EmbyView } from "@shared";
 import { MediaPoster, MediaPosterSkeleton } from "./MediaPoster";
 import { MediaShelf } from "./MediaShelf";
 import shelfClasses from "./MediaShelf.module.css";
+import { Skeleton } from "./Skeleton";
 
 export interface LibraryShelfSkeletonProps {
   shelfId?: string | number;

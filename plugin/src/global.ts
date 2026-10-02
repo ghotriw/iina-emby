@@ -8,7 +8,7 @@ import { createBrowserWindowManager } from "./lib/browser-window";
 import { createDebugLogger } from "./lib/debug-log";
 import { createEmbyApi } from "./lib/emby-api";
 import { createServerSessionStore } from "./lib/server-session-store";
-import type { PlayMediaListMessage, PlayMediaMessage, WebviewBridgeDeps } from "./lib/webview-bridge";
+import { createBridgeDeps, type PlayMediaListMessage, type PlayMediaMessage } from "./lib/webview-bridge";
 
 const { global, console, preferences, standaloneWindow, utils, http, menu } = iina;
 
@@ -24,16 +24,7 @@ const { getClientIdentity } = createEmbyApi({
   log: debugLog,
 });
 
-const {
-  loadStoredServers,
-  getActiveServerId,
-  setActiveServerId,
-  addOrUpdateServer,
-  removeServer,
-  switchActiveServer,
-  getStoredEmbySession,
-  clearEmbySession,
-} = createServerSessionStore({
+const serverSessionStore = createServerSessionStore({
   preferences,
   standaloneWindow,
   log: debugLog,
@@ -98,21 +89,14 @@ function handleGlobalPlayMediaList(data?: PlayMediaListMessage): void {
   }
 }
 
-const bridgeDeps: WebviewBridgeDeps = {
+const bridgeDeps = createBridgeDeps({
   utils,
   log: debugLog,
   getClientIdentity,
-  getStoredEmbySession,
-  clearEmbySession,
-  loadStoredServers,
-  getActiveServerId,
-  setActiveServerId,
-  addOrUpdateServer,
-  removeServer,
-  switchActiveServer,
+  serverStore: serverSessionStore,
   onPlayMedia: handleGlobalPlayMedia,
   onPlayMediaList: handleGlobalPlayMediaList,
-};
+});
 
 const { openEmbyStandaloneWindow, showEmbyBrowser } = createBrowserWindowManager({
   standaloneWindow,

@@ -10,8 +10,8 @@ export interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const RADIUS_MAP: Record<string, string> = {
   xs: "0.125rem",
-  sm: "var(--radius-control, 0.375rem)",
-  md: "var(--radius-card, 0.625rem)",
+  sm: "var(--radius-m, 0.375rem)",
+  md: "var(--radius-l, 0.5rem)",
   lg: "0.75rem",
   xl: "1rem",
 };

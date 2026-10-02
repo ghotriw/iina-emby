@@ -7,6 +7,7 @@ import { GlassElement } from "../components/GlassElement";
 import { LibraryShelf, LibraryShelfSkeleton } from "../components/LibraryShelf";
 import { useIINABridge } from "../hooks/useIINABridge";
 import { useLibrarySections } from "../hooks/useLibrarySections";
+import { clearLibraryCache } from "../lib/emby-library-client";
 import styles from "./home.module.css";
 
 export function meta() {
@@ -37,6 +38,7 @@ export default function HomeRoute() {
   const handleRefresh = async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
+    clearLibraryCache();
     try {
       await Promise.allSettled([reload(), continueWatchingRef.current?.refresh()]);
     } finally {
@@ -96,7 +98,7 @@ export default function HomeRoute() {
         <ContinueWatching ref={continueWatchingRef} server={activeServer} onPlayMedia={playMedia} />
 
         {sectionsError && (
-          <Alert icon={<IconAlertCircle size={16} />} title="Error loading libraries" color="red" variant="light" mb="md" mx="1.5rem">
+          <Alert icon={<IconAlertCircle size={16} />} title="Error loading libraries" mb="md" mx="1.5rem">
             {sectionsError.message}
           </Alert>
         )}

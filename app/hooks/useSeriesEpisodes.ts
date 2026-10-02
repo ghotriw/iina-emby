@@ -12,10 +12,7 @@ export interface UseSeriesEpisodesResult {
   isEpisodesLoading: boolean;
 }
 
-export function useSeriesEpisodes(
-  activeServer: EmbyServer | null,
-  item?: EmbyItemMetadata,
-): UseSeriesEpisodesResult {
+export function useSeriesEpisodes(activeServer: EmbyServer | null, item?: EmbyItemMetadata): UseSeriesEpisodesResult {
   const isSeries = item?.Type === "Series";
 
   const [nextUpEpisode, setNextUpEpisode] = useState<EmbyItemMetadata | null>(null);
@@ -31,20 +28,23 @@ export function useSeriesEpisodes(
       return;
     }
 
-    let isCancelled = false;
+    const controller = new AbortController();
 
-    fetchNextUp(activeServer, item.Id)
+    fetchNextUp(activeServer, item.Id, controller.signal)
       .then((ep) => {
-        if (!isCancelled) {
+        if (!controller.signal.aborted) {
           setNextUpEpisode(ep);
         }
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
+        if (controller.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+          return;
+        }
         console.error("Failed to load next-up episode:", err);
       });
 
     return () => {
-      isCancelled = true;
+      controller.abort();
     };
   }, [activeServer, item]);
 
@@ -56,11 +56,11 @@ export function useSeriesEpisodes(
       return;
     }
 
-    let isCancelled = false;
+    const controller = new AbortController();
 
-    fetchSeasons(activeServer, item.Id)
+    fetchSeasons(activeServer, item.Id, controller.signal)
       .then((seasonList) => {
-        if (isCancelled) return;
+        if (controller.signal.aborted) return;
         setSeasons(seasonList);
 
         if (seasonList.length > 0) {
@@ -73,12 +73,15 @@ export function useSeriesEpisodes(
           });
         }
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
+        if (controller.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+          return;
+        }
         console.error("Failed to load seasons:", err);
       });
 
     return () => {
-      isCancelled = true;
+      controller.abort();
     };
   }, [activeServer, item, nextUpEpisode?.SeasonId]);
 
@@ -90,25 +93,28 @@ export function useSeriesEpisodes(
       return;
     }
 
-    let isCancelled = false;
+    const controller = new AbortController();
     setIsEpisodesLoading(true);
 
-    fetchEpisodes(activeServer, item.Id, selectedSeasonId)
+    fetchEpisodes(activeServer, item.Id, selectedSeasonId, controller.signal)
       .then((epList) => {
-        if (isCancelled) return;
+        if (controller.signal.aborted) return;
         setEpisodes(epList);
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
+        if (controller.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+          return;
+        }
         console.error("Failed to load episodes for season:", err);
       })
       .finally(() => {
-        if (!isCancelled) {
+        if (!controller.signal.aborted) {
           setIsEpisodesLoading(false);
         }
       });
 
     return () => {
-      isCancelled = true;
+      controller.abort();
     };
   }, [activeServer, item, selectedSeasonId]);
 

@@ -105,6 +105,19 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
         setIsLoading(false);
       });
 
+      window.iina.onMessage("session-available", (data) => {
+        if (data?.serverId) {
+          setActiveServerId(data.serverId);
+          window.iina?.postMessage("get-servers");
+        }
+      });
+
+      window.iina.onMessage("session-cleared", () => {
+        setServers([]);
+        setActiveServerId(null);
+        setIsLoading(false);
+      });
+
       // Request identity and servers list on mount
       window.iina.postMessage("get-client-identity");
       window.iina.postMessage("get-servers");
@@ -112,7 +125,7 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
       // Timeout fallback to stop loading state if IINA takes too long
       const timer = setTimeout(() => {
         setIsLoading(false);
-      }, 1000);
+      }, 3000);
 
       return () => clearTimeout(timer);
     }

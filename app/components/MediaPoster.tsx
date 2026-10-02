@@ -1,4 +1,3 @@
-import { Skeleton } from "./Skeleton";
 import type { EmbyItemMetadata, EmbyServer } from "@shared";
 import { getItemImageUrl } from "@shared";
 import { IconMovie } from "@tabler/icons-react";
@@ -6,12 +5,13 @@ import type React from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import classes from "./MediaPoster.module.css";
+import { Skeleton } from "./Skeleton";
 
 export function MediaPosterSkeleton({ className }: { className?: string }) {
   return (
     <div className={`${classes.card} ${className || ""}`} aria-hidden="true">
       <div className={classes.posterWrapper}>
-        <Skeleton height="100%" radius="var(--radius-card)" />
+        <Skeleton height="100%" radius="var(--radius-l)" />
       </div>
       <div className={classes.meta}>
         <span className={classes.title}>

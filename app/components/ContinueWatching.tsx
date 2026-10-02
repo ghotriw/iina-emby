@@ -1,8 +1,8 @@
-import { Alert } from "./Alert";
 import type { EmbyServer, PlayMediaPayload } from "@shared";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { forwardRef, useImperativeHandle } from "react";
 import { useContinueWatching } from "../hooks/useContinueWatching";
+import { Alert } from "./Alert";
 import { MediaShelf } from "./MediaShelf";
 import { MediaThumb, MediaThumbSkeleton } from "./MediaThumb";
 
@@ -29,7 +29,7 @@ export const ContinueWatching = forwardRef<ContinueWatchingHandle, ContinueWatch
   return (
     <div>
       {error && (
-        <Alert icon={<IconAlertCircle size={16} />} title="Error loading items" color="red" variant="light" mb="md" mx="1.5rem">
+        <Alert icon={<IconAlertCircle size={16} />} title="Error loading items" mb="md" mx="1.5rem">
           {error}
         </Alert>
       )}

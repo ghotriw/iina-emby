@@ -111,7 +111,7 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
                     </button>
 
                     <div className={styles.serverRowActions}>
-                      <Tooltip label="Remove server" withArrow>
+                      <Tooltip label="Remove server">
                         <button
                           type="button"
                           className={styles.deleteBtn}
@@ -151,14 +151,12 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
                   <Alert
                     icon={<IconAlertCircle size={15} />}
                     title="Connection Error"
-                    color="red"
-                    variant="light"
                     styles={{
                       root: {
                         backgroundColor: "var(--danger-bg)",
                         borderColor: "var(--danger-border)",
                         padding: "0.375rem 0.625rem",
-                        borderRadius: "var(--radius-control)",
+                        borderRadius: "var(--radius-m)",
                       },
                       message: { fontSize: "var(--font-size-sub)" },
                       title: { fontSize: "var(--font-size-sub)", fontWeight: 600 },
@@ -250,7 +248,6 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
           </>
         }
         confirmLabel="Remove"
-        confirmColor="red"
       />
     </div>
   );

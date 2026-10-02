@@ -1,4 +1,4 @@
-const TICKS_PER_SECOND = 10_000_000;
+export const TICKS_PER_SECOND = 10_000_000;
 
 export function ticksToSeconds(ticks?: number | null): number {
   if (!ticks || typeof ticks !== "number" || ticks < 0) {
@@ -37,6 +37,23 @@ export function formatTimeProgress(currentSeconds?: number | null, totalSeconds?
   const current = formatDuration(currentSeconds);
   const total = formatDuration(totalSeconds);
   return `${current} / ${total}`;
+}
+
+export function formatEpisodeCode(seasonNum?: number | null, episodeNum?: number | null): string {
+  const s = typeof seasonNum === "number" && seasonNum > 0 ? String(seasonNum).padStart(2, "0") : "01";
+  const e = typeof episodeNum === "number" && episodeNum > 0 ? String(episodeNum).padStart(2, "0") : "01";
+  return `S${s}E${e}`;
+}
+
+export function formatFullEpisodeTitle(
+  seriesName?: string | null,
+  seasonNum?: number | null,
+  episodeNum?: number | null,
+  episodeName?: string | null,
+): string {
+  const code = formatEpisodeCode(seasonNum, episodeNum);
+  const title = episodeName || "Episode";
+  return seriesName ? `${seriesName} ${code} - ${title}` : `${code} - ${title}`;
 }
 
 export function formatEpisodeSubtitle(seasonNum?: number | null, episodeNum?: number | null, episodeName?: string | null): string {

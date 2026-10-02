@@ -1,7 +1,7 @@
-import type { EmbyItemMetadata } from "@shared";
+import { type EmbyItemMetadata, formatEpisodeCode } from "@shared";
 import { IconX } from "@tabler/icons-react";
-import { Modal } from "./Modal";
 import styles from "./EpisodeDetailModal.module.css";
+import { Modal } from "./Modal";
 
 export interface EpisodeDetailModalProps {
   episode: EmbyItemMetadata | null;
@@ -13,9 +13,7 @@ export function EpisodeDetailModal({ episode, onClose }: EpisodeDetailModalProps
     <Modal
       opened={Boolean(episode)}
       onClose={onClose}
-      centered
       size="28rem"
-      withCloseButton={false}
       classNames={{
         content: styles.modalContent,
         overlay: styles.modalOverlay,
@@ -25,28 +23,17 @@ export function EpisodeDetailModal({ episode, onClose }: EpisodeDetailModalProps
         <div className={styles.modalBody}>
           <div className={styles.modalHeader}>
             <div className={styles.modalHeaderInfo}>
-              <div className={styles.modalEpisodeCode}>
-                S{String(episode.ParentIndexNumber ?? 1).padStart(2, "0")} · E
-                {String(episode.IndexNumber ?? 1).padStart(2, "0")}
-              </div>
+              <div className={styles.modalEpisodeCode}>{formatEpisodeCode(episode.ParentIndexNumber, episode.IndexNumber)}</div>
               <h3 className={styles.modalEpisodeTitle}>{episode.Name || "Episode"}</h3>
             </div>
 
-            <button
-              type="button"
-              className={styles.modalCloseButton}
-              onClick={onClose}
-              aria-label="Close"
-              title="Close"
-            >
+            <button type="button" className={styles.modalCloseButton} onClick={onClose} aria-label="Close" title="Close">
               <IconX size={16} />
             </button>
           </div>
 
           <div className={styles.modalOverviewScroll}>
-            <p className={styles.modalOverviewText}>
-              {episode.Overview || "No overview available for this episode."}
-            </p>
+            <p className={styles.modalOverviewText}>{episode.Overview || "No overview available for this episode."}</p>
           </div>
         </div>
       )}

@@ -11,7 +11,7 @@ import { createMediaActionsManager } from "./lib/media-actions";
 import { createPlaybackCoordinator } from "./lib/playback-coordinator";
 import { createPlaybackTrackingManager } from "./lib/playback-tracking";
 import { createServerSessionStore } from "./lib/server-session-store";
-import type { PlayMediaListMessage, PlayMediaMessage, WebviewBridgeDeps } from "./lib/webview-bridge";
+import { createBridgeDeps, type PlayMediaListMessage, type PlayMediaMessage } from "./lib/webview-bridge";
 
 const { core, console: iinaConsole, menu, event, http, utils, preferences, mpv, sidebar, global: iinaGlobal, standaloneWindow } = iina;
 
@@ -32,22 +32,14 @@ const {
   log: debugLog,
 });
 
-const {
-  loadStoredServers,
-  getActiveServerId,
-  setActiveServerId,
-  addOrUpdateServer,
-  removeServer,
-  switchActiveServer,
-  storeEmbySession,
-  getStoredEmbySession,
-  clearEmbySession,
-} = createServerSessionStore({
+const serverSessionStore = createServerSessionStore({
   preferences,
   sidebar,
   standaloneWindow,
   log: debugLog,
 });
+
+const { storeEmbySession, getStoredEmbySession } = serverSessionStore;
 
 debugLog("Emby Plugin loaded");
 
@@ -108,7 +100,7 @@ const {
 // Check if this player window was spawned specifically for Emby playback
 if (iinaGlobal && typeof iinaGlobal.getLabel === "function") {
   const label = iinaGlobal.getLabel();
-  if (label && label.startsWith("emby-")) {
+  if (label?.startsWith("emby-")) {
     debugLog(`Player instance opened with label ${label}, marking as browser playback`);
     markLaunchedFromBrowser();
   }
@@ -159,7 +151,7 @@ function onFileLoaded(fileUrl?: string): void {
     let reportUserId: string | undefined;
 
     const session = getStoredEmbySession();
-    if (session && session.accessToken && isSameEmbyHost(session.serverUrl, embyInfo.serverBase)) {
+    if (session?.accessToken && isSameEmbyHost(session.serverUrl, embyInfo.serverBase)) {
       reportUserId = session.userId;
       if (preferences.get("use_connected_account")) {
         reportServerBase = session.serverUrl;
@@ -168,7 +160,7 @@ function onFileLoaded(fileUrl?: string): void {
           `Connected-account mode: reporting as ${session.username || session.serverName} @ ${reportServerBase} (ignoring URL api_key)`,
         );
       }
-    } else if (session && session.userId && isSameEmbyHost(session.serverUrl, embyInfo.serverBase)) {
+    } else if (session?.userId && isSameEmbyHost(session.serverUrl, embyInfo.serverBase)) {
       reportUserId = session.userId;
     } else if (preferences.get("auto_login_enabled")) {
       // Default behaviour: remember this URL's session for auto-login.
@@ -214,25 +206,18 @@ function onFileLoaded(fileUrl?: string): void {
 }
 
 // Setup unified webview bridge dependencies
-const bridgeDeps: WebviewBridgeDeps = {
+const bridgeDeps = createBridgeDeps({
   core,
   utils,
   log: debugLog,
   getClientIdentity,
-  getStoredEmbySession,
-  clearEmbySession,
-  loadStoredServers,
-  getActiveServerId,
-  setActiveServerId,
-  addOrUpdateServer,
-  removeServer,
-  switchActiveServer,
+  serverStore: serverSessionStore,
   onPlayMedia: handlePlayMedia,
   onPlayMediaList: handlePlayMediaList,
-};
+});
 
 // Browser window manager (sidebar & standalone window)
-const { showEmbyBrowser, openEmbyStandaloneWindow, initSidebar } = createBrowserWindowManager({
+const { openEmbyStandaloneWindow, initSidebar } = createBrowserWindowManager({
   core,
   sidebar,
   standaloneWindow,

@@ -1,4 +1,4 @@
-import type { EmbyItemMetadata, EmbyItemsResponse, EmbySeasonItem } from "@shared";
+import { type EmbyItemMetadata, type EmbyItemsResponse, type EmbySeasonItem, formatFullEpisodeTitle } from "@shared";
 import type { DebugLogger } from "./debug-log";
 
 export interface AutoplayManagerDeps {
@@ -189,8 +189,7 @@ export function createAutoplayManager({ http, mpv, core, preferences, buildEmbyH
 
   function queueNextEpisode(nextEpisode: SeriesEpisode, seriesName: string, seasonNumber: number) {
     try {
-      const seCode = `S${String(seasonNumber).padStart(2, "0")}E${String(nextEpisode.indexNumber).padStart(2, "0")}`;
-      const episodeTitle = seriesName ? `${seriesName} ${seCode} - ${nextEpisode.name}` : `${seCode} - ${nextEpisode.name}`;
+      const episodeTitle = formatFullEpisodeTitle(seriesName, seasonNumber, nextEpisode.indexNumber, nextEpisode.name);
 
       log(`Queuing next episode: ${episodeTitle}`);
 

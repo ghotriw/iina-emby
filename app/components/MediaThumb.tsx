@@ -21,7 +21,7 @@ export function MediaThumbSkeleton({ className }: { className?: string }) {
   return (
     <div className={`${classes.card} ${className || ""}`} aria-hidden="true">
       <div className={classes.preview}>
-        <Skeleton height="100%" radius="var(--radius-card)" />
+        <Skeleton height="100%" radius="var(--radius-l)" />
       </div>
       <div className={classes.meta}>
         <span className={classes.title}>

@@ -10,7 +10,6 @@ export interface ConfirmModalProps {
   message?: React.ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
-  confirmColor?: string;
   isLoading?: boolean;
 }
 
@@ -28,8 +27,6 @@ export function ConfirmModal({
     <Modal
       opened={opened}
       onClose={onClose}
-      withCloseButton={false}
-      centered
       size="21.5rem"
       closeOnClickOutside={!isLoading}
       closeOnEscape={!isLoading}
@@ -37,7 +34,6 @@ export function ConfirmModal({
         content: styles.modalContent,
         overlay: styles.modalOverlay,
       }}
-      transitionProps={{ transition: "pop", duration: 150 }}
     >
       <div className={styles.body}>
         {title && <h4 className={styles.title}>{title}</h4>}

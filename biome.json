@@ -1,20 +1,24 @@
 {
-	"$schema": "https://biomejs.dev/schemas/latest/schema.json",
-	"formatter": {
-		"enabled": true,
-		"indentStyle": "space",
-		"lineWidth": 140
-	},
-	"linter": {
-		"rules": {
-			"correctness": {
-				"noUnknownPseudoClass": {
-					"level": "warn",
-					"options": {
-						"ignore": ["global", "local"]
-					}
-				}
-			}
-		}
-	}
+  "$schema": "https://biomejs.dev/schemas/latest/schema.json",
+  "files": {
+    "ignoreUnknown": true,
+    "includes": ["app/**", "plugin/**", "shared/**", "*.json", "*.ts", "!dist", "!build", "!.agents", "!node_modules"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "lineWidth": 140
+  },
+  "linter": {
+    "rules": {
+      "correctness": {
+        "noUnknownPseudoClass": {
+          "level": "warn",
+          "options": {
+            "ignore": ["global", "local"]
+          }
+        }
+      }
+    }
+  }
 }

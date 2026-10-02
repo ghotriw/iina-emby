@@ -1,4 +1,4 @@
-import type { EmbyItemMetadata } from "@shared";
+import { type EmbyItemMetadata, formatFullEpisodeTitle } from "@shared";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { EpisodeDetailModal } from "../components/EpisodeDetailModal";
@@ -28,33 +28,31 @@ export default function ItemDetailRoute() {
   useEffect(() => {
     if (!activeServer || !id) return;
 
-    let isCancelled = false;
+    const controller = new AbortController();
 
-    fetchItemDetails(activeServer, id)
+    fetchItemDetails(activeServer, id, controller.signal)
       .then((details) => {
-        if (!isCancelled) {
+        if (!controller.signal.aborted) {
           setItem(details);
         }
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
+        if (controller.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+          return;
+        }
         console.error("Failed to load full item details:", err);
       });
 
     return () => {
-      isCancelled = true;
+      controller.abort();
     };
   }, [activeServer, id]);
 
   // Series next-up, seasons, and episodes management
-  const {
-    isSeries,
-    nextUpEpisode,
-    seasons,
-    selectedSeasonId,
-    setSelectedSeasonId,
-    episodes,
-    isEpisodesLoading,
-  } = useSeriesEpisodes(activeServer, item);
+  const { isSeries, nextUpEpisode, seasons, selectedSeasonId, setSelectedSeasonId, episodes, isEpisodesLoading } = useSeriesEpisodes(
+    activeServer,
+    item,
+  );
 
   if (!activeServer) {
     return null;
@@ -71,16 +69,13 @@ export default function ItemDetailRoute() {
 
       let playTitle = targetItem.Name || "Media";
       if (item?.Type === "Series" && nextUpEpisode) {
-        playTitle = nextUpEpisode.IndexNumber
-          ? `${item.Name} - S${nextUpEpisode.ParentIndexNumber ?? 1}E${nextUpEpisode.IndexNumber} - ${nextUpEpisode.Name}`
-          : nextUpEpisode.Name || item.Name || "Episode";
+        playTitle = formatFullEpisodeTitle(item.Name, nextUpEpisode.ParentIndexNumber ?? 1, nextUpEpisode.IndexNumber, nextUpEpisode.Name);
       }
 
       playMedia({
         title: playTitle,
         streamUrl: buildStreamUrl(activeServer, targetItem.Id),
-        startPositionTicks:
-          targetItem.UserData?.PlaybackPositionTicks || item?.UserData?.PlaybackPositionTicks,
+        startPositionTicks: targetItem.UserData?.PlaybackPositionTicks || item?.UserData?.PlaybackPositionTicks,
       });
     } finally {
       setIsPlaying(false);
@@ -89,9 +84,7 @@ export default function ItemDetailRoute() {
 
   // Episode card playback execution
   const handlePlayEpisode = (ep: EmbyItemMetadata) => {
-    const sNum = ep.ParentIndexNumber !== undefined ? String(ep.ParentIndexNumber).padStart(2, "0") : "01";
-    const eNum = ep.IndexNumber !== undefined ? String(ep.IndexNumber).padStart(2, "0") : "01";
-    const playTitle = `${item?.Name || "Series"} - S${sNum}E${eNum} - ${ep.Name || "Episode"}`;
+    const playTitle = formatFullEpisodeTitle(item?.Name, ep.ParentIndexNumber, ep.IndexNumber, ep.Name);
 
     playMedia({
       title: playTitle,
@@ -124,10 +117,7 @@ export default function ItemDetailRoute() {
         />
       )}
 
-      <EpisodeDetailModal
-        episode={detailEpisode}
-        onClose={() => setDetailEpisode(null)}
-      />
+      <EpisodeDetailModal episode={detailEpisode} onClose={() => setDetailEpisode(null)} />
     </div>
   );
 }

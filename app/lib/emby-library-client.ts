@@ -1,10 +1,35 @@
 import type { EmbyItemMetadata, EmbyItemsResponse, EmbyServer, EmbyView } from "@shared";
 import { buildAuthHeaders } from "./emby-auth-client";
 
+interface CacheEntry<T> {
+  data: T;
+  expires: number;
+}
+
+const cache = new Map<string, CacheEntry<unknown>>();
+const DEFAULT_CACHE_TTL_MS = 60_000; // 1 minute
+
+export function clearLibraryCache(): void {
+  cache.clear();
+}
+
+async function getOrFetchCached<T>(key: string, ttlMs: number, bypassCache: boolean, fetcher: () => Promise<T>): Promise<T> {
+  if (!bypassCache) {
+    const existing = cache.get(key);
+    if (existing && Date.now() < existing.expires) {
+      return existing.data as T;
+    }
+  }
+
+  const result = await fetcher();
+  cache.set(key, { data: result, expires: Date.now() + ttlMs });
+  return result;
+}
+
 /**
  * Fetch Continue Watching (Resume) items for the active user from Emby server.
  */
-export async function fetchResumeItems(server: EmbyServer, limit = 12): Promise<EmbyItemMetadata[]> {
+export async function fetchResumeItems(server: EmbyServer, limit = 12, signal?: AbortSignal): Promise<EmbyItemMetadata[]> {
   const base = server.serverUrl.replace(/\/+$/, "");
   const query = new URLSearchParams({
     Limit: String(limit),
@@ -18,6 +43,7 @@ export async function fetchResumeItems(server: EmbyServer, limit = 12): Promise<
 
   const url = `${base}/Users/${encodeURIComponent(server.userId)}/Items/Resume?${query.toString()}`;
   const response = await fetch(url, {
+    signal,
     headers: buildAuthHeaders(server.accessToken, {
       Accept: "application/json",
     }),
@@ -34,56 +60,72 @@ export async function fetchResumeItems(server: EmbyServer, limit = 12): Promise<
 /**
  * Fetch root user library views (e.g. Movies, TV shows).
  */
-export async function fetchUserViews(server: EmbyServer): Promise<EmbyView[]> {
+export async function fetchUserViews(server: EmbyServer, signal?: AbortSignal, bypassCache = false): Promise<EmbyView[]> {
   const base = server.serverUrl.replace(/\/+$/, "");
-  const url = `${base}/Users/${encodeURIComponent(server.userId)}/Views`;
+  const cacheKey = `${base}:${server.userId}:views`;
 
-  const response = await fetch(url, {
-    headers: buildAuthHeaders(server.accessToken, {
-      Accept: "application/json",
-    }),
+  return getOrFetchCached(cacheKey, DEFAULT_CACHE_TTL_MS, bypassCache, async () => {
+    const url = `${base}/Users/${encodeURIComponent(server.userId)}/Views`;
+
+    const response = await fetch(url, {
+      signal,
+      headers: buildAuthHeaders(server.accessToken, {
+        Accept: "application/json",
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user views: ${response.status} ${response.statusText}`);
+    }
+
+    const data = (await response.json()) as EmbyItemsResponse<EmbyView>;
+    return data.Items || [];
   });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch user views: ${response.status} ${response.statusText}`);
-  }
-
-  const data = (await response.json()) as EmbyItemsResponse<EmbyView>;
-  return data.Items || [];
 }
 
 /**
  * Fetch latest items for a specific library (ParentId).
  */
-export async function fetchLatestItems(server: EmbyServer, parentId: string, limit = 16): Promise<EmbyItemMetadata[]> {
+export async function fetchLatestItems(
+  server: EmbyServer,
+  parentId: string,
+  limit = 16,
+  signal?: AbortSignal,
+  bypassCache = false,
+): Promise<EmbyItemMetadata[]> {
   const base = server.serverUrl.replace(/\/+$/, "");
-  const query = new URLSearchParams({
-    ParentId: parentId,
-    Limit: String(limit),
-    Fields: "CommunityRating,ProductionYear,ImageTags,BackdropImageTags,UserData,PrimaryImageAspectRatio,SeriesName",
-    EnableImageTypes: "Primary,Backdrop,Thumb",
-    ImageTypeLimit: "1",
+  const cacheKey = `${base}:${server.userId}:latest:${parentId}:${limit}`;
+
+  return getOrFetchCached(cacheKey, DEFAULT_CACHE_TTL_MS, bypassCache, async () => {
+    const query = new URLSearchParams({
+      ParentId: parentId,
+      Limit: String(limit),
+      Fields: "CommunityRating,ProductionYear,ImageTags,BackdropImageTags,UserData,PrimaryImageAspectRatio,SeriesName",
+      EnableImageTypes: "Primary,Backdrop,Thumb",
+      ImageTypeLimit: "1",
+    });
+
+    const url = `${base}/Users/${encodeURIComponent(server.userId)}/Items/Latest?${query.toString()}`;
+    const response = await fetch(url, {
+      signal,
+      headers: buildAuthHeaders(server.accessToken, {
+        Accept: "application/json",
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch latest items for library ${parentId}: ${response.status} ${response.statusText}`);
+    }
+
+    const data = (await response.json()) as EmbyItemMetadata[];
+    return Array.isArray(data) ? data : [];
   });
-
-  const url = `${base}/Users/${encodeURIComponent(server.userId)}/Items/Latest?${query.toString()}`;
-  const response = await fetch(url, {
-    headers: buildAuthHeaders(server.accessToken, {
-      Accept: "application/json",
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch latest items for library ${parentId}: ${response.status} ${response.statusText}`);
-  }
-
-  const data = (await response.json()) as EmbyItemMetadata[];
-  return Array.isArray(data) ? data : [];
 }
 
 /**
  * Fetch next up episode for a series.
  */
-export async function fetchNextUp(server: EmbyServer, seriesId: string): Promise<EmbyItemMetadata | null> {
+export async function fetchNextUp(server: EmbyServer, seriesId: string, signal?: AbortSignal): Promise<EmbyItemMetadata | null> {
   const base = server.serverUrl.replace(/\/+$/, "");
   const query = new URLSearchParams({
     SeriesId: seriesId,
@@ -94,6 +136,7 @@ export async function fetchNextUp(server: EmbyServer, seriesId: string): Promise
 
   const url = `${base}/Shows/NextUp?${query.toString()}`;
   const response = await fetch(url, {
+    signal,
     headers: buildAuthHeaders(server.accessToken, {
       Accept: "application/json",
     }),
@@ -110,21 +153,31 @@ export async function fetchNextUp(server: EmbyServer, seriesId: string): Promise
 /**
  * Fetch full details for a single item.
  */
-export async function fetchItemDetails(server: EmbyServer, itemId: string): Promise<EmbyItemMetadata> {
+export async function fetchItemDetails(
+  server: EmbyServer,
+  itemId: string,
+  signal?: AbortSignal,
+  bypassCache = false,
+): Promise<EmbyItemMetadata> {
   const base = server.serverUrl.replace(/\/+$/, "");
-  const url = `${base}/Users/${encodeURIComponent(server.userId)}/Items/${encodeURIComponent(itemId)}`;
+  const cacheKey = `${base}:${server.userId}:item:${itemId}`;
 
-  const response = await fetch(url, {
-    headers: buildAuthHeaders(server.accessToken, {
-      Accept: "application/json",
-    }),
+  return getOrFetchCached(cacheKey, DEFAULT_CACHE_TTL_MS, bypassCache, async () => {
+    const url = `${base}/Users/${encodeURIComponent(server.userId)}/Items/${encodeURIComponent(itemId)}`;
+
+    const response = await fetch(url, {
+      signal,
+      headers: buildAuthHeaders(server.accessToken, {
+        Accept: "application/json",
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch item details: ${response.status} ${response.statusText}`);
+    }
+
+    return (await response.json()) as EmbyItemMetadata;
   });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch item details: ${response.status} ${response.statusText}`);
-  }
-
-  return (await response.json()) as EmbyItemMetadata;
 }
 
 /**
@@ -143,12 +196,13 @@ export interface EmbyImageInfo {
 /**
  * Fetch all available images for an item.
  */
-export async function fetchItemImages(server: EmbyServer, itemId: string): Promise<EmbyImageInfo[]> {
+export async function fetchItemImages(server: EmbyServer, itemId: string, signal?: AbortSignal): Promise<EmbyImageInfo[]> {
   const base = server.serverUrl.replace(/\/+$/, "");
   const url = `${base}/Items/${encodeURIComponent(itemId)}/Images?api_key=${encodeURIComponent(server.accessToken)}`;
 
   try {
     const response = await fetch(url, {
+      signal,
       headers: buildAuthHeaders(server.accessToken, {
         Accept: "application/json",
       }),
@@ -175,54 +229,75 @@ export function buildStreamUrl(server: EmbyServer, itemId: string): string {
 /**
  * Fetch all seasons for a series.
  */
-export async function fetchSeasons(server: EmbyServer, seriesId: string): Promise<EmbyItemMetadata[]> {
+export async function fetchSeasons(
+  server: EmbyServer,
+  seriesId: string,
+  signal?: AbortSignal,
+  bypassCache = false,
+): Promise<EmbyItemMetadata[]> {
   const base = server.serverUrl.replace(/\/+$/, "");
-  const query = new URLSearchParams({
-    UserId: server.userId,
-    Fields: "ItemCounts,PrimaryImageAspectRatio,Overview,UserData",
+  const cacheKey = `${base}:${server.userId}:seasons:${seriesId}`;
+
+  return getOrFetchCached(cacheKey, DEFAULT_CACHE_TTL_MS, bypassCache, async () => {
+    const query = new URLSearchParams({
+      UserId: server.userId,
+      Fields: "ItemCounts,PrimaryImageAspectRatio,Overview,UserData",
+    });
+
+    const url = `${base}/Shows/${encodeURIComponent(seriesId)}/Seasons?${query.toString()}`;
+    const response = await fetch(url, {
+      signal,
+      headers: buildAuthHeaders(server.accessToken, {
+        Accept: "application/json",
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch seasons: ${response.status} ${response.statusText}`);
+    }
+
+    const data = (await response.json()) as EmbyItemsResponse<EmbyItemMetadata>;
+    return data.Items || [];
   });
-
-  const url = `${base}/Shows/${encodeURIComponent(seriesId)}/Seasons?${query.toString()}`;
-  const response = await fetch(url, {
-    headers: buildAuthHeaders(server.accessToken, {
-      Accept: "application/json",
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch seasons: ${response.status} ${response.statusText}`);
-  }
-
-  const data = (await response.json()) as EmbyItemsResponse<EmbyItemMetadata>;
-  return data.Items || [];
 }
 
 /**
  * Fetch episodes for a series, optionally filtered by seasonId.
  */
-export async function fetchEpisodes(server: EmbyServer, seriesId: string, seasonId?: string): Promise<EmbyItemMetadata[]> {
+export async function fetchEpisodes(
+  server: EmbyServer,
+  seriesId: string,
+  seasonId?: string,
+  signal?: AbortSignal,
+  bypassCache = false,
+): Promise<EmbyItemMetadata[]> {
   const base = server.serverUrl.replace(/\/+$/, "");
-  const query = new URLSearchParams({
-    UserId: server.userId,
-    Fields:
-      "Overview,PrimaryImageAspectRatio,SeriesName,SeasonId,SeriesId,ParentIndexNumber,IndexNumber,MediaSources,MediaStreams,ImageTags,UserData,RunTimeTicks",
+  const cacheKey = `${base}:${server.userId}:episodes:${seriesId}:${seasonId || "all"}`;
+
+  return getOrFetchCached(cacheKey, DEFAULT_CACHE_TTL_MS, bypassCache, async () => {
+    const query = new URLSearchParams({
+      UserId: server.userId,
+      Fields:
+        "Overview,PrimaryImageAspectRatio,SeriesName,SeasonId,SeriesId,ParentIndexNumber,IndexNumber,MediaSources,MediaStreams,ImageTags,UserData,RunTimeTicks",
+    });
+
+    if (seasonId) {
+      query.set("seasonId", seasonId);
+    }
+
+    const url = `${base}/Shows/${encodeURIComponent(seriesId)}/Episodes?${query.toString()}`;
+    const response = await fetch(url, {
+      signal,
+      headers: buildAuthHeaders(server.accessToken, {
+        Accept: "application/json",
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch episodes: ${response.status} ${response.statusText}`);
+    }
+
+    const data = (await response.json()) as EmbyItemsResponse<EmbyItemMetadata>;
+    return data.Items || [];
   });
-
-  if (seasonId) {
-    query.set("seasonId", seasonId);
-  }
-
-  const url = `${base}/Shows/${encodeURIComponent(seriesId)}/Episodes?${query.toString()}`;
-  const response = await fetch(url, {
-    headers: buildAuthHeaders(server.accessToken, {
-      Accept: "application/json",
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch episodes: ${response.status} ${response.statusText}`);
-  }
-
-  const data = (await response.json()) as EmbyItemsResponse<EmbyItemMetadata>;
-  return data.Items || [];
 }

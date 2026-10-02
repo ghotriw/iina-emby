@@ -16,7 +16,7 @@
   font-size: var(--font-size-caption);
   font-weight: 500;
   padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-m);
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;

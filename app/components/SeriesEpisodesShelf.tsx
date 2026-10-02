@@ -1,4 +1,4 @@
-import type { EmbyItemMetadata, EmbyServer } from "@shared";
+import { type EmbyItemMetadata, type EmbyServer, formatEpisodeSubtitle } from "@shared";
 import { MediaShelf } from "./MediaShelf";
 import { MediaThumb, MediaThumbSkeleton } from "./MediaThumb";
 import { Select } from "./Select";
@@ -45,11 +45,6 @@ export function SeriesEpisodesShelf({
                 }}
                 allowDeselect={false}
                 className={styles.seasonSelect}
-                comboboxProps={{
-                  withinPortal: true,
-                  transitionProps: { transition: "fade", duration: 120 },
-                  shadow: "md",
-                }}
               />
             )}
           </div>
@@ -61,9 +56,7 @@ export function SeriesEpisodesShelf({
         {isLoading && episodes.length === 0
           ? [1, 2, 3, 4, 5].map((id) => <MediaThumbSkeleton key={id} />)
           : episodes.map((ep) => {
-              const sNum = ep.ParentIndexNumber !== undefined ? String(ep.ParentIndexNumber).padStart(2, "0") : "01";
-              const eNum = ep.IndexNumber !== undefined ? String(ep.IndexNumber).padStart(2, "0") : "01";
-              const cardTitle = `S${sNum} - E${eNum} - ${ep.Name || `Episode ${ep.IndexNumber || ""}`}`;
+              const cardTitle = formatEpisodeSubtitle(ep.ParentIndexNumber, ep.IndexNumber, ep.Name || "Episode");
               return (
                 <MediaThumb
                   key={ep.Id}

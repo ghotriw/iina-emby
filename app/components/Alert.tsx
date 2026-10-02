@@ -5,8 +5,6 @@ export interface AlertProps {
   icon?: React.ReactNode;
   title?: React.ReactNode;
   children?: React.ReactNode;
-  color?: string;
-  variant?: string;
   mb?: string | number;
   mx?: string | number;
   styles?: {

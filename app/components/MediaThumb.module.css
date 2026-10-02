@@ -14,7 +14,7 @@
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-l);
   overflow: hidden;
   background-color: var(--bg-media-poster);
   border: none;
@@ -148,31 +148,13 @@
   color: inherit;
   font-family: inherit;
   outline: none;
-  border-radius: var(--radius-xs, 0.25rem);
+  border-radius: var(--radius-s, 0.25rem);
   transition: background-color 0.15s ease;
 }
 
 .meta:focus-visible {
   outline: 2px solid var(--accent-blue);
   outline-offset: 1px;
-}
-
-.meta:hover {
-  background: var(--bg-row-hover);
-}
-
-.meta:hover .title {
-  color: var(--text-primary);
-}
-
-.meta:hover .subtitle {
-  color: var(--text-secondary);
-}
-
-.card[aria-hidden="true"] .preview,
-.card[aria-hidden="true"] .meta {
-  cursor: default;
-  pointer-events: none;
 }
 
 .title {
@@ -194,6 +176,24 @@
   text-overflow: ellipsis;
   line-height: 1.3;
   transition: color 0.15s ease;
+}
+
+.meta:hover {
+  background: var(--bg-row-hover);
+}
+
+.meta:hover .title {
+  color: var(--text-primary);
+}
+
+.meta:hover .subtitle {
+  color: var(--text-secondary);
+}
+
+.card[aria-hidden="true"] .preview,
+.card[aria-hidden="true"] .meta {
+  cursor: default;
+  pointer-events: none;
 }
 
 .subtitleClamped {

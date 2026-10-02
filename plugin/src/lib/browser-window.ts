@@ -17,7 +17,7 @@ export function createBrowserWindowManager({ core, sidebar, standaloneWindow, pr
       log("Creating standalone Emby browser window");
 
       // Load the React SPA HTML in standalone window
-      standaloneWindow.loadFile("build/client/index.html");
+      standaloneWindow.loadFile("dist/client/index.html");
 
       // Restore previously saved window dimensions or use default 520x720
       const savedWidth = preferences.get("standalone_window_width") as number | undefined;
@@ -89,7 +89,7 @@ export function createBrowserWindowManager({ core, sidebar, standaloneWindow, pr
     let windowAvailable = false;
     if (core) {
       try {
-        windowAvailable = Boolean(core.window && core.window.loaded && core.window.visible);
+        windowAvailable = Boolean(core.window?.loaded && core.window.visible);
       } catch (error: unknown) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         log(`Could not read window state: ${errorMsg}`);
@@ -114,7 +114,7 @@ export function createBrowserWindowManager({ core, sidebar, standaloneWindow, pr
 
   function initSidebar(): void {
     if (!sidebar) return;
-    sidebar.loadFile("build/client/index.html");
+    sidebar.loadFile("dist/client/index.html");
     registerBridgeHandlers(sidebar, bridgeDeps);
     setTimeout(() => {
       sidebar.postMessage("window-context", { isStandalone: false });

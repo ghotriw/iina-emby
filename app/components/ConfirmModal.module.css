@@ -9,7 +9,7 @@
   backdrop-filter: blur(2rem);
   -webkit-backdrop-filter: blur(2rem);
   border: 1px solid var(--border-control);
-  border-radius: var(--radius-dialog);
+  border-radius: var(--radius-l);
   box-shadow: var(--shadow-dialog);
   padding: 1.25rem 1.25rem 1rem;
   box-sizing: border-box;
@@ -47,7 +47,7 @@
 .cancelBtn {
   height: var(--height-btn-md);
   padding: 0 0.875rem;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-m);
   background: var(--bg-control);
   border: 1px solid var(--border-subtle);
   color: var(--text-primary);
@@ -70,7 +70,7 @@
 .destructiveBtn {
   height: var(--height-btn-md);
   padding: 0 0.875rem;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-m);
   background: var(--accent-red);
   border: none;
   color: var(--text-primary);

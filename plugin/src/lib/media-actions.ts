@@ -1,4 +1,4 @@
-import type { EmbyItemMetadata, EmbyMediaStream, EmbyPlaybackInfo, ParsedEmbyUrl } from "@shared";
+import { type EmbyItemMetadata, type EmbyMediaStream, type EmbyPlaybackInfo, formatFullEpisodeTitle, type ParsedEmbyUrl } from "@shared";
 import type { DebugLogger } from "./debug-log";
 
 export interface MediaActionsDeps {
@@ -46,18 +46,7 @@ export function createMediaActionsManager({
       let title = metadata.Name;
 
       if (metadata.Type === "Episode") {
-        const seriesName = metadata.SeriesName;
-        const seasonNumber = metadata.ParentIndexNumber;
-        const episodeNumber = metadata.IndexNumber;
-
-        if (seriesName) {
-          let episodeTitle = seriesName;
-          if (seasonNumber !== undefined && episodeNumber !== undefined) {
-            episodeTitle += ` S${seasonNumber.toString().padStart(2, "0")}E${episodeNumber.toString().padStart(2, "0")}`;
-          }
-          episodeTitle += ` - ${metadata.Name}`;
-          title = episodeTitle;
-        }
+        title = formatFullEpisodeTitle(metadata.SeriesName, metadata.ParentIndexNumber, metadata.IndexNumber, metadata.Name);
       } else if (metadata.Type === "Movie" && metadata.ProductionYear) {
         title = `${metadata.Name} (${metadata.ProductionYear})`;
       }
