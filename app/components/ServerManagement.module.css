@@ -3,8 +3,8 @@
   min-height: 100vh;
   width: 100vw;
   box-sizing: border-box;
-  background: var(--macos-bg-window);
-  color: var(--macos-text-primary);
+  background: var(--bg-window);
+  color: var(--text-primary);
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
@@ -16,10 +16,10 @@
   min-width: 11.875rem;
   max-width: 13.75rem;
   flex-shrink: 0;
-  background: var(--macos-bg-sidebar);
+  background: var(--bg-sidebar);
   backdrop-filter: blur(1.75rem);
   -webkit-backdrop-filter: blur(1.75rem);
-  border-right: 1px solid var(--macos-border-subtle);
+  border-right: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -50,7 +50,7 @@
   font-size: var(--font-size-h1);
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--macos-text-primary);
+  color: var(--text-primary);
   margin: 0.5rem 0 0;
   line-height: 1.2;
 }
@@ -58,7 +58,7 @@
 .sidebarSubtitle {
   font-size: var(--font-size-body);
   font-weight: 500;
-  color: var(--macos-text-secondary);
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
 }
@@ -66,7 +66,7 @@
 .sidebarVersion {
   font-size: var(--font-size-caption);
   font-weight: 500;
-  color: var(--macos-text-disabled);
+  color: var(--text-disabled);
   margin-top: 0.125rem;
 }
 
@@ -100,9 +100,9 @@
   padding: 0 0.75rem;
   height: var(--height-action);
   border-radius: var(--radius-control);
-  background: var(--macos-bg-control);
+  background: var(--bg-control);
   border: none;
-  color: var(--macos-text-primary);
+  color: var(--text-primary);
   font-size: var(--font-size-body);
   font-weight: 500;
   cursor: pointer;
@@ -111,11 +111,11 @@
 }
 
 .actionRow:hover {
-  background: var(--macos-bg-control-hover);
+  background: var(--bg-control-hover);
 }
 
 .actionRow:active {
-  background: var(--macos-bg-control-active);
+  background: var(--bg-control-active);
 }
 
 .actionLeft {
@@ -126,7 +126,7 @@
 
 .shortcutGlyph {
   font-size: var(--font-size-sub);
-  color: var(--macos-text-tertiary);
+  color: var(--text-tertiary);
   font-family: var(--font-system);
   letter-spacing: 0.05em;
 }
@@ -145,7 +145,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--macos-text-tertiary);
+  color: var(--text-tertiary);
 }
 
 /* Native macOS List of Saved Servers (cornerRadius: 6px = 0.375rem) */
@@ -171,15 +171,15 @@
 }
 
 .serverRow:hover {
-  background: var(--macos-bg-row-hover);
+  background: var(--bg-row-hover);
 }
 
 .serverRowActive {
-  background: var(--macos-bg-row-active);
+  background: var(--bg-row-active);
 }
 
 .serverRowActive:hover {
-  background: var(--macos-bg-row-hover);
+  background: var(--bg-row-hover);
 }
 
 .serverSelectBtn {
@@ -199,7 +199,7 @@
 }
 
 .serverSelectBtn:focus-visible {
-  outline: 2px solid var(--macos-border-focus);
+  outline: 2px solid var(--border-focus);
   outline-offset: 2px;
   border-radius: calc(var(--radius-control) - 2px);
 }
@@ -213,14 +213,14 @@
 }
 
 .serverRowIcon {
-  color: var(--macos-text-secondary);
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   flex-shrink: 0;
 }
 
 .serverRowActive .serverRowIcon {
-  color: var(--macos-accent-teal);
+  color: var(--accent-teal);
 }
 
 .serverRowDetails {
@@ -240,7 +240,7 @@
 .serverRowName {
   font-size: var(--font-size-body);
   font-weight: 500;
-  color: var(--macos-text-primary);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -249,7 +249,7 @@
 
 .serverRowSub {
   font-size: var(--font-size-caption);
-  color: var(--macos-text-tertiary);
+  color: var(--text-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -260,8 +260,8 @@
   width: 0.375rem;
   height: 0.375rem;
   border-radius: 50%;
-  background: var(--macos-accent-teal);
-  box-shadow: 0 0 0.3125rem var(--macos-accent-teal);
+  background: var(--accent-teal);
+  box-shadow: 0 0 0.3125rem var(--accent-teal);
   flex-shrink: 0;
 }
 
@@ -279,7 +279,7 @@
 }
 
 .deleteBtn {
-  color: var(--macos-text-secondary);
+  color: var(--text-secondary);
   background: transparent;
   border: none;
   border-radius: var(--radius-control);
@@ -296,14 +296,14 @@
 }
 
 .deleteBtn:hover {
-  color: var(--macos-accent-red);
-  background: rgba(255, 69, 58, 0.16);
+  color: var(--accent-red);
+  background: var(--danger-bg-hover);
 }
 
 /* Native macOS Form Sheet/Panel (cornerRadius: 6px = 0.375rem matching IINA) */
 .formPanel {
-  background: var(--macos-bg-panel);
-  border: 1px solid var(--macos-border-subtle);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-panel);
   padding: 1rem;
   display: flex;
@@ -315,7 +315,7 @@
 .formTitle {
   font-size: var(--font-size-body);
   font-weight: 600;
-  color: var(--macos-text-primary);
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -328,17 +328,17 @@
 .fieldLabel {
   font-size: var(--font-size-caption);
   font-weight: 500;
-  color: var(--macos-text-secondary);
+  color: var(--text-secondary);
 }
 
 .nativeInput {
   height: var(--height-input);
-  background: var(--macos-bg-input);
-  border: 1px solid var(--macos-border-control);
+  background: var(--bg-input);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-control);
   padding: 0 0.5rem;
   font-size: var(--font-size-sub);
-  color: var(--macos-text-primary);
+  color: var(--text-primary);
   outline: none;
   font-family: inherit;
   transition:
@@ -349,12 +349,12 @@
 }
 
 .nativeInput:focus {
-  border-color: var(--macos-border-focus);
-  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.25);
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-focus);
 }
 
 .nativeInput::placeholder {
-  color: var(--macos-text-disabled);
+  color: var(--text-disabled);
 }
 
 .formActions {
@@ -369,9 +369,9 @@
   height: var(--height-btn-sm);
   padding: 0 0.75rem;
   border-radius: var(--radius-control);
-  background: var(--macos-bg-control);
-  border: 1px solid var(--macos-border-subtle);
-  color: var(--macos-text-primary);
+  background: var(--bg-control);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
   font-size: var(--font-size-sub);
   font-weight: 500;
   cursor: pointer;
@@ -379,16 +379,16 @@
 }
 
 .macCancelBtn:hover {
-  background: var(--macos-bg-control-hover);
+  background: var(--bg-control-hover);
 }
 
 .macPrimaryBtn {
   height: var(--height-btn-sm);
   padding: 0 0.875rem;
   border-radius: var(--radius-control);
-  background: var(--macos-accent-blue);
+  background: var(--accent-blue);
   border: none;
-  color: var(--macos-text-primary);
+  color: var(--text-primary);
   font-size: var(--font-size-sub);
   font-weight: 500;
   cursor: pointer;
@@ -401,7 +401,7 @@
 }
 
 .macPrimaryBtn:hover {
-  background: var(--macos-accent-blue-hover);
+  background: var(--accent-blue-hover);
 }
 
 .macPrimaryBtn:disabled {

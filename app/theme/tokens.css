@@ -3,37 +3,62 @@
      macOS / IINA Design System Tokens (All values in rem, 1rem = 16px)
      ======================================================================== */
 
+  /* Base Material & Scrim Primitives */
+  --material-base: #ffffff;
+  --scrim-base: #000000;
+
   /* Materials & Solid/Translucent Backgrounds */
-  --macos-bg-window: #202026;
-  --macos-bg-sidebar: linear-gradient(180deg, #1e1e1e 0%, #121212 100%);
-  --macos-bg-panel: rgba(255, 255, 255, 0.04);
-  --macos-bg-control: rgba(255, 255, 255, 0.12);
-  --macos-bg-control-hover: rgba(255, 255, 255, 0.18);
-  --macos-bg-control-active: rgba(255, 255, 255, 0.24);
-  --macos-bg-row-hover: rgba(255, 255, 255, 0.08);
-  --macos-bg-row-active: rgba(255, 255, 255, 0.05);
-  --macos-bg-input: rgba(0, 0, 0, 0.3);
-  --macos-bg-dialog: rgba(26, 26, 32, 0.92);
-  --macos-bg-overlay: rgba(0, 0, 0, 0.45);
-  --macos-bg-toolbar: rgba(18, 18, 24, 0.5);
+  --bg-window: #202026;
+  --bg-sidebar: linear-gradient(180deg, #1e1e1e 0%, #121212 100%);
+  --bg-panel: rgb(from var(--material-base) r g b / 4%);
+  --bg-control: rgb(from var(--material-base) r g b / 12%);
+  --bg-control-hover: rgb(from var(--material-base) r g b / 18%);
+  --bg-control-active: rgb(from var(--material-base) r g b / 24%);
+  --bg-row-hover: rgb(from var(--material-base) r g b / 8%);
+  --bg-row-active: rgb(from var(--material-base) r g b / 5%);
+  --bg-input: rgb(from var(--scrim-base) r g b / 30%);
+  --bg-dialog: rgb(26 26 32 / 92%);
+  --bg-overlay: rgb(from var(--scrim-base) r g b / 45%);
+  --bg-toolbar: rgb(18 18 24 / 50%);
 
   /* Borders & Dividers */
-  --macos-border-subtle: rgba(255, 255, 255, 0.08);
-  --macos-border-control: rgba(255, 255, 255, 0.12);
-  --macos-border-focus: #007aff;
+  --border-subtle: rgb(from var(--material-base) r g b / 8%);
+  --border-control: var(--bg-control);
+  --border-focus: var(--accent-blue);
 
-  /* Typography Colors (Apple HIG) */
-  --macos-text-primary: #ffffff;
-  --macos-text-secondary: rgba(255, 255, 255, 0.65);
-  --macos-text-tertiary: rgba(255, 255, 255, 0.42);
-  --macos-text-disabled: rgba(255, 255, 255, 0.25);
+  /* Typography Colors (Apple HIG) - Relative Color Syntax */
+  --text-primary: var(--material-base);
+  --text-secondary: rgb(from var(--text-primary) r g b / 65%);
+  --text-tertiary: rgb(from var(--text-primary) r g b / 42%);
+  --text-disabled: rgb(from var(--text-primary) r g b / 25%);
 
-  /* Accent Colors */
-  --macos-accent-blue: #007aff;
-  --macos-accent-blue-hover: #0069d9;
-  --macos-accent-teal: #12b886;
-  --macos-accent-red: #ff453a;
-  --macos-accent-red-hover: #e0382e;
+  /* Accent Colors (Dynamic hover via color-mix in oklch) */
+  --accent-blue: #007aff;
+  --accent-blue-hover: color-mix(in oklch, var(--accent-blue) 85%, black);
+  --accent-teal: #12b886;
+  --accent-teal-hover: color-mix(in oklch, var(--accent-teal) 85%, black);
+  --accent-red: #ff453a;
+  --accent-red-hover: color-mix(in oklch, var(--accent-red) 85%, black);
+
+  /* Feedback & Alert Tokens */
+  --danger-bg: rgb(from var(--accent-red) r g b / 12%);
+  --danger-bg-hover: rgb(from var(--accent-red) r g b / 16%);
+  --danger-border: rgb(from var(--accent-red) r g b / 30%);
+  --danger-text: #ff6961;
+
+  /* Surfaces & Component Backgrounds */
+  --bg-media-poster: rgb(20 20 26 / 80%);
+  --bg-media-placeholder: linear-gradient(145deg, #1f232b 0%, #14161a 100%);
+  --bg-badge: rgb(from var(--scrim-base) r g b / 78%);
+  --bg-tooltip: rgb(30 30 36 / 95%);
+  --shimmer-gradient: linear-gradient(
+    90deg,
+    rgb(from var(--material-base) r g b / 0%) 0,
+    rgb(from var(--material-base) r g b / 6%) 20%,
+    rgb(from var(--material-base) r g b / 12%) 50%,
+    rgb(from var(--material-base) r g b / 6%) 80%,
+    rgb(from var(--material-base) r g b / 0%) 100%
+  );
 
   /* Corner Radii (IINA Native Standard: 6px = 0.375rem) */
   --radius-control: 0.375rem; /* 6px — buttons, inputs, rows, action capsules */
@@ -41,11 +66,21 @@
   --radius-dialog: 0.5rem; /* 8px — alert sheets, dialogs */
   --radius-card: 0.5rem; /* 8px — media posters, cards */
 
-  /* Elevations & Shadows */
-  --macos-shadow-card: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.3), 0 0.0625rem 0.1875rem rgba(0, 0, 0, 0.2);
-  --macos-shadow-thumb-hover: 0 0.375rem 1.125rem var(--macos-bg-overlay), 0 0.125rem 0.375rem rgba(0, 0, 0, 0.25);
-  --macos-shadow-poster-hover: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.55), 0 0.125rem 0.5rem rgba(0, 0, 0, 0.3);
-  --macos-shadow-dialog: 0 1.25rem 2.5rem rgba(0, 0, 0, 0.6);
+  /* Elevations, Shadows & Rings */
+  --shadow-focus: 0 0 0 2px rgb(from var(--accent-blue) r g b / 35%);
+  --shadow-card: 0 0.125rem 0.5rem rgb(from var(--scrim-base) r g b / 30%), 0 0.0625rem 0.1875rem rgb(from var(--scrim-base) r g b / 20%);
+  --shadow-thumb-hover: 0 0.375rem 1.125rem var(--bg-overlay), 0 0.125rem 0.375rem rgb(from var(--scrim-base) r g b / 25%);
+  --shadow-poster-hover: 0 0.5rem 1.5rem rgb(from var(--scrim-base) r g b / 55%), 0 0.125rem 0.5rem rgb(from var(--scrim-base) r g b / 30%);
+  --shadow-dialog: 0 1.25rem 2.5rem rgb(from var(--scrim-base) r g b / 60%);
+  --shadow-badge: 0 0.125rem 0.375rem rgb(from var(--scrim-base) r g b / 50%);
+  --shadow-tooltip: 0 0.25rem 0.75rem rgb(from var(--scrim-base) r g b / 35%);
+  --shadow-glass:
+    -1px 0 0 rgb(from var(--scrim-base) r g b / 15%),
+    1px 0 0 rgb(from var(--scrim-base) r g b / 15%),
+    0 -1px 0 rgb(from var(--scrim-base) r g b / 6.5%),
+    0 1px 0 rgb(from var(--scrim-base) r g b / 6.5%),
+    inset 0 2px 2px -2px rgb(from var(--material-base) r g b / 50%),
+    inset 0 -2px 2px -2px rgb(from var(--material-base) r g b / 70%);
 
   /* Standard Heights */
   --height-input: 1.75rem; /* 28px — macOS standard control height */
@@ -65,4 +100,13 @@
   /* Font Families */
   --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+}
+
+/* Wide Color Gamut (Apple Retina / Studio Display / DCI-P3) */
+@media (color-gamut: p3) {
+  :root {
+    --accent-blue: color(display-p3 0 0.4784 1);
+    --accent-teal: color(display-p3 0.15 0.71 0.52);
+    --accent-red: color(display-p3 1 0.2706 0.2275);
+  }
 }

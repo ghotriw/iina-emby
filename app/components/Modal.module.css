@@ -12,7 +12,7 @@
 .backdrop {
   position: absolute;
   inset: 0;
-  background: var(--macos-bg-overlay, rgba(0, 0, 0, 0.45));
+  background: var(--bg-overlay);
   backdrop-filter: blur(0.25rem);
   -webkit-backdrop-filter: blur(0.25rem);
 }

@@ -1,16 +1,16 @@
 .modalOverlay {
-  background: var(--macos-bg-overlay);
+  background: var(--bg-overlay);
   backdrop-filter: blur(0.25rem);
   -webkit-backdrop-filter: blur(0.25rem);
 }
 
 .modalContent {
-  background: var(--macos-bg-dialog);
+  background: var(--bg-dialog);
   backdrop-filter: blur(2rem);
   -webkit-backdrop-filter: blur(2rem);
-  border: 1px solid var(--macos-border-control);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-dialog);
-  box-shadow: var(--macos-shadow-dialog);
+  box-shadow: var(--shadow-dialog);
   padding: 1.25rem 1.25rem 1rem;
   box-sizing: border-box;
 }
@@ -24,14 +24,14 @@
 .title {
   font-size: var(--font-size-title);
   font-weight: 600;
-  color: var(--macos-text-primary);
+  color: var(--text-primary);
   margin: 0;
   letter-spacing: -0.01em;
 }
 
 .message {
   font-size: var(--font-size-sub);
-  color: var(--macos-text-secondary);
+  color: var(--text-secondary);
   line-height: 1.45;
   margin: 0;
 }
@@ -48,9 +48,9 @@
   height: var(--height-btn-md);
   padding: 0 0.875rem;
   border-radius: var(--radius-control);
-  background: var(--macos-bg-control);
-  border: 1px solid var(--macos-border-subtle);
-  color: var(--macos-text-primary);
+  background: var(--bg-control);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
   font-size: var(--font-size-sub);
   font-weight: 500;
   cursor: pointer;
@@ -59,7 +59,7 @@
 }
 
 .cancelBtn:hover {
-  background: var(--macos-bg-control-hover);
+  background: var(--bg-control-hover);
 }
 
 .cancelBtn:disabled {
@@ -71,9 +71,9 @@
   height: var(--height-btn-md);
   padding: 0 0.875rem;
   border-radius: var(--radius-control);
-  background: var(--macos-accent-red);
+  background: var(--accent-red);
   border: none;
-  color: var(--macos-text-primary);
+  color: var(--text-primary);
   font-size: var(--font-size-sub);
   font-weight: 500;
   cursor: pointer;
@@ -87,7 +87,7 @@
 }
 
 .destructiveBtn:hover {
-  background: var(--macos-accent-red-hover);
+  background: var(--accent-red-hover);
 }
 
 .destructiveBtn:disabled {

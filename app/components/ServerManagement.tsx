@@ -155,8 +155,8 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
                     variant="light"
                     styles={{
                       root: {
-                        backgroundColor: "rgba(255, 69, 58, 0.12)",
-                        borderColor: "rgba(255, 69, 58, 0.3)",
+                        backgroundColor: "var(--danger-bg)",
+                        borderColor: "var(--danger-border)",
                         padding: "0.375rem 0.625rem",
                         borderRadius: "var(--radius-control)",
                       },
@@ -245,8 +245,8 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
         message={
           <>
             Are you sure you want to remove{" "}
-            <span style={{ fontWeight: 600, color: "var(--macos-text-primary)" }}>{serverToDelete?.serverName || "this server"}</span>? You
-            will need to sign in again to reconnect.
+            <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{serverToDelete?.serverName || "this server"}</span>? You will
+            need to sign in again to reconnect.
           </>
         }
         confirmLabel="Remove"

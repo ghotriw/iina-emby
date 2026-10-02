@@ -16,7 +16,7 @@
   margin: 0;
   font-size: 1.125rem;
   font-weight: 700;
-  color: var(--macos-text-primary);
+  color: var(--text-primary);
   letter-spacing: -0.0125rem;
 }
 

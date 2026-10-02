@@ -1,14 +1,13 @@
 @import "./theme/tokens.css";
 
-
 html,
 body,
 #root {
   margin: 0;
   padding: 0;
-  background: var(--macos-bg-window) !important;
-  background-color: var(--macos-bg-window) !important;
-  color: var(--macos-text-secondary);
+  background: var(--bg-window) !important;
+  background-color: var(--bg-window) !important;
+  color: var(--text-secondary);
   font-family: var(--font-system);
   overflow-x: hidden;
   user-select: none;
@@ -26,10 +25,10 @@ body,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--macos-bg-control);
+  background: var(--bg-control);
   border-radius: var(--radius-control);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--macos-bg-control-active);
+  background: var(--bg-control-active);
 }

@@ -38,20 +38,20 @@ Always use the CSS variables defined in [`app/theme/tokens.css`](file:///Users/g
 
 | Token | Value | Purpose |
 |---|---|---|
-| `--macos-bg-window` | `transparent` | Transparent body for IINA HUD window |
-| `--macos-bg-sidebar` | `rgba(16, 16, 22, 0.45)` | Left sidebar pane with blur |
-| `--macos-bg-panel` | `rgba(255, 255, 255, 0.04)` | Inset grouped boxes / sheets |
-| `--macos-bg-control` | `rgba(255, 255, 255, 0.12)` | Subtle button capsule (Open..., Cancel) |
-| `--macos-bg-control-hover` | `rgba(255, 255, 255, 0.18)` | Hover state for buttons |
-| `--macos-bg-row-hover` | `rgba(255, 255, 255, 0.08)` | Hover highlight for list items |
-| `--macos-bg-input` | `rgba(0, 0, 0, 0.3)` | Translucent text fields |
-| `--macos-bg-dialog` | `rgba(26, 26, 32, 0.92)` | NSAlert sheets / confirm modals |
-| `--macos-text-primary` | `#ffffff` | Primary text |
-| `--macos-text-secondary` | `rgba(255, 255, 255, 0.65)` | Secondary labels |
-| `--macos-text-tertiary` | `rgba(255, 255, 255, 0.42)` | Muted captions |
-| `--macos-accent-blue` | `#007aff` | macOS system action blue |
-| `--macos-accent-teal` | `#12b886` | Active Emby server / media accent |
-| `--macos-accent-red` | `#ff453a` | Destructive actions (Remove server) |
+| `--bg-window` | `transparent` | Transparent body for IINA HUD window |
+| `--bg-sidebar` | `rgba(16, 16, 22, 0.45)` | Left sidebar pane with blur |
+| `--bg-panel` | `rgba(255, 255, 255, 0.04)` | Inset grouped boxes / sheets |
+| `--bg-control` | `rgba(255, 255, 255, 0.12)` | Subtle button capsule (Open..., Cancel) |
+| `--bg-control-hover` | `rgba(255, 255, 255, 0.18)` | Hover state for buttons |
+| `--bg-row-hover` | `rgba(255, 255, 255, 0.08)` | Hover highlight for list items |
+| `--bg-input` | `rgba(0, 0, 0, 0.3)` | Translucent text fields |
+| `--bg-dialog` | `rgba(26, 26, 32, 0.92)` | NSAlert sheets / confirm modals |
+| `--text-primary` | `#ffffff` | Primary text |
+| `--text-secondary` | `rgba(255, 255, 255, 0.65)` | Secondary labels |
+| `--text-tertiary` | `rgba(255, 255, 255, 0.42)` | Muted captions |
+| `--accent-blue` | `#007aff` | macOS system action blue |
+| `--accent-teal` | `#12b886` | Active Emby server / media accent |
+| `--accent-red` | `#ff453a` | Destructive actions (Remove server) |
 
 ---
 

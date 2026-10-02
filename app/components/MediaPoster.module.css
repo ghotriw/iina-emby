@@ -18,16 +18,16 @@
   position: relative;
   width: 100%;
   aspect-ratio: 2 / 3;
-  border-radius: var(--radius-card, 0.5rem);
+  border-radius: var(--radius-card);
   overflow: hidden;
-  background: rgba(20, 20, 26, 0.8);
+  background: var(--bg-media-poster);
   border: none;
-  box-shadow: var(--macos-shadow-card);
+  box-shadow: var(--shadow-card);
   transition: box-shadow 0.25s ease;
 }
 
 .card:hover .posterWrapper {
-  box-shadow: var(--macos-shadow-poster-hover);
+  box-shadow: var(--shadow-poster-hover);
 }
 
 .card:hover .image,
@@ -36,9 +36,9 @@
 }
 
 .card:focus-visible .posterWrapper {
-  outline: 2px solid var(--macos-accent-blue);
+  outline: 2px solid var(--accent-blue);
   outline-offset: 2px;
-  box-shadow: var(--macos-shadow-poster-hover);
+  box-shadow: var(--shadow-poster-hover);
 }
 
 .image {
@@ -46,7 +46,9 @@
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1), opacity 0.2s ease;
+  transition:
+    transform 0.25s cubic-bezier(0.2, 0, 0, 1),
+    opacity 0.2s ease;
 }
 
 .placeholder {
@@ -55,8 +57,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(145deg, #1f232b 0%, #14161a 100%);
-  color: var(--macos-text-disabled);
+  background: var(--bg-media-placeholder);
+  color: var(--text-disabled);
 }
 
 /* Unplayed Episode Badge (Top-Right) */
@@ -65,8 +67,8 @@
   top: 0.5rem;
   right: 0.5rem;
   z-index: 2;
-  background: var(--macos-accent-blue);
-  color: var(--macos-text-primary);
+  background: var(--accent-blue);
+  color: var(--text-primary);
   font-size: 0.6875rem;
   font-weight: 700;
   min-width: 1.375rem;
@@ -75,8 +77,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 0.3125rem;
-  box-shadow: 0 0.125rem 0.375rem rgba(0, 0, 0, 0.5);
+  padding: 0;
+  box-shadow: var(--shadow-badge);
   pointer-events: none;
 }
 
@@ -86,14 +88,14 @@
   bottom: 0.5rem;
   right: 0.5rem;
   z-index: 2;
-  background: rgba(0, 0, 0, 0.78);
-  color: var(--macos-text-primary);
+  background: var(--bg-badge);
+  color: var(--text-primary);
   font-size: 0.6875rem;
   font-weight: 700;
   padding: 0.125rem 0.375rem;
   border-radius: var(--radius-control);
   backdrop-filter: blur(0.25rem);
-  box-shadow: 0 0.0625rem 0.25rem rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-badge);
   pointer-events: none;
   letter-spacing: 0.0125rem;
 }
@@ -109,7 +111,7 @@
 .title {
   font-size: var(--font-size-body);
   font-weight: 600;
-  color: var(--macos-text-primary);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -117,11 +119,11 @@
 }
 
 .card:hover .title {
-  color: var(--macos-text-primary);
+  color: var(--text-primary);
 }
 
 .year {
   font-size: var(--font-size-sub);
-  color: var(--macos-text-tertiary);
+  color: var(--text-tertiary);
   line-height: 1.2;
 }
