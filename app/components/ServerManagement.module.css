@@ -167,6 +167,7 @@
   cursor: pointer;
   transition: background 0.12s ease;
   position: relative;
+  border: 0;
 }
 
 .serverRow:hover {
@@ -267,7 +268,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.12s ease, background 0.12s ease;
+  transition:
+    color 0.12s ease,
+    background 0.12s ease;
 }
 
 .deleteBtn:hover {
@@ -316,7 +319,9 @@
   color: var(--macos-text-primary);
   outline: none;
   font-family: inherit;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
   box-sizing: border-box;
   width: 100%;
 }
@@ -368,7 +373,9 @@
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  transition: background 0.12s ease, opacity 0.12s ease;
+  transition:
+    background 0.12s ease,
+    opacity 0.12s ease;
 }
 
 .macPrimaryBtn:hover {

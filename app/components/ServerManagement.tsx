@@ -1,12 +1,6 @@
 import { Alert, Tooltip } from "@mantine/core";
 import type { EmbyServer } from "@shared";
-import {
-  IconAlertCircle,
-  IconCheck,
-  IconPlus,
-  IconServer,
-  IconTrash,
-} from "@tabler/icons-react";
+import { IconAlertCircle, IconCheck, IconPlus, IconServer, IconTrash } from "@tabler/icons-react";
 import type React from "react";
 import { useState } from "react";
 import { useIINABridge } from "../hooks/useIINABridge";
@@ -93,10 +87,10 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
               {servers.map((server) => {
                 const isActive = server.id === activeServerId;
                 return (
-                  <div
+                  <button
                     key={server.id}
                     className={`${styles.serverRow} ${isActive ? styles.serverRowActive : ""}`}
-                    role="button"
+                    type="button"
                     tabIndex={0}
                     onClick={() => handleSelect(server.id)}
                     onKeyDown={(e) => {
@@ -109,9 +103,7 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
                       </span>
                       <div className={styles.serverRowDetails}>
                         <div className={styles.serverRowNameRow}>
-                          <span className={styles.serverRowName}>
-                            {server.serverName || "Emby Server"}
-                          </span>
+                          <span className={styles.serverRowName}>{server.serverName || "Emby Server"}</span>
                           {isActive && <span className={styles.activeDot} title="Active Server" />}
                         </div>
                         <span className={styles.serverRowSub}>
@@ -136,7 +128,7 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
                         </button>
                       </Tooltip>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -145,9 +137,9 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
 
         {/* Add server button (placed below saved servers) */}
         {!showForm && servers.length > 0 && (
-          <div
+          <button
             className={styles.actionRow}
-            role="button"
+            type="button"
             tabIndex={0}
             onClick={() => setIsAdding(true)}
             onKeyDown={(e) => {
@@ -159,7 +151,7 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
               <span>Add Another Server...</span>
             </div>
             <span className={styles.shortcutGlyph}>⌘N</span>
-          </div>
+          </button>
         )}
 
         {/* Native macOS Form Sheet/Panel */}
@@ -167,9 +159,7 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
           <div className={styles.formPanel}>
             <form onSubmit={handleConnect}>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <h3 className={styles.formTitle}>
-                  {servers.length === 0 ? "Connect to Emby" : "Add Emby Server"}
-                </h3>
+                <h3 className={styles.formTitle}>{servers.length === 0 ? "Connect to Emby" : "Add Emby Server"}</h3>
 
                 {error && (
                   <Alert
@@ -241,20 +231,11 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
 
                 <div className={styles.formActions}>
                   {servers.length > 0 && (
-                    <button
-                      type="button"
-                      className={styles.macCancelBtn}
-                      onClick={() => setIsAdding(false)}
-                      disabled={isLoading}
-                    >
+                    <button type="button" className={styles.macCancelBtn} onClick={() => setIsAdding(false)} disabled={isLoading}>
                       Cancel
                     </button>
                   )}
-                  <button
-                    type="submit"
-                    className={styles.macPrimaryBtn}
-                    disabled={isLoading}
-                  >
+                  <button type="submit" className={styles.macPrimaryBtn} disabled={isLoading}>
                     {!isLoading && <IconCheck size={14} />}
                     {isLoading ? "Connecting..." : "Connect"}
                   </button>
@@ -278,10 +259,8 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
         message={
           <>
             Are you sure you want to remove{" "}
-            <span style={{ fontWeight: 600, color: "var(--macos-text-primary)" }}>
-              {serverToDelete?.serverName || "this server"}
-            </span>
-            ? You will need to sign in again to reconnect.
+            <span style={{ fontWeight: 600, color: "var(--macos-text-primary)" }}>{serverToDelete?.serverName || "this server"}</span>? You
+            will need to sign in again to reconnect.
           </>
         }
         confirmLabel="Remove"

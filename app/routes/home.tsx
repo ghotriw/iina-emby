@@ -71,7 +71,6 @@ export default function HomeRoute() {
             className={styles.serverBadge}
           >
             <span className={styles.serverName}>{activeServer.serverName || "Emby"}</span>
-            {activeServer.username && <span className={styles.userName}>({activeServer.username})</span>}
           </GlassElement>
         </div>
 
