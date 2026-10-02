@@ -47,8 +47,8 @@ jobs:
           cp help.html release-pkg/
           cp -r dist release-pkg/
           
-          # .iinaplgz is a gzipped tar archive of the plugin contents
-          tar -czf "${PACKAGE_NAME}" -C release-pkg .
+          # .iinaplgz is a standard zip archive of the plugin contents
+          (cd release-pkg && zip -r "../${PACKAGE_NAME}" .)
           
           echo "PACKAGE_NAME=${PACKAGE_NAME}" >> $GITHUB_ENV
 
