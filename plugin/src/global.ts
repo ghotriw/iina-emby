@@ -43,6 +43,14 @@ global.onMessage("player-unregistered", () => {
   debugLog("Player instance unregistered, active count:", activePlayerCount);
 });
 
+global.onMessage("player-file-loaded", (data?: { itemId?: string; url?: string }) => {
+  debugLog("Player file loaded:", data);
+});
+
+global.onMessage("player-next-queued", (data?: { count?: number; firstTitle?: string }) => {
+  debugLog("Player queued upcoming episodes:", data);
+});
+
 /**
  * Handle media playback initiated from the standalone browser window
  */

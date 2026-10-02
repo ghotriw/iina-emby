@@ -3,7 +3,7 @@
 // shared/constants.ts
 var CLIENT_NAME = "IINA Emby Plugin";
 var DEVICE_NAME = "IINA";
-var CLIENT_VERSION = true ? "0.1.1" : "0.1.0";
+var CLIENT_VERSION = true ? "0.1.2" : "0.1.0";
 
 // shared/utils/auth.ts
 function buildAuthorizationHeader(identity, token) {
@@ -103,17 +103,27 @@ function sanitizeStreamUrl(rawUrl) {
 }
 
 // plugin/src/lib/autoplay-manager.ts
-function createAutoplayManager({ http: http2, mpv: mpv2, core: core2, preferences: preferences2, buildEmbyHeaders: buildEmbyHeaders3, fetchItemMetadata: fetchItemMetadata2, log }) {
+function createAutoplayManager({
+  http: http2,
+  mpv: mpv2,
+  core: core2,
+  preferences: preferences2,
+  global: iinaGlobal2,
+  buildEmbyHeaders: buildEmbyHeaders3,
+  fetchItemMetadata: fetchItemMetadata2,
+  log
+}) {
   let lastProcessedEpisodeId = null;
   let lastProcessedSeriesId = null;
   let autoplayRequestCounter = 0;
   let autoplayQueued = false;
-  async function fetchSeriesEpisodes(serverBase, seriesId, seasonId, apiKey) {
+  async function fetchSeriesEpisodes(serverBase, seriesId, seasonId, apiKey, userId) {
     try {
-      log(`Fetching episodes for series: ${seriesId}, season: ${seasonId}`);
+      log(`Fetching episodes for series: ${seriesId}, season: ${seasonId}, userId: ${userId || "none"}`);
       const queryParams = [
         `seasonId=${encodeURIComponent(seasonId)}`,
-        `fields=${encodeURIComponent("MediaSources,Path,LocationType,IsFolder")}`
+        `fields=${encodeURIComponent("MediaSources,Path,LocationType,IsFolder")}`,
+        ...userId ? [`userId=${encodeURIComponent(userId)}`] : []
       ].join("&");
       const response = await http2.get(`${serverBase}/Shows/${seriesId}/Episodes?${queryParams}&api_key=${apiKey}`, {
         headers: buildEmbyHeaders3(apiKey, {
@@ -146,10 +156,10 @@ function createAutoplayManager({ http: http2, mpv: mpv2, core: core2, preference
       return [];
     }
   }
-  async function getSeriesInfoFromEpisode(serverBase, episodeId, apiKey) {
+  async function getSeriesInfoFromEpisode(serverBase, episodeId, apiKey, userId) {
     try {
-      log(`Getting series info from episode: ${episodeId}`);
-      const metadata = await fetchItemMetadata2(serverBase, episodeId, apiKey);
+      log(`Getting series info from episode: ${episodeId}, userId: ${userId || "none"}`);
+      const metadata = await fetchItemMetadata2(serverBase, episodeId, apiKey, userId);
       if (metadata.Type !== "Episode") {
         log(`Item ${episodeId} is not an episode, it's a ${metadata.Type}`);
         return null;
@@ -180,92 +190,110 @@ function createAutoplayManager({ http: http2, mpv: mpv2, core: core2, preference
       return null;
     }
   }
-  async function resolveNextEpisode(serverBase, seriesId, seasonId, currentEpisodeNumber, apiKey) {
+  async function resolveRemainingEpisodes(serverBase, seriesId, seasonId, currentEpisodeNumber, apiKey, userId) {
     try {
-      const episodes = await fetchSeriesEpisodes(serverBase, seriesId, seasonId, apiKey);
+      const episodes = await fetchSeriesEpisodes(serverBase, seriesId, seasonId, apiKey, userId);
       const currentEpNum = Number(currentEpisodeNumber);
-      const nextEpisode = episodes.find((episode) => episode.indexNumber > currentEpNum);
-      if (nextEpisode) {
-        log(`Found next episode in current season: E${nextEpisode.indexNumber} - ${nextEpisode.name}`);
-        return nextEpisode;
+      const remainingEpisodes = episodes.filter((episode) => episode.indexNumber > currentEpNum);
+      if (remainingEpisodes.length > 0) {
+        log(`Found ${remainingEpisodes.length} remaining episode(s) in current season`);
+        return remainingEpisodes;
       }
-      log("No next episode in current season, checking next season...");
-      const seasonsResponse = await http2.get(`${serverBase}/Shows/${seriesId}/Seasons?api_key=${apiKey}`, {
+      log("No remaining episodes in current season, checking next season...");
+      const seasonsUrl = userId ? `${serverBase}/Shows/${seriesId}/Seasons?userId=${encodeURIComponent(userId)}&api_key=${apiKey}` : `${serverBase}/Shows/${seriesId}/Seasons?api_key=${apiKey}`;
+      const seasonsResponse = await http2.get(seasonsUrl, {
         headers: buildEmbyHeaders3(apiKey, { Accept: "application/json" })
       });
-      if (!seasonsResponse.data) return null;
+      if (!seasonsResponse.data) return [];
       const seasonsData = typeof seasonsResponse.data === "string" ? JSON.parse(seasonsResponse.data) : seasonsResponse.data;
-      if (!seasonsData?.Items || seasonsData.Items.length === 0) return null;
+      if (!seasonsData?.Items || seasonsData.Items.length === 0) return [];
       const sortedSeasons = seasonsData.Items.filter(
         (season) => season.IndexNumber !== null && season.IndexNumber !== void 0
       ).sort((left, right) => (left.IndexNumber || 0) - (right.IndexNumber || 0));
       const currentSeasonIndex = sortedSeasons.findIndex((season) => season.Id === seasonId);
       if (currentSeasonIndex === -1 || currentSeasonIndex >= sortedSeasons.length - 1) {
         log("No next season available \u2014 end of series");
-        return null;
+        return [];
       }
       const nextSeason = sortedSeasons[currentSeasonIndex + 1];
       log(`Found next season: ${nextSeason.Name} (S${nextSeason.IndexNumber})`);
-      const nextSeasonEpisodes = await fetchSeriesEpisodes(serverBase, seriesId, nextSeason.Id, apiKey);
-      if (nextSeasonEpisodes.length === 0) {
-        log("Next season has no episodes");
-        return null;
+      const nextSeasonEpisodes = await fetchSeriesEpisodes(serverBase, seriesId, nextSeason.Id, apiKey, userId);
+      for (const ep of nextSeasonEpisodes) {
+        ep.seasonNumber = nextSeason.IndexNumber;
       }
-      const firstEpisode = nextSeasonEpisodes[0];
-      log(`Found first episode of next season: S${nextSeason.IndexNumber}E${firstEpisode.indexNumber} - ${firstEpisode.name}`);
-      firstEpisode.seasonNumber = nextSeason.IndexNumber;
-      return firstEpisode;
+      return nextSeasonEpisodes;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      log(`Error resolving next episode: ${errorMsg}`);
-      return null;
+      log(`Error resolving remaining episodes: ${errorMsg}`);
+      return [];
     }
   }
-  function queueNextEpisode(nextEpisode, seriesName, seasonNumber) {
+  function queueRemainingEpisodes(episodes, seriesName, defaultSeasonNumber) {
+    if (episodes.length === 0) return;
     try {
-      const episodeTitle = formatFullEpisodeTitle(seriesName, seasonNumber, nextEpisode.indexNumber, nextEpisode.name);
-      log(`Queuing next episode: ${episodeTitle}`);
-      try {
-        const playlistCount = Number(mpv2.getNumber("playlist-count") || 0);
-        const currentPos = Number(mpv2.getNumber("playlist-pos"));
-        if (!Number.isFinite(currentPos) || currentPos < 0) {
-          log(`Skipping playlist cleanup due to invalid playlist-pos=${currentPos}, playlist-count=${playlistCount}`);
-        } else if (playlistCount > currentPos + 1) {
-          for (let i = playlistCount - 1; i > currentPos; i--) {
-            try {
-              mpv2.command("playlist-remove", [String(i)]);
-            } catch {
-            }
+      const playlistCount = Number(mpv2.getNumber("playlist-count") || 0);
+      const currentPos = Number(mpv2.getNumber("playlist-pos"));
+      if (Number.isFinite(currentPos) && currentPos >= 0 && playlistCount > currentPos + 1) {
+        for (let i = playlistCount - 1; i > currentPos; i--) {
+          try {
+            mpv2.command("playlist-remove", [String(i)]);
+          } catch {
           }
-          log(`Cleaned ${playlistCount - currentPos - 1} stale playlist entries`);
         }
-      } catch {
-        log("Could not clean playlist (non-critical)");
+        log(`Cleaned ${playlistCount - currentPos - 1} stale playlist entries`);
       }
-      mpv2.command("loadfile", [nextEpisode.playUrl, "insert-next", "-1", `force-media-title=${episodeTitle}`]);
+      for (const episode of episodes) {
+        const seasonNum = episode.seasonNumber ?? defaultSeasonNumber;
+        const episodeTitle = formatFullEpisodeTitle(seriesName, seasonNum, episode.indexNumber, episode.name);
+        mpv2.command("loadfile", [episode.playUrl, "append"]);
+        log(`Appended to playlist: ${episodeTitle}`);
+      }
       autoplayQueued = true;
-      log(`Queued next episode: ${episodeTitle}`);
-      if (preferences2.get("show_notifications")) {
-        core2.osd(`Up next: ${episodeTitle}`);
+      log(`Queued ${episodes.length} upcoming episode(s) to playlist`);
+      if (iinaGlobal2 && typeof iinaGlobal2.postMessage === "function") {
+        iinaGlobal2.postMessage("player-next-queued", {
+          count: episodes.length,
+          firstTitle: episodes[0]?.name
+        });
+      }
+      if (preferences2.get("show_notifications") && episodes.length > 0) {
+        const nextTitle = formatFullEpisodeTitle(
+          seriesName,
+          episodes[0].seasonNumber ?? defaultSeasonNumber,
+          episodes[0].indexNumber,
+          episodes[0].name
+        );
+        core2.osd(`Queued ${episodes.length} episodes (Next: ${nextTitle})`);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      log(`Error queuing next episode: ${errorMsg}`);
+      log(`Error queuing remaining episodes: ${errorMsg}`);
+      console.error(`[iina-emby] Failed to queue remaining episodes: ${errorMsg}`);
     }
   }
-  function setupAutoplayForEpisode2(serverBase, episodeId, apiKey) {
+  function setupAutoplayForEpisode2(serverBase, episodeId, apiKey, userId) {
     if (lastProcessedEpisodeId === episodeId) {
       log(`Episode ${episodeId} already being processed, skipping duplicate setup`);
       return;
     }
     lastProcessedEpisodeId = episodeId;
+    try {
+      const playlistCount = Number(mpv2.getNumber("playlist-count") || 0);
+      const currentPos = Number(mpv2.getNumber("playlist-pos"));
+      if (Number.isFinite(currentPos) && currentPos >= 0 && playlistCount > currentPos + 1) {
+        log(`Playlist already has ${playlistCount - currentPos - 1} upcoming episode(s), skipping fetch`);
+        autoplayQueued = true;
+        return;
+      }
+    } catch {
+    }
     autoplayQueued = false;
     autoplayRequestCounter++;
     const thisRequestId = autoplayRequestCounter;
     (async () => {
       try {
-        log(`Setting up autoplay for episode: ${episodeId} (request #${thisRequestId})`);
-        const seriesInfo = await getSeriesInfoFromEpisode(serverBase, episodeId, apiKey);
+        log(`Setting up autoplay for episode: ${episodeId} (request #${thisRequestId}), userId: ${userId || "none"}`);
+        const seriesInfo = await getSeriesInfoFromEpisode(serverBase, episodeId, apiKey, userId);
         if (thisRequestId !== autoplayRequestCounter) {
           log(`Autoplay request #${thisRequestId} is stale (current: #${autoplayRequestCounter}), aborting`);
           return;
@@ -281,24 +309,24 @@ function createAutoplayManager({ http: http2, mpv: mpv2, core: core2, preference
           log(`Series changed from ${lastProcessedSeriesId} to ${seriesInfo.seriesId}`);
           lastProcessedSeriesId = seriesInfo.seriesId;
         }
-        const nextEpisode = await resolveNextEpisode(
+        const remainingEpisodes = await resolveRemainingEpisodes(
           serverBase,
           seriesInfo.seriesId,
           seriesInfo.seasonId,
           seriesInfo.currentEpisodeNumber,
-          apiKey
+          apiKey,
+          userId
         );
         if (thisRequestId !== autoplayRequestCounter) {
           log(`Autoplay request #${thisRequestId} is stale after resolve, aborting`);
           return;
         }
-        if (!nextEpisode) {
-          log("No next episode found \u2014 end of series");
+        if (remainingEpisodes.length === 0) {
+          log("No remaining episodes found \u2014 end of series");
           return;
         }
-        const seasonNum = nextEpisode.seasonNumber ?? seriesInfo.seasonNumber;
-        queueNextEpisode(nextEpisode, seriesInfo.seriesName, seasonNum);
-        log(`Autoplay setup complete \u2014 queued next episode: ${nextEpisode.name}`);
+        queueRemainingEpisodes(remainingEpisodes, seriesInfo.seriesName, seriesInfo.seasonNumber);
+        log(`Autoplay setup complete \u2014 queued ${remainingEpisodes.length} upcoming episode(s)`);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         log(`Error setting up autoplay: ${errorMsg}`);
@@ -1902,6 +1930,7 @@ var { setupAutoplayForEpisode, resetForNewFile, clearQueuedFlag, isQueued } = cr
   mpv,
   core,
   preferences,
+  global: iinaGlobal,
   buildEmbyHeaders: buildEmbyHeaders2,
   fetchItemMetadata,
   log: debugLog
@@ -1955,11 +1984,41 @@ if (iinaGlobal && typeof iinaGlobal.onMessage === "function") {
     handlePlayMediaList(data);
   });
 }
+var currentLoadedFileUrl = null;
+function getEffectiveFileUrl(fileUrl) {
+  if (fileUrl && typeof fileUrl === "string") {
+    return fileUrl;
+  }
+  try {
+    if (core.status?.url) {
+      return core.status.url;
+    }
+  } catch {
+  }
+  try {
+    const mpvPath = mpv.getString("path");
+    if (mpvPath) {
+      return mpvPath;
+    }
+  } catch {
+  }
+  return void 0;
+}
 function onFileLoaded(fileUrl) {
-  debugLog(`File loaded: ${fileUrl}`);
-  flushPendingPlaylistQueue(fileUrl);
+  const resolvedUrl = getEffectiveFileUrl(fileUrl);
+  debugLog(`File loaded event: raw=${fileUrl}, resolved=${resolvedUrl}`);
+  if (!resolvedUrl) {
+    debugLog("No resolved URL found on file loaded");
+    return;
+  }
+  if (currentLoadedFileUrl === resolvedUrl) {
+    debugLog(`File ${resolvedUrl} already initialized, skipping duplicate file-loaded event`);
+    return;
+  }
+  currentLoadedFileUrl = resolvedUrl;
+  flushPendingPlaylistQueue(resolvedUrl);
   stopPlaybackTracking();
-  const embyInfo = updateFromFileUrl(fileUrl);
+  const embyInfo = updateFromFileUrl(resolvedUrl);
   if (!embyInfo) {
     clearLaunchedFromBrowser();
   } else {
@@ -1996,15 +2055,21 @@ function onFileLoaded(fileUrl) {
       setVideoTitleFromMetadata(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
     }
     if (preferences.get("autoplay_next_episode")) {
-      debugLog(`Setting up autoplay for episode (itemId): ${embyInfo.itemId}`);
+      debugLog(`Setting up autoplay for episode (itemId): ${embyInfo.itemId}, userId: ${reportUserId || "none"}`);
       resetForNewFile(embyInfo.itemId);
-      setupAutoplayForEpisode(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+      setupAutoplayForEpisode(reportServerBase, embyInfo.itemId, reportApiKey, reportUserId);
     }
     if (preferences.get("auto_download_enabled")) {
       debugLog(`Auto-downloading subtitles for: ${embyInfo.itemId}`);
       downloadAllSubtitles(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
     } else {
       debugLog("Auto download disabled, but Emby URL stored for manual download");
+    }
+    if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
+      iinaGlobal.postMessage("player-file-loaded", {
+        itemId: embyInfo.itemId,
+        url: resolvedUrl
+      });
     }
   }
 }
@@ -2040,25 +2105,43 @@ function handlePlaybackTermination(reason) {
 menu.addItem(menu.item("Download Emby Subtitles", manualDownloadSubtitles));
 menu.addItem(menu.item("Set Emby Title", manualSetTitle));
 event.on("iina.file-loaded", onFileLoaded);
+event.on("iina.file-started", () => onFileLoaded());
+event.on("mpv.file-loaded", () => onFileLoaded());
+event.on("mpv.path.changed", (newPath) => {
+  if (typeof newPath === "string" && newPath) {
+    onFileLoaded(newPath);
+  } else {
+    onFileLoaded();
+  }
+});
+event.on("mpv.playlist-pos.changed", () => onFileLoaded());
 event.on("mpv.pause.changed", handlePauseChange);
 event.on("mpv.end-file", () => {
   const queuedForAutoplay = isQueued();
   const isReplacingPlayback = consumeReplacementGuard();
-  debugLog(`mpv.end-file triggered, isReplacingPlayback=${isReplacingPlayback}, autoplayQueued=${queuedForAutoplay}`);
+  const playlistCount = Number(mpv.getNumber("playlist-count") || 0);
+  const currentPos = Number(mpv.getNumber("playlist-pos") || 0);
+  const hasMoreInPlaylist = playlistCount > 0 && currentPos < playlistCount - 1;
+  debugLog(
+    `mpv.end-file triggered, isReplacingPlayback=${isReplacingPlayback}, autoplayQueued=${queuedForAutoplay}, hasMoreInPlaylist=${hasMoreInPlaylist}`
+  );
   if (isReplacingPlayback) {
     debugLog("File replacement in progress, skipping stop report");
     return;
   }
-  if (queuedForAutoplay) {
-    debugLog("Autoplay queued, mpv will play next episode \u2014 skipping stop cleanup");
+  if (queuedForAutoplay || hasMoreInPlaylist) {
+    debugLog("More episodes in playlist, mpv will play next episode \u2014 skipping stop cleanup");
     clearQueuedFlag();
+    currentLoadedFileUrl = null;
     return;
   }
+  currentLoadedFileUrl = null;
   stopPlaybackTracking();
   handlePlaybackTermination("end-file");
 });
 event.on("iina.window-will-close", () => {
   debugLog("Window closing, stopping playback tracking");
+  currentLoadedFileUrl = null;
   if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
     iinaGlobal.postMessage("player-unregistered", {});
   }

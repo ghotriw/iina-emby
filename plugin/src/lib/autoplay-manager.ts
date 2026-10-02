@@ -6,8 +6,9 @@ export interface AutoplayManagerDeps {
   mpv: typeof iina.mpv;
   core: typeof iina.core;
   preferences: typeof iina.preferences;
+  global?: typeof iina.global;
   buildEmbyHeaders: (apiKey?: string, extraHeaders?: Record<string, string>) => Record<string, string>;
-  fetchItemMetadata: (serverBase: string, itemId: string, apiKey: string) => Promise<EmbyItemMetadata>;
+  fetchItemMetadata: (serverBase: string, itemId: string, apiKey: string, userId?: string) => Promise<EmbyItemMetadata>;
   log: DebugLogger;
 }
 
@@ -28,19 +29,35 @@ export interface SeriesInfo {
   currentEpisodeNumber: number;
 }
 
-export function createAutoplayManager({ http, mpv, core, preferences, buildEmbyHeaders, fetchItemMetadata, log }: AutoplayManagerDeps) {
+export function createAutoplayManager({
+  http,
+  mpv,
+  core,
+  preferences,
+  global: iinaGlobal,
+  buildEmbyHeaders,
+  fetchItemMetadata,
+  log,
+}: AutoplayManagerDeps) {
   let lastProcessedEpisodeId: string | null = null;
   let lastProcessedSeriesId: string | null = null;
   let autoplayRequestCounter = 0;
   let autoplayQueued = false;
 
-  async function fetchSeriesEpisodes(serverBase: string, seriesId: string, seasonId: string, apiKey: string): Promise<SeriesEpisode[]> {
+  async function fetchSeriesEpisodes(
+    serverBase: string,
+    seriesId: string,
+    seasonId: string,
+    apiKey: string,
+    userId?: string,
+  ): Promise<SeriesEpisode[]> {
     try {
-      log(`Fetching episodes for series: ${seriesId}, season: ${seasonId}`);
+      log(`Fetching episodes for series: ${seriesId}, season: ${seasonId}, userId: ${userId || "none"}`);
 
       const queryParams = [
         `seasonId=${encodeURIComponent(seasonId)}`,
         `fields=${encodeURIComponent("MediaSources,Path,LocationType,IsFolder")}`,
+        ...(userId ? [`userId=${encodeURIComponent(userId)}`] : []),
       ].join("&");
 
       const response = await http.get(`${serverBase}/Shows/${seriesId}/Episodes?${queryParams}&api_key=${apiKey}`, {
@@ -82,11 +99,16 @@ export function createAutoplayManager({ http, mpv, core, preferences, buildEmbyH
     }
   }
 
-  async function getSeriesInfoFromEpisode(serverBase: string, episodeId: string, apiKey: string): Promise<SeriesInfo | null> {
+  async function getSeriesInfoFromEpisode(
+    serverBase: string,
+    episodeId: string,
+    apiKey: string,
+    userId?: string,
+  ): Promise<SeriesInfo | null> {
     try {
-      log(`Getting series info from episode: ${episodeId}`);
+      log(`Getting series info from episode: ${episodeId}, userId: ${userId || "none"}`);
 
-      const metadata = await fetchItemMetadata(serverBase, episodeId, apiKey);
+      const metadata = await fetchItemMetadata(serverBase, episodeId, apiKey, userId);
 
       if (metadata.Type !== "Episode") {
         log(`Item ${episodeId} is not an episode, it's a ${metadata.Type}`);
@@ -123,35 +145,39 @@ export function createAutoplayManager({ http, mpv, core, preferences, buildEmbyH
     }
   }
 
-  async function resolveNextEpisode(
+  async function resolveRemainingEpisodes(
     serverBase: string,
     seriesId: string,
     seasonId: string,
     currentEpisodeNumber: number,
     apiKey: string,
-  ): Promise<SeriesEpisode | null> {
+    userId?: string,
+  ): Promise<SeriesEpisode[]> {
     try {
-      const episodes = await fetchSeriesEpisodes(serverBase, seriesId, seasonId, apiKey);
+      const episodes = await fetchSeriesEpisodes(serverBase, seriesId, seasonId, apiKey, userId);
       const currentEpNum = Number(currentEpisodeNumber);
-      const nextEpisode = episodes.find((episode) => episode.indexNumber > currentEpNum);
+      const remainingEpisodes = episodes.filter((episode) => episode.indexNumber > currentEpNum);
 
-      if (nextEpisode) {
-        log(`Found next episode in current season: E${nextEpisode.indexNumber} - ${nextEpisode.name}`);
-        return nextEpisode;
+      if (remainingEpisodes.length > 0) {
+        log(`Found ${remainingEpisodes.length} remaining episode(s) in current season`);
+        return remainingEpisodes;
       }
 
-      log("No next episode in current season, checking next season...");
+      log("No remaining episodes in current season, checking next season...");
 
-      const seasonsResponse = await http.get(`${serverBase}/Shows/${seriesId}/Seasons?api_key=${apiKey}`, {
+      const seasonsUrl = userId
+        ? `${serverBase}/Shows/${seriesId}/Seasons?userId=${encodeURIComponent(userId)}&api_key=${apiKey}`
+        : `${serverBase}/Shows/${seriesId}/Seasons?api_key=${apiKey}`;
+      const seasonsResponse = await http.get(seasonsUrl, {
         headers: buildEmbyHeaders(apiKey, { Accept: "application/json" }),
       });
 
-      if (!seasonsResponse.data) return null;
+      if (!seasonsResponse.data) return [];
 
       const seasonsData: EmbyItemsResponse<EmbySeasonItem> =
         typeof seasonsResponse.data === "string" ? JSON.parse(seasonsResponse.data) : seasonsResponse.data;
 
-      if (!seasonsData?.Items || seasonsData.Items.length === 0) return null;
+      if (!seasonsData?.Items || seasonsData.Items.length === 0) return [];
 
       const sortedSeasons = seasonsData.Items.filter(
         (season: EmbySeasonItem): season is EmbySeasonItem & { IndexNumber: number } =>
@@ -161,80 +187,96 @@ export function createAutoplayManager({ http, mpv, core, preferences, buildEmbyH
       const currentSeasonIndex = sortedSeasons.findIndex((season) => season.Id === seasonId);
       if (currentSeasonIndex === -1 || currentSeasonIndex >= sortedSeasons.length - 1) {
         log("No next season available — end of series");
-        return null;
+        return [];
       }
 
       const nextSeason = sortedSeasons[currentSeasonIndex + 1];
       log(`Found next season: ${nextSeason.Name} (S${nextSeason.IndexNumber})`);
 
-      const nextSeasonEpisodes = await fetchSeriesEpisodes(serverBase, seriesId, nextSeason.Id, apiKey);
-
-      if (nextSeasonEpisodes.length === 0) {
-        log("Next season has no episodes");
-        return null;
+      const nextSeasonEpisodes = await fetchSeriesEpisodes(serverBase, seriesId, nextSeason.Id, apiKey, userId);
+      for (const ep of nextSeasonEpisodes) {
+        ep.seasonNumber = nextSeason.IndexNumber;
       }
-
-      const firstEpisode = nextSeasonEpisodes[0];
-      log(`Found first episode of next season: S${nextSeason.IndexNumber}E${firstEpisode.indexNumber} - ${firstEpisode.name}`);
-
-      firstEpisode.seasonNumber = nextSeason.IndexNumber;
-
-      return firstEpisode;
+      return nextSeasonEpisodes;
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      log(`Error resolving next episode: ${errorMsg}`);
-      return null;
+      log(`Error resolving remaining episodes: ${errorMsg}`);
+      return [];
     }
   }
 
-  function queueNextEpisode(nextEpisode: SeriesEpisode, seriesName: string, seasonNumber: number) {
+  function queueRemainingEpisodes(episodes: SeriesEpisode[], seriesName: string, defaultSeasonNumber: number) {
+    if (episodes.length === 0) return;
+
     try {
-      const episodeTitle = formatFullEpisodeTitle(seriesName, seasonNumber, nextEpisode.indexNumber, nextEpisode.name);
+      const playlistCount = Number(mpv.getNumber("playlist-count") || 0);
+      const currentPos = Number(mpv.getNumber("playlist-pos"));
 
-      log(`Queuing next episode: ${episodeTitle}`);
-
-      try {
-        const playlistCount = Number(mpv.getNumber("playlist-count") || 0);
-        const currentPos = Number(mpv.getNumber("playlist-pos"));
-
-        if (!Number.isFinite(currentPos) || currentPos < 0) {
-          log(`Skipping playlist cleanup due to invalid playlist-pos=${currentPos}, playlist-count=${playlistCount}`);
-        } else if (playlistCount > currentPos + 1) {
-          for (let i = playlistCount - 1; i > currentPos; i--) {
-            try {
-              mpv.command("playlist-remove", [String(i)]);
-            } catch {
-              // Ignore removal errors
-            }
+      if (Number.isFinite(currentPos) && currentPos >= 0 && playlistCount > currentPos + 1) {
+        for (let i = playlistCount - 1; i > currentPos; i--) {
+          try {
+            mpv.command("playlist-remove", [String(i)]);
+          } catch {
+            // Ignore removal errors
           }
-          log(`Cleaned ${playlistCount - currentPos - 1} stale playlist entries`);
         }
-      } catch {
-        log("Could not clean playlist (non-critical)");
+        log(`Cleaned ${playlistCount - currentPos - 1} stale playlist entries`);
       }
 
-      mpv.command("loadfile", [nextEpisode.playUrl, "insert-next", "-1", `force-media-title=${episodeTitle}`]);
+      for (const episode of episodes) {
+        const seasonNum = episode.seasonNumber ?? defaultSeasonNumber;
+        const episodeTitle = formatFullEpisodeTitle(seriesName, seasonNum, episode.indexNumber, episode.name);
+        mpv.command("loadfile", [episode.playUrl, "append"]);
+        log(`Appended to playlist: ${episodeTitle}`);
+      }
 
       autoplayQueued = true;
+      log(`Queued ${episodes.length} upcoming episode(s) to playlist`);
 
-      log(`Queued next episode: ${episodeTitle}`);
+      if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
+        iinaGlobal.postMessage("player-next-queued", {
+          count: episodes.length,
+          firstTitle: episodes[0]?.name,
+        });
+      }
 
-      if (preferences.get("show_notifications")) {
-        core.osd(`Up next: ${episodeTitle}`);
+      if (preferences.get("show_notifications") && episodes.length > 0) {
+        const nextTitle = formatFullEpisodeTitle(
+          seriesName,
+          episodes[0].seasonNumber ?? defaultSeasonNumber,
+          episodes[0].indexNumber,
+          episodes[0].name,
+        );
+        core.osd(`Queued ${episodes.length} episodes (Next: ${nextTitle})`);
       }
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      log(`Error queuing next episode: ${errorMsg}`);
+      log(`Error queuing remaining episodes: ${errorMsg}`);
+      console.error(`[iina-emby] Failed to queue remaining episodes: ${errorMsg}`);
     }
   }
 
-  function setupAutoplayForEpisode(serverBase: string, episodeId: string, apiKey: string) {
+  function setupAutoplayForEpisode(serverBase: string, episodeId: string, apiKey: string, userId?: string) {
     if (lastProcessedEpisodeId === episodeId) {
       log(`Episode ${episodeId} already being processed, skipping duplicate setup`);
       return;
     }
 
     lastProcessedEpisodeId = episodeId;
+
+    // If the playlist already has upcoming episodes after the current one, no need to re-query
+    try {
+      const playlistCount = Number(mpv.getNumber("playlist-count") || 0);
+      const currentPos = Number(mpv.getNumber("playlist-pos"));
+      if (Number.isFinite(currentPos) && currentPos >= 0 && playlistCount > currentPos + 1) {
+        log(`Playlist already has ${playlistCount - currentPos - 1} upcoming episode(s), skipping fetch`);
+        autoplayQueued = true;
+        return;
+      }
+    } catch {
+      // Ignore
+    }
+
     autoplayQueued = false;
 
     autoplayRequestCounter++;
@@ -242,9 +284,9 @@ export function createAutoplayManager({ http, mpv, core, preferences, buildEmbyH
 
     (async () => {
       try {
-        log(`Setting up autoplay for episode: ${episodeId} (request #${thisRequestId})`);
+        log(`Setting up autoplay for episode: ${episodeId} (request #${thisRequestId}), userId: ${userId || "none"}`);
 
-        const seriesInfo = await getSeriesInfoFromEpisode(serverBase, episodeId, apiKey);
+        const seriesInfo = await getSeriesInfoFromEpisode(serverBase, episodeId, apiKey, userId);
 
         if (thisRequestId !== autoplayRequestCounter) {
           log(`Autoplay request #${thisRequestId} is stale (current: #${autoplayRequestCounter}), aborting`);
@@ -265,12 +307,13 @@ export function createAutoplayManager({ http, mpv, core, preferences, buildEmbyH
           lastProcessedSeriesId = seriesInfo.seriesId;
         }
 
-        const nextEpisode = await resolveNextEpisode(
+        const remainingEpisodes = await resolveRemainingEpisodes(
           serverBase,
           seriesInfo.seriesId,
           seriesInfo.seasonId,
           seriesInfo.currentEpisodeNumber,
           apiKey,
+          userId,
         );
 
         if (thisRequestId !== autoplayRequestCounter) {
@@ -278,15 +321,14 @@ export function createAutoplayManager({ http, mpv, core, preferences, buildEmbyH
           return;
         }
 
-        if (!nextEpisode) {
-          log("No next episode found — end of series");
+        if (remainingEpisodes.length === 0) {
+          log("No remaining episodes found — end of series");
           return;
         }
 
-        const seasonNum = nextEpisode.seasonNumber ?? seriesInfo.seasonNumber;
-        queueNextEpisode(nextEpisode, seriesInfo.seriesName, seasonNum);
+        queueRemainingEpisodes(remainingEpisodes, seriesInfo.seriesName, seriesInfo.seasonNumber);
 
-        log(`Autoplay setup complete — queued next episode: ${nextEpisode.name}`);
+        log(`Autoplay setup complete — queued ${remainingEpisodes.length} upcoming episode(s)`);
       } catch (error: unknown) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         log(`Error setting up autoplay: ${errorMsg}`);

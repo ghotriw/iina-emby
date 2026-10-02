@@ -310,7 +310,7 @@ function createDebugLogger(preferences2, loggerConsole) {
 // shared/constants.ts
 var CLIENT_NAME = "IINA Emby Plugin";
 var DEVICE_NAME = "IINA";
-var CLIENT_VERSION = true ? "0.1.1" : "0.1.0";
+var CLIENT_VERSION = true ? "0.1.2" : "0.1.0";
 
 // shared/utils/auth.ts
 function buildAuthorizationHeader(identity, token) {
@@ -758,6 +758,12 @@ global.onMessage("player-registered", () => {
 global.onMessage("player-unregistered", () => {
   activePlayerCount = Math.max(0, activePlayerCount - 1);
   debugLog("Player instance unregistered, active count:", activePlayerCount);
+});
+global.onMessage("player-file-loaded", (data) => {
+  debugLog("Player file loaded:", data);
+});
+global.onMessage("player-next-queued", (data) => {
+  debugLog("Player queued upcoming episodes:", data);
 });
 function handleGlobalPlayMedia(data) {
   if (!data?.streamUrl) return;

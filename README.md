@@ -1,24 +1,45 @@
 # iina-emby
 
-Emby plugin for [IINA](https://iina.io).
+Emby plugin for [IINA](https://iina.io). Provides a media browser interface and playback integration with Emby servers.
 
-> ⚠️ **WIP:** Playback sync, subtitles, and server auth are working, but the media browser UI is still in development.
+![IINA Emby Browser](docs/screenshot.webp)
 
-## Setup
+## Features
 
-```bash
-pnpm install
-pnpm build
+- Standalone media browser (Continue Watching, Libraries, TV Shows, Movies)
+- Direct playback in IINA player windows
+- Progress reporting and playback resume sync with Emby server
+- Next episode autoplay
+- Subtitle downloading from Emby
+- Multi-server support
 
-# Link to IINA plugins folder
-ln -s "$(pwd)" ~/Library/Application\ Support/com.colliderli.iina/plugins/iina-emby.iinaplugin-dev
-```
+## Installation
+
+### From IINA (Recommended)
+
+1. Open **IINA Preferences** (`⌘,`) -> **Plugins**.
+2. Click **Install from GitHub / URL**.
+3. Enter `ghotriw/iina-emby` and click **Install**.
+
+### Manual
+
+Download the `.iinaplgz` package from [Releases](https://github.com/ghotriw/iina-emby/releases) and open it with IINA.
 
 ## Development
 
-- `pnpm dev:plugin` — watch & rebuild plugin script
-- `pnpm dev` — run web UI in browser (`localhost:5173`)
-- `pnpm typecheck` — run `tsc --noEmit`
+```bash
+pnpm install
+pnpm run build
+
+# Watch plugin scripts
+pnpm run dev:plugin
+
+# Run UI in browser
+pnpm run dev
+
+# Type check
+pnpm run typecheck
+```
 
 ## License
 

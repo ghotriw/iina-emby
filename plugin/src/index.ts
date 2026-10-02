@@ -60,6 +60,7 @@ const { setupAutoplayForEpisode, resetForNewFile, clearQueuedFlag, isQueued } = 
   mpv,
   core,
   preferences,
+  global: iinaGlobal,
   buildEmbyHeaders,
   fetchItemMetadata,
   log: debugLog,
@@ -123,19 +124,55 @@ if (iinaGlobal && typeof iinaGlobal.onMessage === "function") {
   });
 }
 
+let currentLoadedFileUrl: string | null = null;
+
+function getEffectiveFileUrl(fileUrl?: string): string | undefined {
+  if (fileUrl && typeof fileUrl === "string") {
+    return fileUrl;
+  }
+  try {
+    if (core.status?.url) {
+      return core.status.url;
+    }
+  } catch {
+    // Ignore
+  }
+  try {
+    const mpvPath = mpv.getString("path");
+    if (mpvPath) {
+      return mpvPath;
+    }
+  } catch {
+    // Ignore
+  }
+  return undefined;
+}
+
 /**
  * Handle file loaded event
  */
 function onFileLoaded(fileUrl?: string): void {
-  debugLog(`File loaded: ${fileUrl}`);
+  const resolvedUrl = getEffectiveFileUrl(fileUrl);
+  debugLog(`File loaded event: raw=${fileUrl}, resolved=${resolvedUrl}`);
+
+  if (!resolvedUrl) {
+    debugLog("No resolved URL found on file loaded");
+    return;
+  }
+
+  if (currentLoadedFileUrl === resolvedUrl) {
+    debugLog(`File ${resolvedUrl} already initialized, skipping duplicate file-loaded event`);
+    return;
+  }
+  currentLoadedFileUrl = resolvedUrl;
 
   // The first item of a queued list is playing now, so the rest can be added
-  flushPendingPlaylistQueue(fileUrl);
+  flushPendingPlaylistQueue(resolvedUrl);
 
   // Stop any existing playback tracking from previous file
   stopPlaybackTracking();
 
-  const embyInfo = updateFromFileUrl(fileUrl);
+  const embyInfo = updateFromFileUrl(resolvedUrl);
   if (!embyInfo) {
     clearLaunchedFromBrowser();
   } else {
@@ -190,9 +227,9 @@ function onFileLoaded(fileUrl?: string): void {
 
     // Setup autoplay for TV episodes if enabled
     if (preferences.get("autoplay_next_episode")) {
-      debugLog(`Setting up autoplay for episode (itemId): ${embyInfo.itemId}`);
+      debugLog(`Setting up autoplay for episode (itemId): ${embyInfo.itemId}, userId: ${reportUserId || "none"}`);
       resetForNewFile(embyInfo.itemId);
-      setupAutoplayForEpisode(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+      setupAutoplayForEpisode(reportServerBase, embyInfo.itemId, reportApiKey, reportUserId);
     }
 
     // Only auto-download if enabled
@@ -201,6 +238,13 @@ function onFileLoaded(fileUrl?: string): void {
       downloadAllSubtitles(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
     } else {
       debugLog("Auto download disabled, but Emby URL stored for manual download");
+    }
+
+    if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
+      iinaGlobal.postMessage("player-file-loaded", {
+        itemId: embyInfo.itemId,
+        url: resolvedUrl,
+      });
     }
   }
 }
@@ -249,28 +293,47 @@ menu.addItem(menu.item("Set Emby Title", manualSetTitle));
 
 // Event handlers
 event.on("iina.file-loaded", onFileLoaded);
+event.on("iina.file-started", () => onFileLoaded());
+event.on("mpv.file-loaded", () => onFileLoaded());
+event.on("mpv.path.changed", (newPath: unknown) => {
+  if (typeof newPath === "string" && newPath) {
+    onFileLoaded(newPath);
+  } else {
+    onFileLoaded();
+  }
+});
+event.on("mpv.playlist-pos.changed", () => onFileLoaded());
 event.on("mpv.pause.changed", handlePauseChange);
 
 // Handle file ending (includes both natural end and replacement)
 event.on("mpv.end-file", () => {
   const queuedForAutoplay = isQueued();
   const isReplacingPlayback = consumeReplacementGuard();
-  debugLog(`mpv.end-file triggered, isReplacingPlayback=${isReplacingPlayback}, autoplayQueued=${queuedForAutoplay}`);
+  const playlistCount = Number(mpv.getNumber("playlist-count") || 0);
+  const currentPos = Number(mpv.getNumber("playlist-pos") || 0);
+  const hasMoreInPlaylist = playlistCount > 0 && currentPos < playlistCount - 1;
+
+  debugLog(
+    `mpv.end-file triggered, isReplacingPlayback=${isReplacingPlayback}, autoplayQueued=${queuedForAutoplay}, hasMoreInPlaylist=${hasMoreInPlaylist}`,
+  );
   if (isReplacingPlayback) {
     debugLog("File replacement in progress, skipping stop report");
     return;
   }
-  if (queuedForAutoplay) {
-    debugLog("Autoplay queued, mpv will play next episode — skipping stop cleanup");
+  if (queuedForAutoplay || hasMoreInPlaylist) {
+    debugLog("More episodes in playlist, mpv will play next episode — skipping stop cleanup");
     clearQueuedFlag();
+    currentLoadedFileUrl = null;
     return;
   }
+  currentLoadedFileUrl = null;
   stopPlaybackTracking();
   handlePlaybackTermination("end-file");
 });
 
 event.on("iina.window-will-close", () => {
   debugLog("Window closing, stopping playback tracking");
+  currentLoadedFileUrl = null;
   if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
     iinaGlobal.postMessage("player-unregistered", {});
   }
