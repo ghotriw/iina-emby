@@ -1,7 +1,33 @@
 import { Skeleton } from "@mantine/core";
 import type { EmbyItemMetadata, EmbyServer, EmbyView } from "@shared";
-import { MediaPoster } from "./MediaPoster";
+import { MediaPoster, MediaPosterSkeleton } from "./MediaPoster";
 import { MediaShelf } from "./MediaShelf";
+import shelfClasses from "./MediaShelf.module.css";
+
+export interface LibraryShelfSkeletonProps {
+  shelfId?: string | number;
+  titleWidth?: number;
+}
+
+export function LibraryShelfSkeleton({ shelfId = "skeleton-shelf", titleWidth = 100 }: LibraryShelfSkeletonProps) {
+  return (
+    <MediaShelf
+      title={
+        <h3 className={shelfClasses.title}>
+          <Skeleton width={titleWidth} radius="xs">
+            <span>&nbsp;</span>
+          </Skeleton>
+        </h3>
+      }
+      itemWidth={140}
+      gap={14}
+    >
+      {[1, 2, 3, 4, 5].map((id) => (
+        <MediaPosterSkeleton key={`${shelfId}-${id}`} />
+      ))}
+    </MediaShelf>
+  );
+}
 
 export interface LibraryShelfProps {
   view: EmbyView;
@@ -14,12 +40,8 @@ export function LibraryShelf({ view, items, server, isLoading }: LibraryShelfPro
   if (isLoading) {
     return (
       <MediaShelf title={view.Name} itemWidth={140} gap={14}>
-        {Array.from({ length: 5 }).map((_) => (
-          <div key={`skeleton-${view.Id}`} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <Skeleton height={210} radius={10} />
-            <Skeleton height={14} width="80%" radius={4} />
-            <Skeleton height={12} width="40%" radius={4} />
-          </div>
+        {[1, 2, 3, 4, 5].map((id) => (
+          <MediaPosterSkeleton key={`${view.Id}-${id}`} />
         ))}
       </MediaShelf>
     );

@@ -1,76 +1,93 @@
-import React, { useState } from "react";
+import { Skeleton } from "@mantine/core";
+import {
+  type EmbyItemMetadata,
+  type EmbyServer,
+  formatDuration,
+  formatEpisodeSubtitle,
+  formatTimeProgress,
+  getItemImageUrl,
+  type PlayMediaPayload,
+  ticksToSeconds,
+} from "@shared";
 import { IconMovie, IconPlayerPlay } from "@tabler/icons-react";
-import { formatDuration, formatTimeProgress, ticksToSeconds } from "@shared";
+import { useState } from "react";
+import { buildStreamUrl } from "../lib/emby-library-client";
 import classes from "./MediaThumb.module.css";
 
-export interface MediaThumbProps {
-  /** Primary title (e.g. series name or movie name) */
-  title: string;
-  /** Secondary subtitle (e.g. "S02 - E02 - A Bear in the Wolf's Clothing") */
-  subtitle?: string;
-  /** Image preview URL (poster / backdrop / episode thumb) */
-  imageUrl?: string;
-  /** Playback position in ticks (Emby UserData.PlaybackPositionTicks) */
-  playbackPositionTicks?: number | null;
-  /** Total runtime in ticks (Emby RunTimeTicks) */
-  runTimeTicks?: number | null;
-  /** Explicit playback position in seconds (optional alternative to ticks) */
-  playbackPositionSeconds?: number | null;
-  /** Explicit total runtime in seconds (optional alternative to ticks) */
-  totalDurationSeconds?: number | null;
-  /** Custom aspect ratio, defaults to 16/9 */
-  aspectRatio?: number;
-  /** Custom container width (e.g. 260 or "100%") */
-  width?: number | string;
-  /** Custom className */
-  className?: string;
-  /** Play or click callback */
-  onPlay?: () => void;
-  onClick?: () => void;
+export function MediaThumbSkeleton({ className }: { className?: string }) {
+  return (
+    <div className={`${classes.card} ${className || ""}`} aria-hidden="true">
+      <div className={classes.preview}>
+        <Skeleton height="100%" radius="var(--radius-card)" />
+      </div>
+      <div className={classes.meta}>
+        <span className={classes.title}>
+          <Skeleton width="75%" radius="xs">
+            <span>&nbsp;</span>
+          </Skeleton>
+        </span>
+        <span className={classes.subtitle}>
+          <Skeleton width="45%" radius="xs">
+            <span>&nbsp;</span>
+          </Skeleton>
+        </span>
+      </div>
+    </div>
+  );
 }
 
-export function MediaThumb({
-  title,
-  subtitle,
-  imageUrl,
-  playbackPositionTicks,
-  runTimeTicks,
-  playbackPositionSeconds,
-  totalDurationSeconds,
-  aspectRatio = 16 / 9,
-  width,
-  className,
-  onPlay,
-  onClick,
-}: MediaThumbProps) {
+export interface MediaThumbProps {
+  item: EmbyItemMetadata;
+  server: EmbyServer;
+  onPlay?: (payload: PlayMediaPayload) => void;
+  onClick?: (item: EmbyItemMetadata) => void;
+  aspectRatio?: number;
+  width?: number | string;
+  className?: string;
+}
+
+export function MediaThumb({ item, server, onPlay, onClick, aspectRatio = 16 / 9, width, className }: MediaThumbProps) {
   const [imageError, setImageError] = useState(false);
 
-  const currentSec =
-    typeof playbackPositionSeconds === "number"
-      ? playbackPositionSeconds
-      : ticksToSeconds(playbackPositionTicks);
+  const isEpisode = item.Type === "Episode";
+  const title = isEpisode ? item.SeriesName || item.Name || "Episode" : item.Name || "Movie";
+  const subtitle = isEpisode
+    ? formatEpisodeSubtitle(item.ParentIndexNumber, item.IndexNumber, item.Name)
+    : item.ProductionYear
+      ? String(item.ProductionYear)
+      : undefined;
 
-  const totalSec =
-    typeof totalDurationSeconds === "number"
-      ? totalDurationSeconds
-      : ticksToSeconds(runTimeTicks);
+  const imageUrl = !imageError
+    ? getItemImageUrl(server.serverUrl, item, {
+        prefer: "thumb",
+        maxWidth: 520,
+        maxHeight: 293,
+        quality: 85,
+        accessToken: server.accessToken,
+      })
+    : undefined;
+
+  const currentSec = ticksToSeconds(item.UserData?.PlaybackPositionTicks);
+  const totalSec = ticksToSeconds(item.RunTimeTicks);
 
   const hasProgress = totalSec > 0 && currentSec > 0;
-  const progressPercent = hasProgress
-    ? Math.min(100, Math.max(0, (currentSec / totalSec) * 100))
-    : 0;
+  const progressPercent = hasProgress ? Math.min(100, Math.max(0, (currentSec / totalSec) * 100)) : 0;
 
-  const timeLabel = hasProgress
-    ? formatTimeProgress(currentSec, totalSec)
-    : totalSec > 0
-      ? formatDuration(totalSec)
-      : null;
+  const timeLabel = hasProgress ? formatTimeProgress(currentSec, totalSec) : totalSec > 0 ? formatDuration(totalSec) : null;
+
+  const fullPlayTitle = isEpisode
+    ? `${item.SeriesName || ""} - ${formatEpisodeSubtitle(item.ParentIndexNumber, item.IndexNumber, item.Name)}`
+    : item.Name || "";
 
   const handleClick = () => {
     if (onPlay) {
-      onPlay();
+      onPlay({
+        streamUrl: buildStreamUrl(server, item.Id),
+        title: fullPlayTitle,
+        startPositionTicks: item.UserData?.PlaybackPositionTicks,
+      });
     } else if (onClick) {
-      onClick();
+      onClick(item);
     }
   };
 
@@ -83,14 +100,8 @@ export function MediaThumb({
       title={subtitle ? `${title} • ${subtitle}` : title}
     >
       <div className={classes.preview} style={{ aspectRatio }}>
-        {imageUrl && !imageError ? (
-          <img
-            src={imageUrl}
-            alt={title}
-            className={classes.image}
-            loading="lazy"
-            onError={() => setImageError(true)}
-          />
+        {imageUrl ? (
+          <img src={imageUrl} alt={title} className={classes.image} loading="lazy" onError={() => setImageError(true)} />
         ) : (
           <div className={classes.placeholder}>
             <IconMovie size={38} stroke={1.5} />
@@ -117,10 +128,7 @@ export function MediaThumb({
         {/* White progress bar at the bottom */}
         {hasProgress && (
           <div className={classes.progressBarTrack}>
-            <div
-              className={classes.progressBarFill}
-              style={{ width: `${progressPercent}%` }}
-            />
+            <div className={classes.progressBarFill} style={{ width: `${progressPercent}%` }} />
           </div>
         )}
       </div>

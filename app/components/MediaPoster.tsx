@@ -1,3 +1,4 @@
+import { Skeleton } from "@mantine/core";
 import type { EmbyItemMetadata, EmbyServer } from "@shared";
 import { getItemImageUrl } from "@shared";
 import { IconMovie } from "@tabler/icons-react";
@@ -5,6 +6,28 @@ import type React from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import classes from "./MediaPoster.module.css";
+
+export function MediaPosterSkeleton({ className }: { className?: string }) {
+  return (
+    <div className={`${classes.card} ${className || ""}`} aria-hidden="true">
+      <div className={classes.posterWrapper}>
+        <Skeleton height="100%" radius="var(--radius-card)" />
+      </div>
+      <div className={classes.meta}>
+        <span className={classes.title}>
+          <Skeleton width="80%" radius="xs">
+            <span>&nbsp;</span>
+          </Skeleton>
+        </span>
+        <span className={classes.year}>
+          <Skeleton width="40%" radius="xs">
+            <span>&nbsp;</span>
+          </Skeleton>
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export interface MediaPosterProps {
   item: EmbyItemMetadata;
@@ -20,21 +43,16 @@ export function MediaPoster({ item, server, onClick, className }: MediaPosterPro
   const imageUrl = !imgError
     ? getItemImageUrl(server.serverUrl, item, {
         prefer: "primary",
-        maxWidth: 320,
+        maxWidth: 280,
+        maxHeight: 420,
         quality: 85,
         accessToken: server.accessToken,
       })
     : undefined;
 
-  const rating =
-    typeof item.CommunityRating === "number" && item.CommunityRating > 0
-      ? item.CommunityRating.toFixed(1)
-      : null;
+  const rating = typeof item.CommunityRating === "number" && item.CommunityRating > 0 ? item.CommunityRating.toFixed(1) : null;
 
-  const unplayedCount =
-    item.UserData?.UnplayedItemCount && item.UserData.UnplayedItemCount > 0
-      ? item.UserData.UnplayedItemCount
-      : null;
+  const unplayedCount = item.UserData?.UnplayedItemCount && item.UserData.UnplayedItemCount > 0 ? item.UserData.UnplayedItemCount : null;
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -54,13 +72,7 @@ export function MediaPoster({ item, server, onClick, className }: MediaPosterPro
     >
       <div className={classes.posterWrapper}>
         {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={item.Name || "Media"}
-            className={classes.image}
-            loading="lazy"
-            onError={() => setImgError(true)}
-          />
+          <img src={imageUrl} alt={item.Name || "Media"} className={classes.image} loading="lazy" onError={() => setImgError(true)} />
         ) : (
           <div className={classes.placeholder}>
             <IconMovie size={36} />

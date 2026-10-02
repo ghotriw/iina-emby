@@ -1,9 +1,10 @@
-import { IconChevronLeft, IconReload } from "@tabler/icons-react";
-import { useState } from "react";
+import { Alert } from "@mantine/core";
+import { IconAlertCircle, IconChevronLeft, IconReload } from "@tabler/icons-react";
+import { useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router";
-import { ContinueWatching } from "../components/ContinueWatching";
+import { ContinueWatching, type ContinueWatchingHandle } from "../components/ContinueWatching";
 import { GlassButton } from "../components/GlassButton";
-import { LibraryShelf } from "../components/LibraryShelf";
+import { LibraryShelf, LibraryShelfSkeleton } from "../components/LibraryShelf";
 import { useIINABridge } from "../hooks/useIINABridge";
 import { useLibrarySections } from "../hooks/useLibrarySections";
 import styles from "./home.module.css";
@@ -15,9 +16,9 @@ export function meta() {
 export default function HomeRoute() {
   const navigate = useNavigate();
   const { activeServer, servers, isLoading, playMedia } = useIINABridge();
-  const { sections, reload } = useLibrarySections(activeServer);
+  const { sections, isLoading: isSectionsLoading, error: sectionsError, reload } = useLibrarySections(activeServer);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const continueWatchingRef = useRef<ContinueWatchingHandle | null>(null);
 
   // Wait for IINA bridge to report servers list before redirecting
   if (isLoading) {
@@ -36,9 +37,11 @@ export default function HomeRoute() {
   const handleRefresh = async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
-    setRefreshKey((k) => k + 1);
     try {
-      await reload();
+      await Promise.allSettled([
+        reload(),
+        continueWatchingRef.current?.refresh(),
+      ]);
     } finally {
       setIsRefreshing(false);
     }
@@ -89,12 +92,31 @@ export default function HomeRoute() {
       {/* Main shelves content */}
       <main className={styles.content}>
         {/* Continue Watching shelf */}
-        <ContinueWatching key={refreshKey} server={activeServer} onPlayMedia={playMedia} />
+        <ContinueWatching ref={continueWatchingRef} server={activeServer} onPlayMedia={playMedia} />
+
+        {sectionsError && (
+          <Alert icon={<IconAlertCircle size={16} />} title="Error loading libraries" color="red" variant="light" mb="md">
+            {sectionsError.message}
+          </Alert>
+        )}
 
         {/* Library shelves (Movies, TV shows, etc.) */}
-        {sections.map(({ view, items }) => (
-          <LibraryShelf key={view.Id} view={view} items={items} server={activeServer} />
-        ))}
+        {sections.length === 0 && isSectionsLoading ? (
+          <>
+            <LibraryShelfSkeleton shelfId="init-1" titleWidth={100} />
+            <LibraryShelfSkeleton shelfId="init-2" titleWidth={120} />
+          </>
+        ) : (
+          sections.map(({ view, items, isLoading: isShelfLoading }) => (
+            <LibraryShelf
+              key={view.Id}
+              view={view}
+              items={items}
+              server={activeServer}
+              isLoading={isShelfLoading}
+            />
+          ))
+        )}
       </main>
     </div>
   );
