@@ -141,14 +141,12 @@
   background: transparent;
   border: none;
   padding: 0.125rem 0.25rem;
-  /*margin-left: -0.25rem;*/
-  /*margin-right: -0.25rem;*/
   text-align: left;
   cursor: pointer;
   color: inherit;
   font-family: inherit;
   outline: none;
-  border-radius: var(--radius-s, 0.25rem);
+  border-radius: var(--radius-sm);
   transition: background-color 0.15s ease;
 }
 

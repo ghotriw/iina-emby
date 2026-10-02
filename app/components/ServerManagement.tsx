@@ -69,7 +69,7 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
           <IINAEmbyLogo size={80} />
           <h1 className={styles.sidebarTitle}>IINA</h1>
           <p className={styles.sidebarSubtitle}>Emby Browser</p>
-          <span className={styles.sidebarVersion}>v1.0.0</span>
+          <span className={styles.sidebarVersion}>v{__APP_VERSION__}</span>
         </div>
       </aside>
 

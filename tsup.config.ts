@@ -1,7 +1,7 @@
 import path from "node:path";
 import { defineConfig } from "tsup";
 
-export default defineConfig({
+export default defineConfig((options) => ({
   entry: {
     index: "plugin/src/index.ts",
     global: "plugin/src/global.ts",
@@ -12,7 +12,7 @@ export default defineConfig({
   clean: true,
   bundle: true,
   splitting: false,
-  sourcemap: true,
+  sourcemap: Boolean(options.watch),
   esbuildOptions(options) {
     options.alias = {
       "@shared": path.resolve(__dirname, "./shared"),
@@ -23,4 +23,4 @@ export default defineConfig({
       js: ".js",
     };
   },
-});
+}));

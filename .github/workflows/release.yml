@@ -1,0 +1,61 @@
+name: Release IINA Plugin
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Build UI and Plugin
+        run: pnpm run build
+
+      - name: Prepare Plugin Package
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PACKAGE_NAME="com.ghotriw.iina-emby-${VERSION}.iinaplgz"
+          
+          mkdir -p release-pkg
+          cp Info.json release-pkg/
+          cp pref.html release-pkg/
+          cp help.html release-pkg/
+          cp -r dist release-pkg/
+          
+          # .iinaplgz is a gzipped tar archive of the plugin contents
+          tar -czf "${PACKAGE_NAME}" -C release-pkg .
+          
+          echo "PACKAGE_NAME=${PACKAGE_NAME}" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.PACKAGE_NAME }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
