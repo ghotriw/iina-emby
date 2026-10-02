@@ -1,9 +1,9 @@
-import { Alert } from "../components/Alert";
 import { IconAlertCircle, IconChevronLeft, IconReload } from "@tabler/icons-react";
 import { useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router";
+import { Alert } from "../components/Alert";
 import { ContinueWatching, type ContinueWatchingHandle } from "../components/ContinueWatching";
-import { GlassButton, GlassElement } from "../components/GlassElement";
+import { GlassElement } from "../components/GlassElement";
 import { LibraryShelf, LibraryShelfSkeleton } from "../components/LibraryShelf";
 import { useIINABridge } from "../hooks/useIINABridge";
 import { useLibrarySections } from "../hooks/useLibrarySections";
@@ -51,7 +51,7 @@ export default function HomeRoute() {
         <div className={styles.headerLeft}>
           <GlassElement
             variant="glass"
-            shape="circle"
+            shape="rounded"
             size="sm"
             isIconOnly
             onClick={handleBack}
@@ -64,7 +64,7 @@ export default function HomeRoute() {
           <GlassElement
             as="div"
             variant="glass"
-            shape="pill"
+            shape="rounded"
             size="sm"
             interactive={false}
             leftSection={<span className={styles.activeDot} />}
@@ -75,9 +75,9 @@ export default function HomeRoute() {
         </div>
 
         <div className={styles.headerRight}>
-          <GlassButton
+          <GlassElement
             variant="glass"
-            shape="circle"
+            shape="rounded"
             size="sm"
             isIconOnly
             onClick={handleRefresh}
@@ -86,7 +86,7 @@ export default function HomeRoute() {
             aria-label="Refresh library"
           >
             <IconReload size={16} className={isRefreshing ? styles.spinning : ""} />
-          </GlassButton>
+          </GlassElement>
         </div>
       </header>
 

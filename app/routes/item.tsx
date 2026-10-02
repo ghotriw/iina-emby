@@ -1,13 +1,13 @@
-import { Modal } from "../components/Modal";
-import { Select } from "../components/Select";
 import type { EmbyItemMetadata, EmbyMediaStream } from "@shared";
 import { getEmbyImageUrl, getItemImageUrl } from "@shared";
 import { IconChevronLeft, IconPlayerPlayFilled, IconX } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
-import { GlassButton } from "../components/GlassElement";
+import { GlassElement } from "../components/GlassElement";
 import { MediaShelf } from "../components/MediaShelf";
 import { MediaThumb, MediaThumbSkeleton } from "../components/MediaThumb";
+import { Modal } from "../components/Modal";
+import { Select } from "../components/Select";
 import { useIINABridge } from "../hooks/useIINABridge";
 import { buildStreamUrl, fetchEpisodes, fetchItemDetails, fetchNextUp, fetchSeasons } from "../lib/emby-library-client";
 import styles from "./item.module.css";
@@ -336,9 +336,9 @@ export default function ItemDetailRoute() {
 
       {/* Top Floating Navigation */}
       <header className={styles.topNav}>
-        <GlassButton variant="glass" shape="circle" size="md" isIconOnly onClick={() => navigate(-1)} aria-label="Back" title="Back">
+        <GlassElement variant="glass" shape="rounded" size="md" isIconOnly onClick={() => navigate(-1)} aria-label="Back" title="Back">
           <IconChevronLeft size={22} />
-        </GlassButton>
+        </GlassElement>
       </header>
 
       {/* Hero Bottom Layout */}
@@ -357,10 +357,10 @@ export default function ItemDetailRoute() {
 
         <div className={styles.row}>
           <div className={styles.leftColumn}>
-            <GlassButton
+            <GlassElement
               variant="primary"
               size="lg"
-              shape="pill"
+              shape="rounded"
               fullWidth
               onClick={handlePlay}
               disabled={isPlaying}
@@ -368,7 +368,7 @@ export default function ItemDetailRoute() {
               leftSection={<IconPlayerPlayFilled size={18} />}
             >
               <span>Play{resumeTimeClock ? ` ${resumeTimeClock}` : ""}</span>
-            </GlassButton>
+            </GlassElement>
           </div>
 
           {/* Right Column: Rating, Genres, Technical Specs, Overview */}

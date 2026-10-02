@@ -1,210 +1,220 @@
-/* Liquid Glass Button
-   Layers (bottom to top):
-   1. .lens     — backdrop-filter (refraction + blur) and tint
-   2. ::before  — specular sheen following cursor (--mx / --my)
-   3. .content  — text and icons
-   4. ::after   — rim: diagonal sheen with angle following cursor (--rim-angle)
-*/
+/* Aqua Refined Glass Component — based on Jared White's implementation */
 
-@property --rim-angle {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 150deg;
+@property --bg-color {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rebeccapurple;
+}
+
+@property --mix-color {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: white;
+}
+
+@property --dark-color-mix {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 10%;
 }
 
 .button {
-  --glass-focus-gap: #141517;
-  --glass-focus-ring: rgba(255, 255, 255, 0.7);
-
+  appearance: none;
+  -webkit-appearance: none;
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: inherit;
+  gap: 0.5rem;
+  font: inherit;
   font-weight: 700;
   text-decoration: none;
-  cursor: pointer;
-  outline: none;
+  color: white;
+  border: none;
+  border-radius: 2rem;
+  -webkit-tap-highlight-color: rgba(255, 255, 255, 0);
+  box-sizing: border-box;
   user-select: none;
-  border: 0;
-  isolation: isolate;
-  color: #fff;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
-  transform: translateY(0) translateZ(0);
-  will-change: transform;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
+  outline: none;
+  cursor: default;
+
+  /* Aqua Glass Foundation */
+  --mix-color: white;
+  --dark-color-mix: 10%;
+  --bg-color: color-mix(in oklab, transparent, var(--mix-color) var(--dark-color-mix));
+
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--bg-color), white 5%),
+    var(--bg-color) 20%,
+    var(--bg-color) 50%,
+    color-mix(in oklab, var(--bg-color), white 6%)
+  );
+  backdrop-filter: saturate(150%) blur(0.375rem);
+  -webkit-backdrop-filter: saturate(150%) blur(0.375rem);
+
+  /* Exact Aqua specular rim highlights & subtle borders */
+  box-shadow:
+    -1px 0px 0px rgba(0, 0, 0, 0.15),
+    1px 0px 0px rgba(0, 0, 0, 0.15),
+    0px -1px 0px rgba(0, 0, 0, 0.065),
+    0px 1px 0px rgba(0, 0, 0, 0.065),
+    inset 0px 2px 2px -2px rgba(255, 255, 255, 0.5),
+    inset 0px -2px 2px -2px rgba(255, 255, 255, 0.7);
+
   transition:
-    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    --bg-color 0.2s ease-out,
+    --dark-color-mix 0.2s ease-out,
+    transform 0.15s ease-out,
+    opacity 0.2s ease;
+}
+
+/* Interactive States */
+.interactive {
+  cursor: pointer;
+}
+
+.interactive:hover {
+  --dark-color-mix: 20%;
+}
+
+.interactive:active {
+  --dark-color-mix: 30%;
+  transform: scale(0.98);
 }
 
 .nonInteractive {
   cursor: default;
 }
 
-.nonInteractive:active {
-  transform: none;
-}
-
-/*  Layer 1: Lens */
-.lens {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: var(--lens-tint);
-  backdrop-filter: blur(var(--lens-blur)) saturate(var(--lens-sat));
-  -webkit-backdrop-filter: blur(var(--lens-blur)) saturate(var(--lens-sat));
-  box-shadow: var(--lens-inset);
-  transform: translateZ(0);
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-  transition: box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/*  Layer 2: Dynamic Sheen */
-.button::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  border-radius: inherit;
-  pointer-events: none;
-  background: radial-gradient(
-    circle at var(--mx, 50%) var(--my, 50%),
-    rgba(255, 255, 255, var(--sheen, 0.16)) 0%,
-    rgba(255, 255, 255, 0) 70%
-  );
-  opacity: 0;
-  transform: translateZ(0);
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.button:hover::before {
-  opacity: 1;
-}
-
-/*  Layer 3: Content */
-.content {
-  position: relative;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-/*  Layer 4: Rim Light */
-.button::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  box-sizing: border-box;
-  border-radius: inherit;
-  padding: 1px;
-  pointer-events: none;
-  background: linear-gradient(
-    var(--rim-angle),
-    rgba(255, 255, 255, var(--rim-strong, 0.5)) 0%,
-    rgba(255, 255, 255, 0.06) 32%,
-    rgba(255, 255, 255, 0.03) 64%,
-    rgba(255, 255, 255, var(--rim-weak, 0.22)) 100%
-  );
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#000 0 0) content-box exclude,
-    linear-gradient(#000 0 0);
-  opacity: var(--rim-opacity, 1);
-  transition: opacity 0.2s ease;
-}
-
-/*  States */
-.button:active {
-  transform: scale(0.98) translateZ(0);
-}
-
-/* Avoid opacity on the root button: it creates a backdrop root
-   and breaks backdrop-filter. Dim individual layers instead. */
-.button:disabled {
+/* Disabled */
+.button:disabled,
+.button[aria-disabled="true"] {
+  opacity: 0.45;
   cursor: not-allowed;
+  pointer-events: none;
 }
 
-.button:disabled .content {
-  opacity: 0.5;
+/* Focus */
+.interactive:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 0.125rem;
 }
 
-.button:disabled .lens {
-  opacity: 0.55;
+/* ==============================================================
+   Variants
+   ============================================================== */
+
+/* 1. Primary: Luminous glass button */
+.variantPrimary {
+  --mix-color: white;
+  --dark-color-mix: 14%;
 }
 
-.button:disabled::before,
-.button:disabled::after {
-  opacity: 0.4;
+.variantPrimary.interactive:hover {
+  --dark-color-mix: 24%;
 }
 
-.button:focus-visible {
+.variantPrimary.interactive:active {
+  --dark-color-mix: 36%;
+}
+
+/* 2. Glass: Subtle smoky glass */
+.variantGlass {
+  --mix-color: white;
+  --dark-color-mix: 8%;
+}
+
+.variantGlass.interactive:hover {
+  --dark-color-mix: 16%;
+}
+
+.variantGlass.interactive:active {
+  --dark-color-mix: 25%;
+}
+
+/* 3. Ghost: Transparent, reveals glass on hover */
+.variantGhost {
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.variantGhost.interactive:hover {
+  --mix-color: white;
+  --dark-color-mix: 10%;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--bg-color), white 5%),
+    var(--bg-color) 20%,
+    var(--bg-color) 50%,
+    color-mix(in oklab, var(--bg-color), white 6%)
+  );
+  backdrop-filter: saturate(150%) blur(0.375rem);
+  -webkit-backdrop-filter: saturate(150%) blur(0.375rem);
   box-shadow:
-    0 0 0 2px var(--glass-focus-gap),
-    0 0 0 4px var(--glass-focus-ring);
+    -1px 0px 0px rgba(0, 0, 0, 0.15),
+    1px 0px 0px rgba(0, 0, 0, 0.15),
+    0px -1px 0px rgba(0, 0, 0, 0.065),
+    0px 1px 0px rgba(0, 0, 0, 0.065),
+    inset 0px 2px 2px -2px rgba(255, 255, 255, 0.5),
+    inset 0px -2px 2px -2px rgba(255, 255, 255, 0.7);
 }
 
-/*  Shapes */
+/* ==============================================================
+   Shapes
+   ============================================================== */
 .shapePill {
-  border-radius: 9999px;
+  border-radius: 2rem;
 }
 
 .shapeCircle {
   border-radius: 50%;
   aspect-ratio: 1;
-  padding: 0 !important;
+  padding: 0;
 }
 
 .shapeRounded {
-  border-radius: 12px;
+  border-radius: var(--radius-card, 0.75rem);
 }
 
-/*  Sizes */
+/* ==============================================================
+   Sizes
+   ============================================================== */
 .sizeSm {
-  height: 34px;
-  padding: 0 14px;
-  font-size: 13px;
+  height: 2.125rem;
+  padding: 0 0.875rem;
+  font-size: 0.8125rem;
 }
 
 .sizeMd {
-  height: 42px;
-  padding: 0 20px;
-  font-size: 14px;
+  height: 2.625rem;
+  padding: 0 1.25rem;
+  font-size: 0.875rem;
 }
 
 .sizeLg {
-  height: 48px;
-  padding: 0 26px;
-  font-size: 15px;
+  height: 3rem;
+  padding: 0 1.625rem;
+  font-size: 0.9375rem;
 }
 
 .iconSm {
-  width: 34px;
-  height: 34px;
+  width: 2.125rem;
+  height: 2.125rem;
   padding: 0;
 }
 
 .iconMd {
-  width: 40px;
-  height: 40px;
+  width: 2.5rem;
+  height: 2.5rem;
   padding: 0;
 }
 
 .iconLg {
-  width: 48px;
-  height: 48px;
+  width: 3rem;
+  height: 3rem;
   padding: 0;
 }
 
@@ -212,95 +222,15 @@
   width: 100%;
 }
 
-.iconWrapper {
+.section {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-/* Variants */
-
-/* Primary — Luminous transparent lens */
-.variantPrimary {
-  --lens-tint: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.06) 100%), rgba(255, 255, 255, 0.06);
-  --lens-blur: 16px;
-  --lens-sat: 160%;
-  --lens-inset: inset 0 1px 0 rgba(255, 255, 255, 0.28);
-  --sheen: 0.18;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
-}
-
-.variantPrimary:hover {
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
-}
-
-.variantPrimary:active {
-  --lens-inset: inset 0 1px 1px rgba(0, 0, 0, 0.2);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-/* Glass — Dark smoky glass for navigation and icons */
-.variantGlass {
-  --lens-tint: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%), rgba(18, 20, 24, 0.4);
-  --lens-blur: 18px;
-  --lens-sat: 150%;
-  --lens-inset: inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  --sheen: 0.14;
-  --rim-strong: 0.4;
-  --rim-weak: 0.16;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
-}
-
-.variantGlass:hover {
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
-}
-
-.variantGlass:active {
-  --lens-inset: inset 0 1px 2px rgba(0, 0, 0, 0.3);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.24);
-}
-
-/* Ghost — Nearly invisible, glass reveals on hover */
-.variantGhost {
-  --lens-tint: rgba(255, 255, 255, 0.02);
-  --lens-blur: 10px;
-  --lens-sat: 130%;
-  --lens-inset: none;
-  --sheen: 0;
-  --rim-opacity: 0;
-}
-
-.variantGhost:hover {
-  --lens-tint: rgba(255, 255, 255, 0.07);
-  --lens-inset: inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  --sheen: 0.1;
-  --rim-opacity: 0.7;
-}
-
-.variantGhost:active {
-  --lens-tint: rgba(255, 255, 255, 0.04);
-}
-
-/*  Light theme: focus ring */
-@media (prefers-color-scheme: light) {
-  .button {
-    --glass-focus-gap: #ffffff;
-    --glass-focus-ring: rgba(20, 21, 23, 0.7);
-  }
-}
-
-/*  Reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  .button,
-  .lens,
-  .button::before,
-  .button::after {
-    transition: none;
-  }
-
-  .button:hover,
-  .button:active {
-    transform: translateZ(0);
-  }
+/* Legacy sub-layer compatibility */
+.lens,
+.content {
+  display: contents;
 }

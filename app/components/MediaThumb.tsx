@@ -1,4 +1,3 @@
-import { Skeleton } from "./Skeleton";
 import {
   type EmbyItemMetadata,
   type EmbyServer,
@@ -16,6 +15,7 @@ import { useNavigate } from "react-router";
 import { buildStreamUrl } from "../lib/emby-library-client";
 import glassStyles from "./GlassElement.module.css";
 import classes from "./MediaThumb.module.css";
+import { Skeleton } from "./Skeleton";
 
 export function MediaThumbSkeleton({ className }: { className?: string }) {
   return (
