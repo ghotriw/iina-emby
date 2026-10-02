@@ -29,6 +29,8 @@ export interface PlaybackCoordinatorDeps {
   core: typeof iina.core;
   mpv: typeof iina.mpv;
   preferences: typeof iina.preferences;
+  file?: typeof iina.file;
+  utils?: typeof iina.utils;
   global?: typeof iina.global;
   getCurrentPlaybackSession: () => unknown;
   clearQueuedFlag: () => void;
@@ -42,6 +44,8 @@ export function createPlaybackCoordinator({
   core,
   mpv,
   preferences,
+  file,
+  utils,
   global: iinaGlobal,
   getCurrentPlaybackSession,
   clearQueuedFlag,
@@ -52,6 +56,19 @@ export function createPlaybackCoordinator({
   // never arrives (e.g. core.open failed), a stale guard must not swallow the
   // stop report of the next file that really does finish.
   let replacingPlaybackAt = 0;
+
+  // Track the most recent title requested from the UI so it can be applied
+  // immediately upon file load without waiting for network metadata.
+  let currentPlaybackTitle: string | null = null;
+  let currentPlaybackItemId: string | null = null;
+
+  function getPendingMediaTitle(itemId?: string): string | null {
+    if (!currentPlaybackTitle) return null;
+    if (itemId && currentPlaybackItemId && currentPlaybackItemId !== itemId) {
+      return null;
+    }
+    return currentPlaybackTitle;
+  }
 
   function markReplacingPlayback(): void {
     replacingPlaybackAt = Date.now();
@@ -110,6 +127,9 @@ export function createPlaybackCoordinator({
   function openInCurrentWindow(streamUrl: string, title?: string, startPositionSeconds?: number): void {
     log("Opening media in current window: " + streamUrl);
 
+    currentPlaybackTitle = title || null;
+    currentPlaybackItemId = (String(streamUrl).match(/\/(?:Items|Videos|Audio)\/([^/?]+)/) || [])[1] || null;
+
     // Set replacement guard so end-file handler doesn't send spurious stop
     if (getCurrentPlaybackSession()) {
       markReplacingPlayback();
@@ -119,7 +139,10 @@ export function createPlaybackCoordinator({
     // playlist API has no clear(), so use mpv's own command — it drops every
     // entry except the one currently playing, which core.open replaces below.
     try {
-      mpv.command("playlist-clear", []);
+      const playlistCount = Number(mpv.getNumber("playlist-count") || 0);
+      if (playlistCount > 1) {
+        mpv.command("playlist-clear", []);
+      }
       // Reset autoplay state when starting new playback
       clearQueuedFlag();
     } catch (clearError: unknown) {
@@ -131,7 +154,16 @@ export function createPlaybackCoordinator({
     // properly triggers IINA's native lifecycle and sleep prevention checks.
     // Set force-media-title BEFORE core.open so mpv uses it when loadfile runs.
     if (title) {
-      mpv.set("force-media-title", title);
+      try {
+        mpv.set("force-media-title", title);
+      } catch {
+        // Ignore
+      }
+      try {
+        mpv.set("title", title);
+      } catch {
+        // Ignore
+      }
     }
 
     if (typeof startPositionSeconds === "number" && startPositionSeconds > 0) {
@@ -174,14 +206,24 @@ export function createPlaybackCoordinator({
     }
 
     try {
-      // loadfile carries per-file options, so each queued entry keeps its own
-      // title instead of showing a raw URL in the playlist.
-      for (const item of items) {
-        const args: string[] = [item.streamUrl, "append"];
-        if (item.title) {
-          args.push("-1", `force-media-title=${item.title}`);
+      if (file && utils && typeof file.write === "function") {
+        let m3uContent = "#EXTM3U\n";
+        for (const item of items) {
+          const title = (item.title || "Episode").replace(/[\r\n]+/g, " ");
+          m3uContent += `#EXTINF:-1,${title}\n${item.streamUrl}\n`;
         }
-        mpv.command("loadfile", args);
+        const m3uPath = utils.resolvePath("@data/playlist_queue.m3u8");
+        file.write(m3uPath, m3uContent);
+        log(`Appending ${items.length} queued item(s) via loadlist: ${m3uPath}`);
+        mpv.command("loadlist", [m3uPath, "append"]);
+      } else {
+        for (const item of items) {
+          const args: string[] = [item.streamUrl, "append"];
+          if (item.title) {
+            args.push("-1", `force-media-title=${item.title}`);
+          }
+          mpv.command("loadfile", args);
+        }
       }
       log(`Appended ${items.length} queued item(s) to the playlist`);
     } catch (error: unknown) {
@@ -320,5 +362,6 @@ export function createPlaybackCoordinator({
     flushPendingPlaylistQueue,
     handlePlayMediaList,
     handlePlayMedia,
+    getPendingMediaTitle,
   };
 }

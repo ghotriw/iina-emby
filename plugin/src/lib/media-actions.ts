@@ -1,5 +1,13 @@
-import { type EmbyItemMetadata, type EmbyMediaStream, type EmbyPlaybackInfo, formatFullEpisodeTitle, type ParsedEmbyUrl } from "@shared";
+import {
+  type EmbyItemMetadata,
+  type EmbyMediaStream,
+  type EmbyPlaybackInfo,
+  formatFullEpisodeTitle,
+  isSameEmbyHost,
+  type ParsedEmbyUrl,
+} from "@shared";
 import type { DebugLogger } from "./debug-log";
+import type { StoredSessionData } from "./server-session-store";
 
 export interface MediaActionsDeps {
   core: typeof iina.core;
@@ -10,7 +18,8 @@ export interface MediaActionsDeps {
   parseEmbyUrl: (url: string | null | undefined) => ParsedEmbyUrl | null;
   isEmbyUrl: (url: string | null | undefined) => boolean;
   fetchPlaybackInfo: (serverBase: string, itemId: string, apiKey: string) => Promise<EmbyPlaybackInfo>;
-  fetchItemMetadata: (serverBase: string, itemId: string, apiKey: string) => Promise<EmbyItemMetadata>;
+  fetchItemMetadata: (serverBase: string, itemId: string, apiKey: string, userId?: string) => Promise<EmbyItemMetadata>;
+  getActiveSession?: () => StoredSessionData | null;
   log: DebugLogger;
 }
 
@@ -24,29 +33,54 @@ export function createMediaActionsManager({
   isEmbyUrl,
   fetchPlaybackInfo,
   fetchItemMetadata,
+  getActiveSession,
   log,
 }: MediaActionsDeps) {
   let lastEmbyUrl: string | null = null;
   let lastItemId: string | null = null;
 
-  async function setVideoTitleFromMetadata(serverBase: string, itemId: string, apiKey: string) {
+  async function setVideoTitleFromMetadata(serverBase: string, itemId: string, apiKey: string, userId?: string) {
     try {
       if (!preferences.get("set_video_title")) {
         log("Video title setting is disabled in preferences");
         return;
       }
 
-      const metadata = await fetchItemMetadata(serverBase, itemId, apiKey);
+      // If userId or connected credentials weren't provided, try resolving from active session
+      if (!userId && getActiveSession) {
+        const session = getActiveSession();
+        if (session?.userId && isSameEmbyHost(session.serverUrl, serverBase)) {
+          userId = session.userId;
+          if (preferences.get("use_connected_account") && session.accessToken) {
+            apiKey = session.accessToken;
+            serverBase = session.serverUrl;
+          }
+        }
+      }
+
+      const metadata = await fetchItemMetadata(serverBase, itemId, apiKey, userId);
 
       if (!metadata?.Name) {
         log("No title found in metadata");
         return;
       }
 
+      let seriesName = metadata.SeriesName;
+      if (metadata.Type === "Episode" && !seriesName && metadata.SeriesId) {
+        try {
+          const seriesMetadata = await fetchItemMetadata(serverBase, metadata.SeriesId, apiKey, userId);
+          if (seriesMetadata?.Name) {
+            seriesName = seriesMetadata.Name;
+          }
+        } catch {
+          // Ignore series fetch failure
+        }
+      }
+
       let title = metadata.Name;
 
       if (metadata.Type === "Episode") {
-        title = formatFullEpisodeTitle(metadata.SeriesName, metadata.ParentIndexNumber, metadata.IndexNumber, metadata.Name);
+        title = formatFullEpisodeTitle(seriesName, metadata.ParentIndexNumber, metadata.IndexNumber, metadata.Name);
       } else if (metadata.Type === "Movie" && metadata.ProductionYear) {
         title = `${metadata.Name} (${metadata.ProductionYear})`;
       }
@@ -54,14 +88,21 @@ export function createMediaActionsManager({
       log(`Setting video title to: "${title}"`);
 
       let titleSet = false;
-      if (!titleSet && typeof mpv !== "undefined" && typeof mpv.set === "function") {
+      if (typeof mpv !== "undefined" && typeof mpv.set === "function") {
         try {
           mpv.set("force-media-title", title);
           titleSet = true;
-          log(`Video title set via mpv property: ${title}`);
+          log(`Video title set via mpv force-media-title: ${title}`);
         } catch (error: unknown) {
           const errorMsg = error instanceof Error ? error.message : String(error);
           log(`mpv.set('force-media-title') failed: ${errorMsg}`);
+        }
+
+        try {
+          mpv.set("title", title);
+          log(`Video title set via mpv title: ${title}`);
+        } catch {
+          // mpv.title might be read-only or unsupported, ignore
         }
       }
 
@@ -282,9 +323,24 @@ export function createMediaActionsManager({
       return;
     }
 
+    let reportServerBase = embyInfo.serverBase;
+    let reportApiKey = embyInfo.apiKey;
+    let reportUserId: string | undefined = undefined;
+
+    if (getActiveSession) {
+      const session = getActiveSession();
+      if (session?.userId && isSameEmbyHost(session.serverUrl, reportServerBase)) {
+        reportUserId = session.userId;
+        if (preferences.get("use_connected_account") && session.accessToken) {
+          reportApiKey = session.accessToken;
+          reportServerBase = session.serverUrl;
+        }
+      }
+    }
+
     log(`Downloading subtitles for item: ${embyInfo.itemId}`);
     core.osd("Downloading subtitles...");
-    downloadAllSubtitles(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+    downloadAllSubtitles(reportServerBase, embyInfo.itemId, reportApiKey);
   }
 
   function manualSetTitle() {
@@ -312,9 +368,24 @@ export function createMediaActionsManager({
       return;
     }
 
+    let reportServerBase = embyInfo.serverBase;
+    let reportApiKey = embyInfo.apiKey;
+    let reportUserId: string | undefined = undefined;
+
+    if (getActiveSession) {
+      const session = getActiveSession();
+      if (session?.userId && isSameEmbyHost(session.serverUrl, reportServerBase)) {
+        reportUserId = session.userId;
+        if (preferences.get("use_connected_account") && session.accessToken) {
+          reportApiKey = session.accessToken;
+          reportServerBase = session.serverUrl;
+        }
+      }
+    }
+
     log(`Setting title for item: ${embyInfo.itemId}`);
     core.osd("Fetching title...");
-    setVideoTitleFromMetadata(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+    setVideoTitleFromMetadata(reportServerBase, embyInfo.itemId, reportApiKey, reportUserId);
   }
 
   function updateFromFileUrl(fileUrl: string | null | undefined): ParsedEmbyUrl | null {

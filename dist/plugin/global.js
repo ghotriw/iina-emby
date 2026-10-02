@@ -28,6 +28,9 @@ function createBridgeDeps({
   };
 }
 function registerBridgeHandlers(view, deps, options) {
+  view.onMessage("get-window-context", () => {
+    view.postMessage("window-context", { isStandalone: Boolean(options?.isStandalone) });
+  });
   view.onMessage("get-client-identity", () => {
     view.postMessage("client-identity", deps.getClientIdentity());
   });
@@ -108,18 +111,6 @@ function registerBridgeHandlers(view, deps, options) {
     }
   });
 }
-function sendInitialBridgeState(view, deps) {
-  view.postMessage("client-identity", deps.getClientIdentity());
-  const servers = deps.loadStoredServers();
-  const activeServerId = deps.getActiveServerId();
-  if (servers.length > 0) {
-    view.postMessage("servers-list", { servers, activeServerId });
-  }
-  const sessionData = deps.getStoredEmbySession();
-  if (sessionData) {
-    view.postMessage("session-available", sessionData);
-  }
-}
 
 // plugin/src/lib/browser-window.ts
 function createBrowserWindowManager({ core, sidebar, standaloneWindow: standaloneWindow2, preferences: preferences2, bridgeDeps: bridgeDeps2, log }) {
@@ -150,12 +141,9 @@ function createBrowserWindowManager({ core, sidebar, standaloneWindow: standalon
           log(`Saved standalone window size: ${w}x${h}`);
         }
       });
-      registerBridgeHandlers(standaloneWindow2, bridgeDeps2, { closeOnPlay: true });
+      registerBridgeHandlers(standaloneWindow2, bridgeDeps2, { closeOnPlay: true, isStandalone: true });
       standaloneWindow2.open();
-      setTimeout(() => {
-        standaloneWindow2.postMessage("window-context", { isStandalone: true });
-        sendInitialBridgeState(standaloneWindow2, bridgeDeps2);
-      }, 800);
+      standaloneWindow2.postMessage("window-context", { isStandalone: true });
       log("Standalone Emby browser window opened successfully");
       const sessionData = bridgeDeps2.getStoredEmbySession();
       if (core) {
@@ -199,11 +187,8 @@ Server: ${sessionData.serverUrl.replace(/^https?:\/\//, "")}`);
   function initSidebar() {
     if (!sidebar) return;
     sidebar.loadFile("dist/client/index.html");
-    registerBridgeHandlers(sidebar, bridgeDeps2);
-    setTimeout(() => {
-      sidebar.postMessage("window-context", { isStandalone: false });
-      sendInitialBridgeState(sidebar, bridgeDeps2);
-    }, 500);
+    registerBridgeHandlers(sidebar, bridgeDeps2, { closeOnPlay: false, isStandalone: false });
+    sidebar.postMessage("window-context", { isStandalone: false });
   }
   return {
     openEmbyStandaloneWindow: openEmbyStandaloneWindow2,
@@ -310,7 +295,7 @@ function createDebugLogger(preferences2, loggerConsole) {
 // shared/constants.ts
 var CLIENT_NAME = "IINA Emby Plugin";
 var DEVICE_NAME = "IINA";
-var CLIENT_VERSION = true ? "0.1.2" : "0.1.0";
+var CLIENT_VERSION = true ? "0.1.3" : "0.1.0";
 
 // shared/utils/auth.ts
 function buildAuthorizationHeader(identity, token) {

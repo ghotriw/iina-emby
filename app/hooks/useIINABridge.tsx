@@ -50,7 +50,7 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
   });
 
   const [isIinaAvailable, setIsIinaAvailable] = useState<boolean>(hasIina);
-  const [isStandalone, setIsStandalone] = useState<boolean>(false);
+  const [isStandalone, setIsStandalone] = useState<boolean>(() => typeof window !== "undefined" && window.innerWidth >= 450);
   const [isLoading, setIsLoading] = useState<boolean>(hasIina);
 
   // Standalone web dev fallback: synchronize servers and active server ID to localStorage only when NOT in IINA
@@ -107,8 +107,14 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
 
       window.iina.onMessage("session-available", (data) => {
         if (data?.serverId) {
-          setActiveServerId(data.serverId);
-          window.iina?.postMessage("get-servers");
+          const nextId = data.serverId;
+          setActiveServerId((prevId) => {
+            if (prevId !== nextId) {
+              window.iina?.postMessage("get-servers");
+              return nextId;
+            }
+            return prevId;
+          });
         }
       });
 
@@ -118,7 +124,8 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
         setIsLoading(false);
       });
 
-      // Request identity and servers list on mount
+      // Request window context, identity, and servers list on mount
+      window.iina.postMessage("get-window-context");
       window.iina.postMessage("get-client-identity");
       window.iina.postMessage("get-servers");
 

@@ -83,12 +83,17 @@ export function createBridgeDeps({
 
 export interface SetupBridgeOptions {
   closeOnPlay?: boolean;
+  isStandalone?: boolean;
 }
 
 /**
  * Registers common message handlers on any Webview target (sidebar or standalone window).
  */
 export function registerBridgeHandlers(view: WebviewTarget, deps: WebviewBridgeDeps, options?: SetupBridgeOptions): void {
+  view.onMessage("get-window-context", () => {
+    view.postMessage("window-context", { isStandalone: Boolean(options?.isStandalone) });
+  });
+
   view.onMessage("get-client-identity", () => {
     view.postMessage("client-identity", deps.getClientIdentity());
   });

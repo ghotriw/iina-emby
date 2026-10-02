@@ -3,7 +3,7 @@
 // shared/constants.ts
 var CLIENT_NAME = "IINA Emby Plugin";
 var DEVICE_NAME = "IINA";
-var CLIENT_VERSION = true ? "0.1.2" : "0.1.0";
+var CLIENT_VERSION = true ? "0.1.3" : "0.1.0";
 
 // shared/utils/auth.ts
 function buildAuthorizationHeader(identity, token) {
@@ -108,7 +108,10 @@ function createAutoplayManager({
   mpv: mpv2,
   core: core2,
   preferences: preferences2,
+  file: file2,
+  utils: utils2,
   global: iinaGlobal2,
+  isClosing,
   buildEmbyHeaders: buildEmbyHeaders3,
   fetchItemMetadata: fetchItemMetadata2,
   log
@@ -230,23 +233,46 @@ function createAutoplayManager({
   }
   function queueRemainingEpisodes(episodes, seriesName, defaultSeasonNumber) {
     if (episodes.length === 0) return;
+    if (isClosing?.()) {
+      log("Window is closing, skipping queueRemainingEpisodes");
+      return;
+    }
     try {
       const playlistCount = Number(mpv2.getNumber("playlist-count") || 0);
       const currentPos = Number(mpv2.getNumber("playlist-pos"));
       if (Number.isFinite(currentPos) && currentPos >= 0 && playlistCount > currentPos + 1) {
         for (let i = playlistCount - 1; i > currentPos; i--) {
           try {
+            if (isClosing?.()) return;
             mpv2.command("playlist-remove", [String(i)]);
           } catch {
           }
         }
         log(`Cleaned ${playlistCount - currentPos - 1} stale playlist entries`);
       }
-      for (const episode of episodes) {
-        const seasonNum = episode.seasonNumber ?? defaultSeasonNumber;
-        const episodeTitle = formatFullEpisodeTitle(seriesName, seasonNum, episode.indexNumber, episode.name);
-        mpv2.command("loadfile", [episode.playUrl, "append"]);
-        log(`Appended to playlist: ${episodeTitle}`);
+      if (file2 && utils2 && typeof file2.write === "function") {
+        let m3uContent = "#EXTM3U\n";
+        for (const episode of episodes) {
+          if (isClosing?.()) return;
+          const seasonNum = episode.seasonNumber ?? defaultSeasonNumber;
+          const episodeTitle = formatFullEpisodeTitle(seriesName, seasonNum, episode.indexNumber, episode.name);
+          const cleanTitle = episodeTitle.replace(/[\r\n]+/g, " ");
+          m3uContent += `#EXTINF:-1,${cleanTitle}
+${episode.playUrl}
+`;
+        }
+        const m3uPath = utils2.resolvePath("@data/autoplay_queue.m3u8");
+        file2.write(m3uPath, m3uContent);
+        log(`Queueing ${episodes.length} upcoming episode(s) via loadlist: ${m3uPath}`);
+        mpv2.command("loadlist", [m3uPath, "append"]);
+      } else {
+        for (const episode of episodes) {
+          if (isClosing?.()) return;
+          const seasonNum = episode.seasonNumber ?? defaultSeasonNumber;
+          const episodeTitle = formatFullEpisodeTitle(seriesName, seasonNum, episode.indexNumber, episode.name);
+          mpv2.command("loadfile", [episode.playUrl, "append"]);
+          log(`Appended to playlist: ${episodeTitle}`);
+        }
       }
       autoplayQueued = true;
       log(`Queued ${episodes.length} upcoming episode(s) to playlist`);
@@ -272,6 +298,10 @@ function createAutoplayManager({
     }
   }
   function setupAutoplayForEpisode2(serverBase, episodeId, apiKey, userId) {
+    if (isClosing?.()) {
+      log("Window is closing, skipping setupAutoplayForEpisode");
+      return;
+    }
     if (lastProcessedEpisodeId === episodeId) {
       log(`Episode ${episodeId} already being processed, skipping duplicate setup`);
       return;
@@ -381,6 +411,9 @@ function createBridgeDeps({
   };
 }
 function registerBridgeHandlers(view, deps, options) {
+  view.onMessage("get-window-context", () => {
+    view.postMessage("window-context", { isStandalone: Boolean(options?.isStandalone) });
+  });
   view.onMessage("get-client-identity", () => {
     view.postMessage("client-identity", deps.getClientIdentity());
   });
@@ -461,18 +494,6 @@ function registerBridgeHandlers(view, deps, options) {
     }
   });
 }
-function sendInitialBridgeState(view, deps) {
-  view.postMessage("client-identity", deps.getClientIdentity());
-  const servers = deps.loadStoredServers();
-  const activeServerId = deps.getActiveServerId();
-  if (servers.length > 0) {
-    view.postMessage("servers-list", { servers, activeServerId });
-  }
-  const sessionData = deps.getStoredEmbySession();
-  if (sessionData) {
-    view.postMessage("session-available", sessionData);
-  }
-}
 
 // plugin/src/lib/browser-window.ts
 function createBrowserWindowManager({ core: core2, sidebar: sidebar2, standaloneWindow: standaloneWindow2, preferences: preferences2, bridgeDeps: bridgeDeps2, log }) {
@@ -503,12 +524,9 @@ function createBrowserWindowManager({ core: core2, sidebar: sidebar2, standalone
           log(`Saved standalone window size: ${w}x${h}`);
         }
       });
-      registerBridgeHandlers(standaloneWindow2, bridgeDeps2, { closeOnPlay: true });
+      registerBridgeHandlers(standaloneWindow2, bridgeDeps2, { closeOnPlay: true, isStandalone: true });
       standaloneWindow2.open();
-      setTimeout(() => {
-        standaloneWindow2.postMessage("window-context", { isStandalone: true });
-        sendInitialBridgeState(standaloneWindow2, bridgeDeps2);
-      }, 800);
+      standaloneWindow2.postMessage("window-context", { isStandalone: true });
       log("Standalone Emby browser window opened successfully");
       const sessionData = bridgeDeps2.getStoredEmbySession();
       if (core2) {
@@ -552,11 +570,8 @@ Server: ${sessionData.serverUrl.replace(/^https?:\/\//, "")}`);
   function initSidebar2() {
     if (!sidebar2) return;
     sidebar2.loadFile("dist/client/index.html");
-    registerBridgeHandlers(sidebar2, bridgeDeps2);
-    setTimeout(() => {
-      sidebar2.postMessage("window-context", { isStandalone: false });
-      sendInitialBridgeState(sidebar2, bridgeDeps2);
-    }, 500);
+    registerBridgeHandlers(sidebar2, bridgeDeps2, { closeOnPlay: false, isStandalone: false });
+    sidebar2.postMessage("window-context", { isStandalone: false });
   }
   return {
     openEmbyStandaloneWindow: openEmbyStandaloneWindow2,
@@ -822,37 +837,63 @@ function createMediaActionsManager({
   isEmbyUrl: isEmbyUrl2,
   fetchPlaybackInfo: fetchPlaybackInfo2,
   fetchItemMetadata: fetchItemMetadata2,
+  getActiveSession,
   log
 }) {
   let lastEmbyUrl = null;
   let lastItemId = null;
-  async function setVideoTitleFromMetadata2(serverBase, itemId, apiKey) {
+  async function setVideoTitleFromMetadata2(serverBase, itemId, apiKey, userId) {
     try {
       if (!preferences2.get("set_video_title")) {
         log("Video title setting is disabled in preferences");
         return;
       }
-      const metadata = await fetchItemMetadata2(serverBase, itemId, apiKey);
+      if (!userId && getActiveSession) {
+        const session = getActiveSession();
+        if (session?.userId && isSameEmbyHost(session.serverUrl, serverBase)) {
+          userId = session.userId;
+          if (preferences2.get("use_connected_account") && session.accessToken) {
+            apiKey = session.accessToken;
+            serverBase = session.serverUrl;
+          }
+        }
+      }
+      const metadata = await fetchItemMetadata2(serverBase, itemId, apiKey, userId);
       if (!metadata?.Name) {
         log("No title found in metadata");
         return;
       }
+      let seriesName = metadata.SeriesName;
+      if (metadata.Type === "Episode" && !seriesName && metadata.SeriesId) {
+        try {
+          const seriesMetadata = await fetchItemMetadata2(serverBase, metadata.SeriesId, apiKey, userId);
+          if (seriesMetadata?.Name) {
+            seriesName = seriesMetadata.Name;
+          }
+        } catch {
+        }
+      }
       let title = metadata.Name;
       if (metadata.Type === "Episode") {
-        title = formatFullEpisodeTitle(metadata.SeriesName, metadata.ParentIndexNumber, metadata.IndexNumber, metadata.Name);
+        title = formatFullEpisodeTitle(seriesName, metadata.ParentIndexNumber, metadata.IndexNumber, metadata.Name);
       } else if (metadata.Type === "Movie" && metadata.ProductionYear) {
         title = `${metadata.Name} (${metadata.ProductionYear})`;
       }
       log(`Setting video title to: "${title}"`);
       let titleSet = false;
-      if (!titleSet && typeof mpv2 !== "undefined" && typeof mpv2.set === "function") {
+      if (typeof mpv2 !== "undefined" && typeof mpv2.set === "function") {
         try {
           mpv2.set("force-media-title", title);
           titleSet = true;
-          log(`Video title set via mpv property: ${title}`);
+          log(`Video title set via mpv force-media-title: ${title}`);
         } catch (error) {
           const errorMsg = error instanceof Error ? error.message : String(error);
           log(`mpv.set('force-media-title') failed: ${errorMsg}`);
+        }
+        try {
+          mpv2.set("title", title);
+          log(`Video title set via mpv title: ${title}`);
+        } catch {
         }
       }
       if (!titleSet) {
@@ -1020,9 +1061,22 @@ function createMediaActionsManager({
       core2.osd("Failed to parse Emby URL - check console for details");
       return;
     }
+    let reportServerBase = embyInfo.serverBase;
+    let reportApiKey = embyInfo.apiKey;
+    let reportUserId = void 0;
+    if (getActiveSession) {
+      const session = getActiveSession();
+      if (session?.userId && isSameEmbyHost(session.serverUrl, reportServerBase)) {
+        reportUserId = session.userId;
+        if (preferences2.get("use_connected_account") && session.accessToken) {
+          reportApiKey = session.accessToken;
+          reportServerBase = session.serverUrl;
+        }
+      }
+    }
     log(`Downloading subtitles for item: ${embyInfo.itemId}`);
     core2.osd("Downloading subtitles...");
-    downloadAllSubtitles2(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+    downloadAllSubtitles2(reportServerBase, embyInfo.itemId, reportApiKey);
   }
   function manualSetTitle2() {
     log("Manual title setting requested");
@@ -1044,9 +1098,22 @@ function createMediaActionsManager({
       core2.osd("Failed to parse Emby URL - check console for details");
       return;
     }
+    let reportServerBase = embyInfo.serverBase;
+    let reportApiKey = embyInfo.apiKey;
+    let reportUserId = void 0;
+    if (getActiveSession) {
+      const session = getActiveSession();
+      if (session?.userId && isSameEmbyHost(session.serverUrl, reportServerBase)) {
+        reportUserId = session.userId;
+        if (preferences2.get("use_connected_account") && session.accessToken) {
+          reportApiKey = session.accessToken;
+          reportServerBase = session.serverUrl;
+        }
+      }
+    }
     log(`Setting title for item: ${embyInfo.itemId}`);
     core2.osd("Fetching title...");
-    setVideoTitleFromMetadata2(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+    setVideoTitleFromMetadata2(reportServerBase, embyInfo.itemId, reportApiKey, reportUserId);
   }
   function updateFromFileUrl2(fileUrl) {
     if (isEmbyUrl2(fileUrl)) {
@@ -1086,12 +1153,23 @@ function createPlaybackCoordinator({
   core: core2,
   mpv: mpv2,
   preferences: preferences2,
+  file: file2,
+  utils: utils2,
   global: iinaGlobal2,
   getCurrentPlaybackSession: getCurrentPlaybackSession2,
   clearQueuedFlag: clearQueuedFlag2,
   log
 }) {
   let replacingPlaybackAt = 0;
+  let currentPlaybackTitle = null;
+  let currentPlaybackItemId = null;
+  function getPendingMediaTitle2(itemId) {
+    if (!currentPlaybackTitle) return null;
+    if (itemId && currentPlaybackItemId && currentPlaybackItemId !== itemId) {
+      return null;
+    }
+    return currentPlaybackTitle;
+  }
   function markReplacingPlayback() {
     replacingPlaybackAt = Date.now();
   }
@@ -1130,18 +1208,30 @@ function createPlaybackCoordinator({
   }
   function openInCurrentWindow(streamUrl, title, startPositionSeconds) {
     log("Opening media in current window: " + streamUrl);
+    currentPlaybackTitle = title || null;
+    currentPlaybackItemId = (String(streamUrl).match(/\/(?:Items|Videos|Audio)\/([^/?]+)/) || [])[1] || null;
     if (getCurrentPlaybackSession2()) {
       markReplacingPlayback();
     }
     try {
-      mpv2.command("playlist-clear", []);
+      const playlistCount = Number(mpv2.getNumber("playlist-count") || 0);
+      if (playlistCount > 1) {
+        mpv2.command("playlist-clear", []);
+      }
       clearQueuedFlag2();
     } catch (clearError) {
       const errorMsg = clearError instanceof Error ? clearError.message : String(clearError);
       log(`Could not clear playlist before opening: ${errorMsg}`);
     }
     if (title) {
-      mpv2.set("force-media-title", title);
+      try {
+        mpv2.set("force-media-title", title);
+      } catch {
+      }
+      try {
+        mpv2.set("title", title);
+      } catch {
+      }
     }
     if (typeof startPositionSeconds === "number" && startPositionSeconds > 0) {
       log(`Setting initial start position to ${startPositionSeconds}s`);
@@ -1169,12 +1259,26 @@ function createPlaybackCoordinator({
       return;
     }
     try {
-      for (const item of items) {
-        const args = [item.streamUrl, "append"];
-        if (item.title) {
-          args.push("-1", `force-media-title=${item.title}`);
+      if (file2 && utils2 && typeof file2.write === "function") {
+        let m3uContent = "#EXTM3U\n";
+        for (const item of items) {
+          const title = (item.title || "Episode").replace(/[\r\n]+/g, " ");
+          m3uContent += `#EXTINF:-1,${title}
+${item.streamUrl}
+`;
         }
-        mpv2.command("loadfile", args);
+        const m3uPath = utils2.resolvePath("@data/playlist_queue.m3u8");
+        file2.write(m3uPath, m3uContent);
+        log(`Appending ${items.length} queued item(s) via loadlist: ${m3uPath}`);
+        mpv2.command("loadlist", [m3uPath, "append"]);
+      } else {
+        for (const item of items) {
+          const args = [item.streamUrl, "append"];
+          if (item.title) {
+            args.push("-1", `force-media-title=${item.title}`);
+          }
+          mpv2.command("loadfile", args);
+        }
       }
       log(`Appended ${items.length} queued item(s) to the playlist`);
     } catch (error) {
@@ -1278,7 +1382,8 @@ function createPlaybackCoordinator({
     openInCurrentWindow,
     flushPendingPlaylistQueue: flushPendingPlaylistQueue2,
     handlePlayMediaList: handlePlayMediaList2,
-    handlePlayMedia: handlePlayMedia2
+    handlePlayMedia: handlePlayMedia2,
+    getPendingMediaTitle: getPendingMediaTitle2
   };
 }
 
@@ -1890,7 +1995,7 @@ function createServerSessionStore({ preferences: preferences2, sidebar: sidebar2
 }
 
 // plugin/src/index.ts
-var { core, console: iinaConsole, menu, event, http, utils, preferences, mpv, sidebar, global: iinaGlobal, standaloneWindow } = iina;
+var { core, console: iinaConsole, menu, event, http, utils, preferences, mpv, sidebar, global: iinaGlobal, standaloneWindow, file } = iina;
 var debugLog = createDebugLogger(preferences, iinaConsole);
 var {
   getClientIdentity,
@@ -1925,12 +2030,16 @@ var { startPlaybackTracking, stopPlaybackTracking, handlePauseChange, getCurrent
   ticksToSeconds: ticksToSeconds2,
   log: debugLog
 });
+var isWindowClosing = false;
 var { setupAutoplayForEpisode, resetForNewFile, clearQueuedFlag, isQueued } = createAutoplayManager({
   http,
   mpv,
   core,
   preferences,
+  file,
+  utils,
   global: iinaGlobal,
+  isClosing: () => isWindowClosing,
   buildEmbyHeaders: buildEmbyHeaders2,
   fetchItemMetadata,
   log: debugLog
@@ -1945,6 +2054,7 @@ var { setVideoTitleFromMetadata, downloadAllSubtitles, manualDownloadSubtitles, 
   isEmbyUrl,
   fetchPlaybackInfo,
   fetchItemMetadata,
+  getActiveSession: getStoredEmbySession,
   log: debugLog
 });
 var {
@@ -1954,11 +2064,14 @@ var {
   consumeReplacementGuard,
   markLaunchedFromBrowser,
   clearLaunchedFromBrowser,
-  consumeLaunchedFromBrowser
+  consumeLaunchedFromBrowser,
+  getPendingMediaTitle
 } = createPlaybackCoordinator({
   core,
   mpv,
   preferences,
+  file,
+  utils,
   global: iinaGlobal,
   getCurrentPlaybackSession,
   clearQueuedFlag,
@@ -2005,6 +2118,10 @@ function getEffectiveFileUrl(fileUrl) {
   return void 0;
 }
 function onFileLoaded(fileUrl) {
+  if (isWindowClosing) {
+    debugLog("Window is closing, ignoring onFileLoaded");
+    return;
+  }
   const resolvedUrl = getEffectiveFileUrl(fileUrl);
   debugLog(`File loaded event: raw=${fileUrl}, resolved=${resolvedUrl}`);
   if (!resolvedUrl) {
@@ -2051,8 +2168,16 @@ function onFileLoaded(fileUrl) {
       startPlaybackTracking(reportServerBase, embyInfo.itemId, reportApiKey, reportUserId);
     }
     if (preferences.get("set_video_title")) {
-      debugLog(`Setting video title from metadata for: ${embyInfo.itemId}`);
-      setVideoTitleFromMetadata(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+      const knownTitle = getPendingMediaTitle(embyInfo.itemId);
+      if (knownTitle) {
+        try {
+          mpv.set("force-media-title", knownTitle);
+          debugLog(`Pre-set video title from known playback title: ${knownTitle}`);
+        } catch {
+        }
+      }
+      debugLog(`Setting video title from metadata for: ${embyInfo.itemId}, userId: ${reportUserId || "none"}`);
+      setVideoTitleFromMetadata(reportServerBase, embyInfo.itemId, reportApiKey, reportUserId);
     }
     if (preferences.get("autoplay_next_episode")) {
       debugLog(`Setting up autoplay for episode (itemId): ${embyInfo.itemId}, userId: ${reportUserId || "none"}`);
@@ -2061,7 +2186,7 @@ function onFileLoaded(fileUrl) {
     }
     if (preferences.get("auto_download_enabled")) {
       debugLog(`Auto-downloading subtitles for: ${embyInfo.itemId}`);
-      downloadAllSubtitles(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+      downloadAllSubtitles(reportServerBase, embyInfo.itemId, reportApiKey);
     } else {
       debugLog("Auto download disabled, but Emby URL stored for manual download");
     }
@@ -2105,23 +2230,42 @@ function handlePlaybackTermination(reason) {
 menu.addItem(menu.item("Download Emby Subtitles", manualDownloadSubtitles));
 menu.addItem(menu.item("Set Emby Title", manualSetTitle));
 event.on("iina.file-loaded", onFileLoaded);
-event.on("iina.file-started", () => onFileLoaded());
-event.on("mpv.file-loaded", () => onFileLoaded());
+event.on("iina.file-started", () => {
+  if (isWindowClosing) return;
+  onFileLoaded();
+});
+event.on("mpv.file-loaded", () => {
+  if (isWindowClosing) return;
+  onFileLoaded();
+});
 event.on("mpv.path.changed", (newPath) => {
-  if (typeof newPath === "string" && newPath) {
+  if (isWindowClosing) return;
+  if (typeof newPath === "string" && newPath.trim().length > 0) {
     onFileLoaded(newPath);
-  } else {
-    onFileLoaded();
   }
 });
-event.on("mpv.playlist-pos.changed", () => onFileLoaded());
-event.on("mpv.pause.changed", handlePauseChange);
+event.on("mpv.playlist-pos.changed", () => {
+  if (isWindowClosing) return;
+  onFileLoaded();
+});
+event.on("mpv.pause.changed", () => {
+  if (isWindowClosing) return;
+  handlePauseChange();
+});
 event.on("mpv.end-file", () => {
+  if (isWindowClosing) {
+    debugLog("Window is closing, skipping mpv.end-file handler");
+    return;
+  }
   const queuedForAutoplay = isQueued();
   const isReplacingPlayback = consumeReplacementGuard();
-  const playlistCount = Number(mpv.getNumber("playlist-count") || 0);
-  const currentPos = Number(mpv.getNumber("playlist-pos") || 0);
-  const hasMoreInPlaylist = playlistCount > 0 && currentPos < playlistCount - 1;
+  let hasMoreInPlaylist = false;
+  try {
+    const playlistCount = Number(mpv.getNumber("playlist-count") || 0);
+    const currentPos = Number(mpv.getNumber("playlist-pos") || 0);
+    hasMoreInPlaylist = playlistCount > 0 && currentPos < playlistCount - 1;
+  } catch {
+  }
   debugLog(
     `mpv.end-file triggered, isReplacingPlayback=${isReplacingPlayback}, autoplayQueued=${queuedForAutoplay}, hasMoreInPlaylist=${hasMoreInPlaylist}`
   );
@@ -2140,6 +2284,8 @@ event.on("mpv.end-file", () => {
   handlePlaybackTermination("end-file");
 });
 event.on("iina.window-will-close", () => {
+  if (isWindowClosing) return;
+  isWindowClosing = true;
   debugLog("Window closing, stopping playback tracking");
   currentLoadedFileUrl = null;
   if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
@@ -2149,6 +2295,7 @@ event.on("iina.window-will-close", () => {
   handlePlaybackTermination("window-close");
 });
 event.on("iina.application-will-terminate", () => {
+  isWindowClosing = true;
   debugLog("Application terminating, stopping playback tracking");
   stopPlaybackTracking();
 });

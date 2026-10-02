@@ -72,6 +72,7 @@ export interface BridgeInboundMap {
  * Messages sent from WebView to IINA plugin (outbound from React)
  */
 export interface BridgeOutboundMap {
+  "get-window-context": undefined;
   "get-client-identity": undefined;
   "get-servers": undefined;
   "get-session": undefined;

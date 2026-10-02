@@ -6,7 +6,10 @@ export interface AutoplayManagerDeps {
   mpv: typeof iina.mpv;
   core: typeof iina.core;
   preferences: typeof iina.preferences;
+  file?: typeof iina.file;
+  utils?: typeof iina.utils;
   global?: typeof iina.global;
+  isClosing?: () => boolean;
   buildEmbyHeaders: (apiKey?: string, extraHeaders?: Record<string, string>) => Record<string, string>;
   fetchItemMetadata: (serverBase: string, itemId: string, apiKey: string, userId?: string) => Promise<EmbyItemMetadata>;
   log: DebugLogger;
@@ -34,7 +37,10 @@ export function createAutoplayManager({
   mpv,
   core,
   preferences,
+  file,
+  utils,
   global: iinaGlobal,
+  isClosing,
   buildEmbyHeaders,
   fetchItemMetadata,
   log,
@@ -207,6 +213,10 @@ export function createAutoplayManager({
 
   function queueRemainingEpisodes(episodes: SeriesEpisode[], seriesName: string, defaultSeasonNumber: number) {
     if (episodes.length === 0) return;
+    if (isClosing?.()) {
+      log("Window is closing, skipping queueRemainingEpisodes");
+      return;
+    }
 
     try {
       const playlistCount = Number(mpv.getNumber("playlist-count") || 0);
@@ -215,6 +225,7 @@ export function createAutoplayManager({
       if (Number.isFinite(currentPos) && currentPos >= 0 && playlistCount > currentPos + 1) {
         for (let i = playlistCount - 1; i > currentPos; i--) {
           try {
+            if (isClosing?.()) return;
             mpv.command("playlist-remove", [String(i)]);
           } catch {
             // Ignore removal errors
@@ -223,11 +234,27 @@ export function createAutoplayManager({
         log(`Cleaned ${playlistCount - currentPos - 1} stale playlist entries`);
       }
 
-      for (const episode of episodes) {
-        const seasonNum = episode.seasonNumber ?? defaultSeasonNumber;
-        const episodeTitle = formatFullEpisodeTitle(seriesName, seasonNum, episode.indexNumber, episode.name);
-        mpv.command("loadfile", [episode.playUrl, "append"]);
-        log(`Appended to playlist: ${episodeTitle}`);
+      if (file && utils && typeof file.write === "function") {
+        let m3uContent = "#EXTM3U\n";
+        for (const episode of episodes) {
+          if (isClosing?.()) return;
+          const seasonNum = episode.seasonNumber ?? defaultSeasonNumber;
+          const episodeTitle = formatFullEpisodeTitle(seriesName, seasonNum, episode.indexNumber, episode.name);
+          const cleanTitle = episodeTitle.replace(/[\r\n]+/g, " ");
+          m3uContent += `#EXTINF:-1,${cleanTitle}\n${episode.playUrl}\n`;
+        }
+        const m3uPath = utils.resolvePath("@data/autoplay_queue.m3u8");
+        file.write(m3uPath, m3uContent);
+        log(`Queueing ${episodes.length} upcoming episode(s) via loadlist: ${m3uPath}`);
+        mpv.command("loadlist", [m3uPath, "append"]);
+      } else {
+        for (const episode of episodes) {
+          if (isClosing?.()) return;
+          const seasonNum = episode.seasonNumber ?? defaultSeasonNumber;
+          const episodeTitle = formatFullEpisodeTitle(seriesName, seasonNum, episode.indexNumber, episode.name);
+          mpv.command("loadfile", [episode.playUrl, "append"]);
+          log(`Appended to playlist: ${episodeTitle}`);
+        }
       }
 
       autoplayQueued = true;
@@ -257,6 +284,11 @@ export function createAutoplayManager({
   }
 
   function setupAutoplayForEpisode(serverBase: string, episodeId: string, apiKey: string, userId?: string) {
+    if (isClosing?.()) {
+      log("Window is closing, skipping setupAutoplayForEpisode");
+      return;
+    }
+
     if (lastProcessedEpisodeId === episodeId) {
       log(`Episode ${episodeId} already being processed, skipping duplicate setup`);
       return;

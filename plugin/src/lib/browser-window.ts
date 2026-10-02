@@ -52,16 +52,11 @@ export function createBrowserWindowManager({ core, sidebar, standaloneWindow, pr
       });
 
       // Register bridge handlers with auto-close on media play
-      registerBridgeHandlers(standaloneWindow, bridgeDeps, { closeOnPlay: true });
+      registerBridgeHandlers(standaloneWindow, bridgeDeps, { closeOnPlay: true, isStandalone: true });
 
       // Open the window
       standaloneWindow.open();
-
-      // Send window context and initial data after delay
-      setTimeout(() => {
-        standaloneWindow.postMessage("window-context", { isStandalone: true });
-        sendInitialBridgeState(standaloneWindow, bridgeDeps);
-      }, 800);
+      standaloneWindow.postMessage("window-context", { isStandalone: true });
 
       log("Standalone Emby browser window opened successfully");
       const sessionData = bridgeDeps.getStoredEmbySession();
@@ -115,11 +110,8 @@ export function createBrowserWindowManager({ core, sidebar, standaloneWindow, pr
   function initSidebar(): void {
     if (!sidebar) return;
     sidebar.loadFile("dist/client/index.html");
-    registerBridgeHandlers(sidebar, bridgeDeps);
-    setTimeout(() => {
-      sidebar.postMessage("window-context", { isStandalone: false });
-      sendInitialBridgeState(sidebar, bridgeDeps);
-    }, 500);
+    registerBridgeHandlers(sidebar, bridgeDeps, { closeOnPlay: false, isStandalone: false });
+    sidebar.postMessage("window-context", { isStandalone: false });
   }
 
   return {

@@ -13,7 +13,7 @@ import { createPlaybackTrackingManager } from "./lib/playback-tracking";
 import { createServerSessionStore } from "./lib/server-session-store";
 import { createBridgeDeps, type PlayMediaListMessage, type PlayMediaMessage } from "./lib/webview-bridge";
 
-const { core, console: iinaConsole, menu, event, http, utils, preferences, mpv, sidebar, global: iinaGlobal, standaloneWindow } = iina;
+const { core, console: iinaConsole, menu, event, http, utils, preferences, mpv, sidebar, global: iinaGlobal, standaloneWindow, file } = iina;
 
 const debugLog = createDebugLogger(preferences, iinaConsole);
 
@@ -55,12 +55,17 @@ const { startPlaybackTracking, stopPlaybackTracking, handlePauseChange, getCurre
   log: debugLog,
 });
 
+let isWindowClosing = false;
+
 const { setupAutoplayForEpisode, resetForNewFile, clearQueuedFlag, isQueued } = createAutoplayManager({
   http,
   mpv,
   core,
   preferences,
+  file,
+  utils,
   global: iinaGlobal,
+  isClosing: () => isWindowClosing,
   buildEmbyHeaders,
   fetchItemMetadata,
   log: debugLog,
@@ -77,6 +82,7 @@ const { setVideoTitleFromMetadata, downloadAllSubtitles, manualDownloadSubtitles
     isEmbyUrl,
     fetchPlaybackInfo,
     fetchItemMetadata,
+    getActiveSession: getStoredEmbySession,
     log: debugLog,
   });
 
@@ -88,10 +94,13 @@ const {
   markLaunchedFromBrowser,
   clearLaunchedFromBrowser,
   consumeLaunchedFromBrowser,
+  getPendingMediaTitle,
 } = createPlaybackCoordinator({
   core,
   mpv,
   preferences,
+  file,
+  utils,
   global: iinaGlobal,
   getCurrentPlaybackSession,
   clearQueuedFlag,
@@ -152,6 +161,11 @@ function getEffectiveFileUrl(fileUrl?: string): string | undefined {
  * Handle file loaded event
  */
 function onFileLoaded(fileUrl?: string): void {
+  if (isWindowClosing) {
+    debugLog("Window is closing, ignoring onFileLoaded");
+    return;
+  }
+
   const resolvedUrl = getEffectiveFileUrl(fileUrl);
   debugLog(`File loaded event: raw=${fileUrl}, resolved=${resolvedUrl}`);
 
@@ -221,8 +235,17 @@ function onFileLoaded(fileUrl?: string): void {
 
     // Set video title from metadata if enabled
     if (preferences.get("set_video_title")) {
-      debugLog(`Setting video title from metadata for: ${embyInfo.itemId}`);
-      setVideoTitleFromMetadata(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+      const knownTitle = getPendingMediaTitle(embyInfo.itemId);
+      if (knownTitle) {
+        try {
+          mpv.set("force-media-title", knownTitle);
+          debugLog(`Pre-set video title from known playback title: ${knownTitle}`);
+        } catch {
+          // Ignore
+        }
+      }
+      debugLog(`Setting video title from metadata for: ${embyInfo.itemId}, userId: ${reportUserId || "none"}`);
+      setVideoTitleFromMetadata(reportServerBase, embyInfo.itemId, reportApiKey, reportUserId);
     }
 
     // Setup autoplay for TV episodes if enabled
@@ -235,7 +258,7 @@ function onFileLoaded(fileUrl?: string): void {
     // Only auto-download if enabled
     if (preferences.get("auto_download_enabled")) {
       debugLog(`Auto-downloading subtitles for: ${embyInfo.itemId}`);
-      downloadAllSubtitles(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+      downloadAllSubtitles(reportServerBase, embyInfo.itemId, reportApiKey);
     } else {
       debugLog("Auto download disabled, but Emby URL stored for manual download");
     }
@@ -293,25 +316,51 @@ menu.addItem(menu.item("Set Emby Title", manualSetTitle));
 
 // Event handlers
 event.on("iina.file-loaded", onFileLoaded);
-event.on("iina.file-started", () => onFileLoaded());
-event.on("mpv.file-loaded", () => onFileLoaded());
+
+event.on("iina.file-started", () => {
+  if (isWindowClosing) return;
+  onFileLoaded();
+});
+
+event.on("mpv.file-loaded", () => {
+  if (isWindowClosing) return;
+  onFileLoaded();
+});
+
 event.on("mpv.path.changed", (newPath: unknown) => {
-  if (typeof newPath === "string" && newPath) {
+  if (isWindowClosing) return;
+  if (typeof newPath === "string" && newPath.trim().length > 0) {
     onFileLoaded(newPath);
-  } else {
-    onFileLoaded();
   }
 });
-event.on("mpv.playlist-pos.changed", () => onFileLoaded());
-event.on("mpv.pause.changed", handlePauseChange);
+
+event.on("mpv.playlist-pos.changed", () => {
+  if (isWindowClosing) return;
+  onFileLoaded();
+});
+
+event.on("mpv.pause.changed", () => {
+  if (isWindowClosing) return;
+  handlePauseChange();
+});
 
 // Handle file ending (includes both natural end and replacement)
 event.on("mpv.end-file", () => {
+  if (isWindowClosing) {
+    debugLog("Window is closing, skipping mpv.end-file handler");
+    return;
+  }
+
   const queuedForAutoplay = isQueued();
   const isReplacingPlayback = consumeReplacementGuard();
-  const playlistCount = Number(mpv.getNumber("playlist-count") || 0);
-  const currentPos = Number(mpv.getNumber("playlist-pos") || 0);
-  const hasMoreInPlaylist = playlistCount > 0 && currentPos < playlistCount - 1;
+  let hasMoreInPlaylist = false;
+  try {
+    const playlistCount = Number(mpv.getNumber("playlist-count") || 0);
+    const currentPos = Number(mpv.getNumber("playlist-pos") || 0);
+    hasMoreInPlaylist = playlistCount > 0 && currentPos < playlistCount - 1;
+  } catch {
+    // Player may already be tearing down mpv core
+  }
 
   debugLog(
     `mpv.end-file triggered, isReplacingPlayback=${isReplacingPlayback}, autoplayQueued=${queuedForAutoplay}, hasMoreInPlaylist=${hasMoreInPlaylist}`,
@@ -332,6 +381,9 @@ event.on("mpv.end-file", () => {
 });
 
 event.on("iina.window-will-close", () => {
+  if (isWindowClosing) return;
+  isWindowClosing = true;
+
   debugLog("Window closing, stopping playback tracking");
   currentLoadedFileUrl = null;
   if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
@@ -342,6 +394,7 @@ event.on("iina.window-will-close", () => {
 });
 
 event.on("iina.application-will-terminate", () => {
+  isWindowClosing = true;
   debugLog("Application terminating, stopping playback tracking");
   stopPlaybackTracking();
 });
