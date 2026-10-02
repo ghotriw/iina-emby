@@ -5,13 +5,13 @@
 }
 
 .modalContent {
-  background: var(--macos-bg-dialog) !important;
-  backdrop-filter: blur(2rem) !important;
-  -webkit-backdrop-filter: blur(2rem) !important;
-  border: 1px solid var(--macos-border-control) !important;
-  border-radius: var(--radius-dialog) !important;
-  box-shadow: var(--macos-shadow-dialog) !important;
-  padding: 1.25rem 1.25rem 1rem !important;
+  background: var(--macos-bg-dialog);
+  backdrop-filter: blur(2rem);
+  -webkit-backdrop-filter: blur(2rem);
+  border: 1px solid var(--macos-border-control);
+  border-radius: var(--radius-dialog);
+  box-shadow: var(--macos-shadow-dialog);
+  padding: 1.25rem 1.25rem 1rem;
   box-sizing: border-box;
 }
 

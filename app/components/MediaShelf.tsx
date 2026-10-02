@@ -1,4 +1,3 @@
-import { ActionIcon, Group } from "@mantine/core";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import React, { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import classes from "./MediaShelf.module.css";
@@ -87,35 +86,33 @@ export function MediaShelf({ title, rightSection, children, itemWidth = 260, gap
         <div className={classes.header}>
           <div>{typeof title === "string" ? <h3 className={classes.title}>{title}</h3> : title}</div>
 
-          <Group gap={6} align="center">
+          <div className={classes.navGroup}>
             {rightSection}
             {showNavArrows && (
               <>
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  size="sm"
+                <button
+                  type="button"
+                  className={classes.arrowBtn}
                   disabled={!canScrollLeft}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleScroll("left")}
                   aria-label="Scroll left"
                 >
                   <IconChevronLeft size={18} />
-                </ActionIcon>
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  size="sm"
+                </button>
+                <button
+                  type="button"
+                  className={classes.arrowBtn}
                   disabled={!canScrollRight}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleScroll("right")}
                   aria-label="Scroll right"
                 >
                   <IconChevronRight size={18} />
-                </ActionIcon>
+                </button>
               </>
             )}
-          </Group>
+          </div>
         </div>
       )}
 

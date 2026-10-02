@@ -1,4 +1,4 @@
-import { Alert } from "@mantine/core";
+import { Alert } from "./Alert";
 import type { EmbyServer, PlayMediaPayload } from "@shared";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { forwardRef, useImperativeHandle } from "react";

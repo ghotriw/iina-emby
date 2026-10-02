@@ -1,4 +1,4 @@
-import { Skeleton } from "@mantine/core";
+import { Skeleton } from "./Skeleton";
 import type { EmbyItemMetadata, EmbyServer } from "@shared";
 import { getItemImageUrl } from "@shared";
 import { IconMovie } from "@tabler/icons-react";

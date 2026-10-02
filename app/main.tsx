@@ -1,6 +1,5 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import "@mantine/core/styles.css";
 import "./app.css";
 import { App } from "./App";
 

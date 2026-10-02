@@ -1,6 +1,6 @@
-import { Modal } from "@mantine/core";
 import type React from "react";
 import styles from "./ConfirmModal.module.css";
+import { Modal } from "./Modal";
 
 export interface ConfirmModalProps {
   opened: boolean;
@@ -44,20 +44,10 @@ export function ConfirmModal({
         {message && <div className={styles.message}>{message}</div>}
 
         <div className={styles.actions}>
-          <button
-            type="button"
-            className={styles.cancelBtn}
-            onClick={onClose}
-            disabled={isLoading}
-          >
+          <button type="button" className={styles.cancelBtn} onClick={onClose} disabled={isLoading}>
             {cancelLabel}
           </button>
-          <button
-            type="button"
-            className={styles.destructiveBtn}
-            onClick={onConfirm}
-            disabled={isLoading}
-          >
+          <button type="button" className={styles.destructiveBtn} onClick={onConfirm} disabled={isLoading}>
             {isLoading ? "Removing..." : confirmLabel}
           </button>
         </div>

@@ -12,6 +12,37 @@
   padding: 0 1.5rem;
 }
 
+.navGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.arrowBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-control, 0.375rem);
+  background: transparent;
+  border: none;
+  color: var(--macos-text-secondary, rgba(255, 255, 255, 0.7));
+  cursor: pointer;
+  transition: all 0.12s ease;
+  padding: 0;
+}
+
+.arrowBtn:hover:not(:disabled) {
+  background: var(--macos-bg-control, rgba(255, 255, 255, 0.1));
+  color: var(--macos-text-primary, #ffffff);
+}
+
+.arrowBtn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
 .title {
   margin: 0;
   font-size: 1rem;

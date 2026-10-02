@@ -1,13 +1,14 @@
-import { Alert, Tooltip } from "@mantine/core";
 import type { EmbyServer } from "@shared";
 import { IconAlertCircle, IconCheck, IconPlus, IconServer, IconTrash } from "@tabler/icons-react";
 import type React from "react";
 import { useState } from "react";
 import { useIINABridge } from "../hooks/useIINABridge";
 import { authenticateByName } from "../lib/emby-auth-client";
+import { Alert } from "./Alert";
 import { ConfirmModal } from "./ConfirmModal";
 import { IINAEmbyLogo } from "./IINAEmbyLogo";
 import styles from "./ServerManagement.module.css";
+import { Tooltip } from "./Tooltip";
 
 interface ServerManagementProps {
   onServerSelected?: (serverId: string) => void;
@@ -87,17 +88,13 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
               {servers.map((server) => {
                 const isActive = server.id === activeServerId;
                 return (
-                  <button
-                    key={server.id}
-                    className={`${styles.serverRow} ${isActive ? styles.serverRowActive : ""}`}
-                    type="button"
-                    tabIndex={0}
-                    onClick={() => handleSelect(server.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") handleSelect(server.id);
-                    }}
-                  >
-                    <div className={styles.serverRowLeft}>
+                  <div key={server.id} className={`${styles.serverRow} ${isActive ? styles.serverRowActive : ""}`}>
+                    <button
+                      type="button"
+                      className={styles.serverSelectBtn}
+                      onClick={() => handleSelect(server.id)}
+                      aria-label={`Select ${server.serverName || "Emby Server"}`}
+                    >
                       <span className={styles.serverRowIcon}>
                         <IconServer size={18} stroke={1.8} />
                       </span>
@@ -111,24 +108,21 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
                           {server.username ? ` · ${server.username}` : ""}
                         </span>
                       </div>
-                    </div>
+                    </button>
 
                     <div className={styles.serverRowActions}>
                       <Tooltip label="Remove server" withArrow>
                         <button
                           type="button"
                           className={styles.deleteBtn}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setServerToDelete(server);
-                          }}
+                          onClick={() => setServerToDelete(server)}
                           aria-label="Remove server"
                         >
                           <IconTrash size={17} stroke={1.8} />
                         </button>
                       </Tooltip>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -137,15 +131,7 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
 
         {/* Add server button (placed below saved servers) */}
         {!showForm && servers.length > 0 && (
-          <button
-            className={styles.actionRow}
-            type="button"
-            tabIndex={0}
-            onClick={() => setIsAdding(true)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") setIsAdding(true);
-            }}
-          >
+          <button className={styles.actionRow} type="button" onClick={() => setIsAdding(true)}>
             <div className={styles.actionLeft}>
               <IconPlus size={15} stroke={2.2} />
               <span>Add Another Server...</span>

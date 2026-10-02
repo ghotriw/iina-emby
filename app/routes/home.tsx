@@ -1,4 +1,4 @@
-import { Alert } from "@mantine/core";
+import { Alert } from "../components/Alert";
 import { IconAlertCircle, IconChevronLeft, IconReload } from "@tabler/icons-react";
 import { useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router";

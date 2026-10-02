@@ -1,4 +1,5 @@
-import { Modal, Select } from "@mantine/core";
+import { Modal } from "../components/Modal";
+import { Select } from "../components/Select";
 import type { EmbyItemMetadata, EmbyMediaStream } from "@shared";
 import { getEmbyImageUrl, getItemImageUrl } from "@shared";
 import { IconChevronLeft, IconPlayerPlayFilled, IconX } from "@tabler/icons-react";

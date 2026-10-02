@@ -182,6 +182,28 @@
   background: var(--macos-bg-row-hover);
 }
 
+.serverSelectBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 0;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+.serverSelectBtn:focus-visible {
+  outline: 2px solid var(--macos-border-focus);
+  outline-offset: 2px;
+  border-radius: calc(var(--radius-control) - 2px);
+}
+
 .serverRowLeft {
   display: flex;
   align-items: center;

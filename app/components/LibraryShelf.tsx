@@ -1,4 +1,4 @@
-import { Skeleton } from "@mantine/core";
+import { Skeleton } from "./Skeleton";
 import type { EmbyItemMetadata, EmbyServer, EmbyView } from "@shared";
 import { MediaPoster, MediaPosterSkeleton } from "./MediaPoster";
 import { MediaShelf } from "./MediaShelf";
