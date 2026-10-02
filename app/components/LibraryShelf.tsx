@@ -14,8 +14,8 @@ export function LibraryShelf({ view, items, server, isLoading }: LibraryShelfPro
   if (isLoading) {
     return (
       <MediaShelf title={view.Name} itemWidth={140} gap={14}>
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={`skeleton-${view.Id}-${i}`} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {Array.from({ length: 5 }).map((_) => (
+          <div key={`skeleton-${view.Id}`} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <Skeleton height={210} radius={10} />
             <Skeleton height={14} width="80%" radius={4} />
             <Skeleton height={12} width="40%" radius={4} />

@@ -1,7 +1,8 @@
-import { Button } from "@mantine/core";
-import { IconServer } from "@tabler/icons-react";
+import { IconChevronLeft, IconReload } from "@tabler/icons-react";
+import { useState } from "react";
 import { Navigate, useNavigate } from "react-router";
 import { ContinueWatching } from "../components/ContinueWatching";
+import { GlassButton } from "../components/GlassButton";
 import { LibraryShelf } from "../components/LibraryShelf";
 import { useIINABridge } from "../hooks/useIINABridge";
 import { useLibrarySections } from "../hooks/useLibrarySections";
@@ -14,7 +15,9 @@ export function meta() {
 export default function HomeRoute() {
   const navigate = useNavigate();
   const { activeServer, servers, isLoading, playMedia } = useIINABridge();
-  const { sections } = useLibrarySections(activeServer);
+  const { sections, reload } = useLibrarySections(activeServer);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Wait for IINA bridge to report servers list before redirecting
   if (isLoading) {
@@ -26,11 +29,40 @@ export default function HomeRoute() {
     return <Navigate to="/servers" replace />;
   }
 
+  const handleBack = () => {
+    navigate("/servers");
+  };
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    setRefreshKey((k) => k + 1);
+    try {
+      await reload();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <div className={styles.container}>
-      {/* Native macOS toolbar header */}
-      <header className={styles.toolbar}>
-        <div className={styles.toolbarLeft}>
+      {/* Top navigation bar on common background */}
+      <header className={styles.header}>
+        <div className={styles.headerLeft}>
+          <GlassButton
+            variant="glass"
+            shape="circle"
+            size="sm"
+            isIconOnly
+            onClick={handleBack}
+            title="Servers"
+            aria-label="Back to servers"
+          >
+            <IconChevronLeft size={18} />
+          </GlassButton>
+        </div>
+
+        <div className={styles.headerCenter}>
           <div className={styles.serverBadge}>
             <span className={styles.activeDot} />
             <span className={styles.serverName}>{activeServer.serverName || "Emby"}</span>
@@ -38,25 +70,28 @@ export default function HomeRoute() {
           </div>
         </div>
 
-        <div className={styles.toolbarRight}>
-          <Button
-            variant="subtle"
-            size="xs"
-            leftSection={<IconServer size={14} />}
-            onClick={() => navigate("/servers")}
-            className={styles.switchServerBtn}
+        <div className={styles.headerRight}>
+          <GlassButton
+            variant="glass"
+            shape="circle"
+            size="sm"
+            isIconOnly
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            title="Refresh"
+            aria-label="Refresh library"
           >
-            Switch Server
-          </Button>
+            <IconReload size={16} className={isRefreshing ? styles.spinning : ""} />
+          </GlassButton>
         </div>
       </header>
 
       {/* Main shelves content */}
       <main className={styles.content}>
-        {/* 1. Continue Watching shelf */}
-        <ContinueWatching server={activeServer} onPlayMedia={playMedia} />
+        {/* Continue Watching shelf */}
+        <ContinueWatching key={refreshKey} server={activeServer} onPlayMedia={playMedia} />
 
-        {/* 2. Library shelves (Movies, TV shows, etc.) */}
+        {/* Library shelves (Movies, TV shows, etc.) */}
         {sections.map(({ view, items }) => (
           <LibraryShelf key={view.Id} view={view} items={items} server={activeServer} />
         ))}
