@@ -4,5 +4,17 @@
 		"enabled": true,
 		"indentStyle": "space",
 		"lineWidth": 140
+	},
+	"linter": {
+		"rules": {
+			"correctness": {
+				"noUnknownPseudoClass": {
+					"level": "warn",
+					"options": {
+						"ignore": ["global", "local"]
+					}
+				}
+			}
+		}
 	}
 }

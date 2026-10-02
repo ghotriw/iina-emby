@@ -46,7 +46,7 @@ export function IINAEmbyLogo({ size = 68, className }: IINAEmbyLogoProps) {
           <feOffset dx="0" dy="2" in="SourceAlpha" result="shadowOffsetOuter1" />
           <feGaussianBlur stdDeviation="25" in="shadowOffsetOuter1" result="shadowBlurOuter1" />
           <feComposite in="shadowBlurOuter1" in2="SourceAlpha" operator="out" result="shadowBlurOuter1" />
-          <feColorMatrix values="0 0 0 0 0.454901961   0 0 0 0 0.215686275   0 0 0 0 0.949019608  0 0 0 0.5 0" type="matrix" in="shadowBlurOuter1" />
+          <feColorMatrix values="0 0 0 0 0.314   0 0 0 0 0.098   0 0 0 0 0.80  0 0 0 0.65 0" type="matrix" in="shadowBlurOuter1" />
         </filter>
 
         <filter x="-112.7%" y="-43.2%" width="325.5%" height="189.2%" filterUnits="objectBoundingBox" id={f4}>
@@ -62,7 +62,7 @@ export function IINAEmbyLogo({ size = 68, className }: IINAEmbyLogoProps) {
           <feOffset dx="0" dy="0" in="SourceAlpha" result="shadowOffsetOuter1" />
           <feGaussianBlur stdDeviation="25" in="shadowOffsetOuter1" result="shadowBlurOuter1" />
           <feComposite in="shadowBlurOuter1" in2="SourceAlpha" operator="out" result="shadowBlurOuter1" />
-          <feColorMatrix values="0 0 0 0 0.266666667   0 0 0 0 0.2   0 0 0 0 0.870588235  0 0 0 0.50237653 0" type="matrix" in="shadowBlurOuter1" />
+          <feColorMatrix values="0 0 0 0 0.20   0 0 0 0 0.075   0 0 0 0 0.72  0 0 0 0.65 0" type="matrix" in="shadowBlurOuter1" />
         </filter>
 
         <filter x="-90.0%" y="-30.9%" width="280.0%" height="161.8%" filterUnits="objectBoundingBox" id={f7}>
@@ -86,14 +86,14 @@ export function IINAEmbyLogo({ size = 68, className }: IINAEmbyLogoProps) {
           <feOffset dx="10" dy="0" in="SourceAlpha" result="shadowOffsetOuter1" />
           <feGaussianBlur stdDeviation="25" in="shadowOffsetOuter1" result="shadowBlurOuter1" />
           <feComposite in="shadowBlurOuter1" in2="SourceAlpha" operator="out" result="shadowBlurOuter1" />
-          <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.503223339 0" type="matrix" in="shadowBlurOuter1" />
+          <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.65 0" type="matrix" in="shadowBlurOuter1" />
         </filter>
 
         <filter x="-8.4%" y="-7.2%" width="120.7%" height="128.5%" filterUnits="objectBoundingBox" id={f11}>
           <feGaussianBlur stdDeviation="35" in="SourceAlpha" result="shadowBlurInner1" />
           <feOffset dx="-25" dy="0" in="shadowBlurInner1" result="shadowOffsetInner1" />
           <feComposite in="shadowOffsetInner1" in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" result="shadowInnerInner1" />
-          <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.502485795 0" type="matrix" in="shadowInnerInner1" />
+          <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.62 0" type="matrix" in="shadowInnerInner1" />
         </filter>
       </defs>
 
