@@ -1,0 +1,2072 @@
+"use strict";
+
+// shared/constants.ts
+var CLIENT_NAME = "IINA Emby Plugin";
+var DEVICE_NAME = "IINA";
+var CLIENT_VERSION = true ? "0.1.1" : "0.1.0";
+
+// shared/utils/auth.ts
+function buildAuthorizationHeader(identity, token) {
+  const parts = [
+    `Client="${identity?.clientName || CLIENT_NAME}"`,
+    `Device="${identity?.deviceName || DEVICE_NAME}"`,
+    `DeviceId="${identity?.deviceId || "iina-emby"}"`,
+    `Version="${identity?.version || CLIENT_VERSION}"`
+  ];
+  if (token) {
+    parts.push(`Token="${token}"`);
+  }
+  return `MediaBrowser ${parts.join(", ")}`;
+}
+function buildEmbyHeaders(identity, token, extraHeaders) {
+  const auth = buildAuthorizationHeader(identity, token);
+  const clientName = identity?.clientName || CLIENT_NAME;
+  const deviceName = identity?.deviceName || DEVICE_NAME;
+  const deviceId = identity?.deviceId || "iina-emby";
+  const version = identity?.version || CLIENT_VERSION;
+  const headers = {
+    Authorization: auth,
+    "X-Emby-Authorization": auth,
+    "X-Emby-Client": clientName,
+    "X-Emby-Device-Name": deviceName,
+    "X-Emby-Device-Id": deviceId,
+    "X-Emby-Client-Version": version,
+    Accept: "application/json",
+    ...extraHeaders || {}
+  };
+  if (token) {
+    headers["X-Emby-Token"] = token;
+  }
+  return headers;
+}
+
+// shared/utils/time.ts
+var TICKS_PER_SECOND = 1e7;
+function ticksToSeconds(ticks) {
+  if (!ticks || typeof ticks !== "number" || ticks < 0) {
+    return 0;
+  }
+  return Math.floor(ticks / TICKS_PER_SECOND);
+}
+function secondsToTicks(seconds) {
+  if (!seconds || typeof seconds !== "number" || seconds < 0) {
+    return 0;
+  }
+  return Math.floor(seconds * TICKS_PER_SECOND);
+}
+function formatEpisodeCode(seasonNum, episodeNum) {
+  const s = typeof seasonNum === "number" && seasonNum > 0 ? String(seasonNum).padStart(2, "0") : "01";
+  const e = typeof episodeNum === "number" && episodeNum > 0 ? String(episodeNum).padStart(2, "0") : "01";
+  return `S${s}E${e}`;
+}
+function formatFullEpisodeTitle(seriesName, seasonNum, episodeNum, episodeName) {
+  const code = formatEpisodeCode(seasonNum, episodeNum);
+  const title = episodeName || "Episode";
+  return seriesName ? `${seriesName} ${code} - ${title}` : `${code} - ${title}`;
+}
+
+// shared/utils/url.ts
+function cleanServerUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== "string") return "";
+  let cleaned = rawUrl.trim();
+  if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://")) {
+    cleaned = `http://${cleaned}`;
+  }
+  try {
+    const parsed = new URL(cleaned);
+    parsed.username = "";
+    parsed.password = "";
+    cleaned = parsed.origin + (parsed.pathname === "/" ? "" : parsed.pathname);
+  } catch {
+    cleaned = cleaned.replace(/^(https?:\/\/)[^/@]+@/i, "$1");
+  }
+  return cleaned.replace(/\/web(?:\/.*)?$/i, "").replace(/\/$/, "");
+}
+function isSameEmbyHost(left, right) {
+  const hostOf = (url) => String(url || "").replace(/^https?:\/\//i, "").replace(/\/.*$/, "").toLowerCase();
+  const leftHost = hostOf(left);
+  return leftHost.length > 0 && leftHost === hostOf(right);
+}
+function sanitizeStreamUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== "string") return rawUrl;
+  let cleaned = rawUrl.trim();
+  try {
+    const parsed = new URL(cleaned);
+    parsed.username = "";
+    parsed.password = "";
+    cleaned = parsed.toString();
+  } catch {
+    cleaned = cleaned.replace(/^(https?:\/\/)[^/@]+@/i, "$1");
+  }
+  cleaned = cleaned.replace(/([?&])ApiKey=/i, "$1api_key=");
+  return cleaned;
+}
+
+// plugin/src/lib/autoplay-manager.ts
+function createAutoplayManager({ http: http2, mpv: mpv2, core: core2, preferences: preferences2, buildEmbyHeaders: buildEmbyHeaders3, fetchItemMetadata: fetchItemMetadata2, log }) {
+  let lastProcessedEpisodeId = null;
+  let lastProcessedSeriesId = null;
+  let autoplayRequestCounter = 0;
+  let autoplayQueued = false;
+  async function fetchSeriesEpisodes(serverBase, seriesId, seasonId, apiKey) {
+    try {
+      log(`Fetching episodes for series: ${seriesId}, season: ${seasonId}`);
+      const queryParams = [
+        `seasonId=${encodeURIComponent(seasonId)}`,
+        `fields=${encodeURIComponent("MediaSources,Path,LocationType,IsFolder")}`
+      ].join("&");
+      const response = await http2.get(`${serverBase}/Shows/${seriesId}/Episodes?${queryParams}&api_key=${apiKey}`, {
+        headers: buildEmbyHeaders3(apiKey, {
+          Accept: "application/json"
+        })
+      });
+      if (!response.data) {
+        throw new Error("No data received from Emby API");
+      }
+      const episodeData = typeof response.data === "string" ? JSON.parse(response.data) : response.data;
+      if (!episodeData?.Items) {
+        log("No episodes found in response");
+        return [];
+      }
+      const episodes = episodeData.Items.filter(
+        (episode) => Boolean(episode.MediaSources && episode.MediaSources.length > 0 && episode.Id)
+      ).map((episode) => ({
+        id: episode.Id,
+        name: episode.Name || "",
+        indexNumber: Number(episode.IndexNumber) || 0,
+        duration: episode.RunTimeTicks,
+        playUrl: `${serverBase}/Videos/${episode.Id}/stream?static=true&api_key=${apiKey}`
+      }));
+      episodes.sort((left, right) => left.indexNumber - right.indexNumber);
+      log(`Fetched ${episodes.length} episodes from series: ${episodes.map((episode) => `E${episode.indexNumber}`).join(", ")}`);
+      return episodes;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error fetching series episodes: ${errorMsg}`);
+      return [];
+    }
+  }
+  async function getSeriesInfoFromEpisode(serverBase, episodeId, apiKey) {
+    try {
+      log(`Getting series info from episode: ${episodeId}`);
+      const metadata = await fetchItemMetadata2(serverBase, episodeId, apiKey);
+      if (metadata.Type !== "Episode") {
+        log(`Item ${episodeId} is not an episode, it's a ${metadata.Type}`);
+        return null;
+      }
+      const seriesId = metadata.SeriesId;
+      const seasonId = metadata.SeasonId;
+      const seriesName = metadata.SeriesName || "";
+      const parsedSeasonNumber = Number(metadata.ParentIndexNumber ?? 1);
+      const seasonNumber = Number.isFinite(parsedSeasonNumber) ? parsedSeasonNumber : 1;
+      const episodeIndexNumber = Number(metadata.IndexNumber) || 0;
+      if (!seriesId || !seasonId) {
+        log(`Missing series info - SeriesId: ${seriesId}, SeasonId: ${seasonId}`);
+        return null;
+      }
+      log(
+        `Series info: SeriesName=${seriesName}, SeriesId=${seriesId}, SeasonId=${seasonId}, SeasonNumber=${seasonNumber}, EpisodeNumber=${episodeIndexNumber}`
+      );
+      return {
+        seriesId,
+        seasonId,
+        seriesName,
+        seasonNumber,
+        currentEpisodeNumber: episodeIndexNumber
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error getting series info from episode: ${errorMsg}`);
+      return null;
+    }
+  }
+  async function resolveNextEpisode(serverBase, seriesId, seasonId, currentEpisodeNumber, apiKey) {
+    try {
+      const episodes = await fetchSeriesEpisodes(serverBase, seriesId, seasonId, apiKey);
+      const currentEpNum = Number(currentEpisodeNumber);
+      const nextEpisode = episodes.find((episode) => episode.indexNumber > currentEpNum);
+      if (nextEpisode) {
+        log(`Found next episode in current season: E${nextEpisode.indexNumber} - ${nextEpisode.name}`);
+        return nextEpisode;
+      }
+      log("No next episode in current season, checking next season...");
+      const seasonsResponse = await http2.get(`${serverBase}/Shows/${seriesId}/Seasons?api_key=${apiKey}`, {
+        headers: buildEmbyHeaders3(apiKey, { Accept: "application/json" })
+      });
+      if (!seasonsResponse.data) return null;
+      const seasonsData = typeof seasonsResponse.data === "string" ? JSON.parse(seasonsResponse.data) : seasonsResponse.data;
+      if (!seasonsData?.Items || seasonsData.Items.length === 0) return null;
+      const sortedSeasons = seasonsData.Items.filter(
+        (season) => season.IndexNumber !== null && season.IndexNumber !== void 0
+      ).sort((left, right) => (left.IndexNumber || 0) - (right.IndexNumber || 0));
+      const currentSeasonIndex = sortedSeasons.findIndex((season) => season.Id === seasonId);
+      if (currentSeasonIndex === -1 || currentSeasonIndex >= sortedSeasons.length - 1) {
+        log("No next season available \u2014 end of series");
+        return null;
+      }
+      const nextSeason = sortedSeasons[currentSeasonIndex + 1];
+      log(`Found next season: ${nextSeason.Name} (S${nextSeason.IndexNumber})`);
+      const nextSeasonEpisodes = await fetchSeriesEpisodes(serverBase, seriesId, nextSeason.Id, apiKey);
+      if (nextSeasonEpisodes.length === 0) {
+        log("Next season has no episodes");
+        return null;
+      }
+      const firstEpisode = nextSeasonEpisodes[0];
+      log(`Found first episode of next season: S${nextSeason.IndexNumber}E${firstEpisode.indexNumber} - ${firstEpisode.name}`);
+      firstEpisode.seasonNumber = nextSeason.IndexNumber;
+      return firstEpisode;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error resolving next episode: ${errorMsg}`);
+      return null;
+    }
+  }
+  function queueNextEpisode(nextEpisode, seriesName, seasonNumber) {
+    try {
+      const episodeTitle = formatFullEpisodeTitle(seriesName, seasonNumber, nextEpisode.indexNumber, nextEpisode.name);
+      log(`Queuing next episode: ${episodeTitle}`);
+      try {
+        const playlistCount = Number(mpv2.getNumber("playlist-count") || 0);
+        const currentPos = Number(mpv2.getNumber("playlist-pos"));
+        if (!Number.isFinite(currentPos) || currentPos < 0) {
+          log(`Skipping playlist cleanup due to invalid playlist-pos=${currentPos}, playlist-count=${playlistCount}`);
+        } else if (playlistCount > currentPos + 1) {
+          for (let i = playlistCount - 1; i > currentPos; i--) {
+            try {
+              mpv2.command("playlist-remove", [String(i)]);
+            } catch {
+            }
+          }
+          log(`Cleaned ${playlistCount - currentPos - 1} stale playlist entries`);
+        }
+      } catch {
+        log("Could not clean playlist (non-critical)");
+      }
+      mpv2.command("loadfile", [nextEpisode.playUrl, "insert-next", "-1", `force-media-title=${episodeTitle}`]);
+      autoplayQueued = true;
+      log(`Queued next episode: ${episodeTitle}`);
+      if (preferences2.get("show_notifications")) {
+        core2.osd(`Up next: ${episodeTitle}`);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error queuing next episode: ${errorMsg}`);
+    }
+  }
+  function setupAutoplayForEpisode2(serverBase, episodeId, apiKey) {
+    if (lastProcessedEpisodeId === episodeId) {
+      log(`Episode ${episodeId} already being processed, skipping duplicate setup`);
+      return;
+    }
+    lastProcessedEpisodeId = episodeId;
+    autoplayQueued = false;
+    autoplayRequestCounter++;
+    const thisRequestId = autoplayRequestCounter;
+    (async () => {
+      try {
+        log(`Setting up autoplay for episode: ${episodeId} (request #${thisRequestId})`);
+        const seriesInfo = await getSeriesInfoFromEpisode(serverBase, episodeId, apiKey);
+        if (thisRequestId !== autoplayRequestCounter) {
+          log(`Autoplay request #${thisRequestId} is stale (current: #${autoplayRequestCounter}), aborting`);
+          return;
+        }
+        if (!seriesInfo) {
+          log("Could not get series info, autoplay not available");
+          return;
+        }
+        log(
+          `Got series info: series=${seriesInfo.seriesId}, season=${seriesInfo.seasonId}, seasonNum=${seriesInfo.seasonNumber}, currentEp=${seriesInfo.currentEpisodeNumber}`
+        );
+        if (lastProcessedSeriesId !== seriesInfo.seriesId) {
+          log(`Series changed from ${lastProcessedSeriesId} to ${seriesInfo.seriesId}`);
+          lastProcessedSeriesId = seriesInfo.seriesId;
+        }
+        const nextEpisode = await resolveNextEpisode(
+          serverBase,
+          seriesInfo.seriesId,
+          seriesInfo.seasonId,
+          seriesInfo.currentEpisodeNumber,
+          apiKey
+        );
+        if (thisRequestId !== autoplayRequestCounter) {
+          log(`Autoplay request #${thisRequestId} is stale after resolve, aborting`);
+          return;
+        }
+        if (!nextEpisode) {
+          log("No next episode found \u2014 end of series");
+          return;
+        }
+        const seasonNum = nextEpisode.seasonNumber ?? seriesInfo.seasonNumber;
+        queueNextEpisode(nextEpisode, seriesInfo.seriesName, seasonNum);
+        log(`Autoplay setup complete \u2014 queued next episode: ${nextEpisode.name}`);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        log(`Error setting up autoplay: ${errorMsg}`);
+      }
+    })();
+  }
+  function resetForNewFile2(episodeId) {
+    if (!episodeId || lastProcessedEpisodeId !== episodeId) {
+      lastProcessedEpisodeId = null;
+    }
+    autoplayQueued = false;
+  }
+  function clearQueuedFlag2() {
+    autoplayQueued = false;
+  }
+  function isQueued2() {
+    return autoplayQueued;
+  }
+  return {
+    setupAutoplayForEpisode: setupAutoplayForEpisode2,
+    resetForNewFile: resetForNewFile2,
+    clearQueuedFlag: clearQueuedFlag2,
+    isQueued: isQueued2
+  };
+}
+
+// plugin/src/lib/webview-bridge.ts
+function createBridgeDeps({
+  utils: utils2,
+  log,
+  getClientIdentity: getClientIdentity2,
+  serverStore,
+  onPlayMedia,
+  onPlayMediaList,
+  core: core2
+}) {
+  return {
+    core: core2,
+    utils: utils2,
+    log,
+    getClientIdentity: getClientIdentity2,
+    getStoredEmbySession: serverStore.getStoredEmbySession,
+    clearEmbySession: serverStore.clearEmbySession,
+    loadStoredServers: serverStore.loadStoredServers,
+    getActiveServerId: serverStore.getActiveServerId,
+    setActiveServerId: serverStore.setActiveServerId,
+    addOrUpdateServer: serverStore.addOrUpdateServer,
+    removeServer: serverStore.removeServer,
+    switchActiveServer: serverStore.switchActiveServer,
+    onPlayMedia,
+    onPlayMediaList
+  };
+}
+function registerBridgeHandlers(view, deps, options) {
+  view.onMessage("get-client-identity", () => {
+    view.postMessage("client-identity", deps.getClientIdentity());
+  });
+  view.onMessage("get-session", () => {
+    view.postMessage("session-data", deps.getStoredEmbySession());
+  });
+  view.onMessage("clear-session", () => {
+    deps.clearEmbySession();
+  });
+  view.onMessage("store-session", (data) => {
+    if (data?.serverUrl && data?.accessToken) {
+      const server = deps.addOrUpdateServer({
+        serverUrl: data.serverUrl,
+        accessToken: data.accessToken,
+        serverName: data.serverName || "",
+        userId: data.userId || "",
+        username: data.username || ""
+      });
+      if (server) {
+        deps.setActiveServerId(server.id);
+        view.postMessage("servers-updated", {
+          servers: deps.loadStoredServers(),
+          activeServerId: server.id
+        });
+      }
+    }
+  });
+  view.onMessage("get-servers", () => {
+    const servers = deps.loadStoredServers();
+    const activeServerId = deps.getActiveServerId();
+    view.postMessage("servers-list", { servers, activeServerId });
+  });
+  view.onMessage("remove-server", (data) => {
+    if (data?.serverId) {
+      deps.removeServer(data.serverId);
+    }
+  });
+  view.onMessage("switch-server", (data) => {
+    if (data?.serverId) {
+      deps.switchActiveServer(data.serverId);
+    }
+  });
+  view.onMessage("open-external-url", (data) => {
+    if (data?.url) {
+      deps.log(`Opening external URL: ${data.url}`);
+      try {
+        const success = deps.utils.open(data.url);
+        if (success) {
+          deps.log("Successfully opened URL in browser");
+          if (data.title) {
+            deps.core?.osd(`Opened ${data.title} in browser`);
+          } else {
+            deps.core?.osd("Opened Emby page in browser");
+          }
+        } else {
+          throw new Error("utils.open returned false");
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        deps.log.error(`Failed to open external URL: ${errorMsg}`);
+        deps.core?.osd("Failed to open Emby page in browser");
+        deps.log.error(`URL that failed to open: ${data.url}`);
+      }
+    } else {
+      deps.log("Invalid open-external-url message - missing URL");
+    }
+  });
+  view.onMessage("play-media", (data) => {
+    deps.onPlayMedia(data);
+    if (options?.closeOnPlay && typeof view.close === "function") {
+      view.close();
+    }
+  });
+  view.onMessage("play-media-list", (data) => {
+    deps.onPlayMediaList(data);
+    if (options?.closeOnPlay && typeof view.close === "function") {
+      view.close();
+    }
+  });
+}
+function sendInitialBridgeState(view, deps) {
+  view.postMessage("client-identity", deps.getClientIdentity());
+  const servers = deps.loadStoredServers();
+  const activeServerId = deps.getActiveServerId();
+  if (servers.length > 0) {
+    view.postMessage("servers-list", { servers, activeServerId });
+  }
+  const sessionData = deps.getStoredEmbySession();
+  if (sessionData) {
+    view.postMessage("session-available", sessionData);
+  }
+}
+
+// plugin/src/lib/browser-window.ts
+function createBrowserWindowManager({ core: core2, sidebar: sidebar2, standaloneWindow: standaloneWindow2, preferences: preferences2, bridgeDeps: bridgeDeps2, log }) {
+  function openEmbyStandaloneWindow2() {
+    try {
+      log("Creating standalone Emby browser window");
+      standaloneWindow2.loadFile("dist/client/index.html");
+      const savedWidth = preferences2.get("standalone_window_width");
+      const savedHeight = preferences2.get("standalone_window_height");
+      const width = typeof savedWidth === "number" && savedWidth >= 320 ? savedWidth : 520;
+      const height = typeof savedHeight === "number" && savedHeight >= 400 ? savedHeight : 720;
+      standaloneWindow2.setFrame(width, height, null, null);
+      const saWithProps = standaloneWindow2;
+      if (typeof saWithProps.setProperty === "function") {
+        saWithProps.setProperty({
+          title: "Emby Browser",
+          resizable: true,
+          enableWebInspector: true
+        });
+      }
+      standaloneWindow2.onMessage("save-window-size", (data) => {
+        if (data?.width && data?.height && data.width >= 320 && data.height >= 400) {
+          const w = Math.round(data.width);
+          const h = Math.round(data.height);
+          preferences2.set("standalone_window_width", w);
+          preferences2.set("standalone_window_height", h);
+          preferences2.sync();
+          log(`Saved standalone window size: ${w}x${h}`);
+        }
+      });
+      registerBridgeHandlers(standaloneWindow2, bridgeDeps2, { closeOnPlay: true });
+      standaloneWindow2.open();
+      setTimeout(() => {
+        standaloneWindow2.postMessage("window-context", { isStandalone: true });
+        sendInitialBridgeState(standaloneWindow2, bridgeDeps2);
+      }, 800);
+      log("Standalone Emby browser window opened successfully");
+      const sessionData = bridgeDeps2.getStoredEmbySession();
+      if (core2) {
+        if (sessionData) {
+          core2.osd(`Emby Browser opened in standalone window
+Server: ${sessionData.serverUrl.replace(/^https?:\/\//, "")}`);
+        } else {
+          core2.osd("Emby Browser opened in standalone window\nPlease login to access your media");
+        }
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log.error(`Failed to create standalone window: ${errorMsg}`);
+    }
+  }
+  function showEmbyBrowser() {
+    log("Attempting to show Emby browser");
+    let windowAvailable = false;
+    if (core2) {
+      try {
+        windowAvailable = Boolean(core2.window?.loaded && core2.window.visible);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        log(`Could not read window state: ${errorMsg}`);
+      }
+    }
+    if (windowAvailable && sidebar2 && typeof sidebar2.show === "function") {
+      try {
+        sidebar2.show();
+        log("Sidebar shown successfully");
+        return;
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        log(`Direct sidebar.show() failed: ${errorMsg}`);
+      }
+    } else {
+      log(`No visible player window (windowAvailable=${windowAvailable}), using standalone`);
+    }
+    openEmbyStandaloneWindow2();
+  }
+  function initSidebar2() {
+    if (!sidebar2) return;
+    sidebar2.loadFile("dist/client/index.html");
+    registerBridgeHandlers(sidebar2, bridgeDeps2);
+    setTimeout(() => {
+      sidebar2.postMessage("window-context", { isStandalone: false });
+      sendInitialBridgeState(sidebar2, bridgeDeps2);
+    }, 500);
+  }
+  return {
+    openEmbyStandaloneWindow: openEmbyStandaloneWindow2,
+    showEmbyBrowser,
+    initSidebar: initSidebar2
+  };
+}
+
+// plugin/src/lib/debug-log.ts
+var MAX_LOG_LENGTH = 600;
+var MAX_KEYS = 8;
+var SECRET_QUERY_PARAM = /([?&](?:api_key|apikey|api-key|x-emby-token)=)[^&\s"']+/gi;
+var SECRET_TOKEN_FIELD = /((?:token|accesstoken|api_key)"?\s*[:=]\s*"?)[A-Za-z0-9._-]{8,}/gi;
+function redactSecrets(value) {
+  return String(value).replace(SECRET_QUERY_PARAM, "$1[redacted]").replace(SECRET_TOKEN_FIELD, "$1[redacted]");
+}
+function truncateText(value, maxLength = MAX_LOG_LENGTH) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, maxLength)}\u2026[truncated ${value.length - maxLength} chars]`;
+}
+function serializeObject(value) {
+  if (!value || typeof value !== "object") {
+    return String(value);
+  }
+  if (value instanceof Error) {
+    return `${value.name}: ${value.message}${value.stack ? `
+${value.stack}` : ""}`;
+  }
+  if (Array.isArray(value)) {
+    return `[Array(${value.length})]`;
+  }
+  const obj = value;
+  const keys = Object.keys(obj);
+  const picked = keys.slice(0, MAX_KEYS).reduce((acc, key) => {
+    const item = obj[key];
+    if (item === null || item === void 0 || typeof item === "number" || typeof item === "boolean") {
+      acc[key] = item;
+    } else if (typeof item === "string") {
+      acc[key] = truncateText(item, 120);
+    } else if (Array.isArray(item)) {
+      acc[key] = `[Array(${item.length})]`;
+    } else if (typeof item === "object") {
+      acc[key] = "[Object]";
+    } else {
+      acc[key] = String(item);
+    }
+    return acc;
+  }, {});
+  if (keys.length > MAX_KEYS) {
+    picked.__extraKeys = keys.length - MAX_KEYS;
+  }
+  return JSON.stringify(picked);
+}
+function serializeArg(arg) {
+  if (arg === null || arg === void 0) {
+    return String(arg);
+  }
+  if (typeof arg === "string") {
+    return truncateText(arg);
+  }
+  if (typeof arg === "number" || typeof arg === "boolean" || typeof arg === "bigint") {
+    return String(arg);
+  }
+  return truncateText(serializeObject(arg));
+}
+function formatMessage(prefix, parts) {
+  const text = redactSecrets(parts.map(serializeArg).join(" | "));
+  return `${prefix}: ${text}`;
+}
+function createDebugLogger(preferences2, loggerConsole) {
+  const isDebugEnabled = () => Boolean(preferences2?.get?.("debug_logging"));
+  const debug = (...parts) => {
+    if (isDebugEnabled()) {
+      loggerConsole.log(formatMessage("DEBUG", parts));
+    }
+  };
+  const error = (...parts) => {
+    const msg = formatMessage("ERROR", parts);
+    if (typeof loggerConsole.error === "function") {
+      loggerConsole.error(msg);
+    } else {
+      loggerConsole.log(msg);
+    }
+  };
+  const warn = (...parts) => {
+    const msg = formatMessage("WARN", parts);
+    if (typeof loggerConsole.warn === "function") {
+      loggerConsole.warn(msg);
+    } else {
+      loggerConsole.log(msg);
+    }
+  };
+  const logger = (...parts) => {
+    debug(...parts);
+  };
+  logger.debug = debug;
+  logger.error = error;
+  logger.warn = warn;
+  return logger;
+}
+
+// plugin/src/lib/emby-api.ts
+function createEmbyApi({ http: http2, preferences: preferences2, log }) {
+  function getDeviceId() {
+    let deviceId = preferences2.get("emby_device_id");
+    if (!deviceId) {
+      deviceId = `iina-emby-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+      preferences2.set("emby_device_id", deviceId);
+      preferences2.sync();
+    }
+    return deviceId;
+  }
+  function getClientIdentity2() {
+    return {
+      clientName: CLIENT_NAME,
+      deviceName: DEVICE_NAME,
+      deviceId: getDeviceId(),
+      version: CLIENT_VERSION
+    };
+  }
+  function buildAuthorizationHeader2(apiKey) {
+    return buildAuthorizationHeader(getClientIdentity2(), apiKey);
+  }
+  function buildEmbyHeaders3(apiKey, extraHeaders) {
+    return buildEmbyHeaders(getClientIdentity2(), apiKey, extraHeaders);
+  }
+  function parseEmbyUrl2(url) {
+    try {
+      log(`Attempting to parse URL: "${url}"`);
+      if (!url) {
+        log("URL is null or undefined");
+        return null;
+      }
+      const protocolMatch = url.match(/^(https?):\/\/([^/]+)/);
+      if (!protocolMatch) {
+        log("Invalid URL format - no protocol/host found");
+        return null;
+      }
+      const protocol = protocolMatch[1];
+      const host = protocolMatch[2];
+      const urlParts = url.split("?");
+      const queryString = urlParts[1] || "";
+      const baseMatch = urlParts[0].match(/^(https?:\/\/[^/]+.*?(?:\/emby)?)\/(?:Items|Videos|Audio)\//i);
+      const serverBase = baseMatch ? baseMatch[1] : `${protocol}://${host}`;
+      const pathname = urlParts[0].slice(serverBase.length);
+      log(`Extracted serverBase: ${serverBase}`);
+      log(`Extracted pathname: ${pathname}`);
+      const pathMatch = pathname.match(/\/(?:Items|Videos|Audio)\/([^/]+)/);
+      log(`Path match result: ${pathMatch ? pathMatch[0] : "no match"}`);
+      if (!pathMatch) {
+        log(`No item id found in pathname: ${pathname}`);
+        return null;
+      }
+      const itemId = pathMatch[1];
+      let apiKey = null;
+      if (queryString) {
+        const apiKeyMatch = queryString.match(/(?:^|&)(?:api_key|apikey|api-key|x-emby-token)=([^&]+)/i);
+        if (apiKeyMatch) {
+          apiKey = decodeURIComponent(apiKeyMatch[1]);
+        }
+      }
+      log(`Extracted - itemId: ${itemId}, apiKey: ${apiKey ? "present" : "missing"}, serverBase: ${serverBase}`);
+      if (!apiKey) {
+        log("No API key found in URL parameters");
+        return null;
+      }
+      return {
+        serverBase,
+        itemId,
+        apiKey
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error parsing Emby URL: ${errorMsg}`);
+      log(`Failed URL was: "${url}"`);
+      return null;
+    }
+  }
+  function isEmbyUrl2(url) {
+    if (!url || !/^https?:\/\//i.test(url)) {
+      return false;
+    }
+    return url.includes("/Items/") && /[?&](?:api_key|apikey|api-key|x-emby-token)=/i.test(url) || url.toLowerCase().includes("emby") || /[?&](?:x-emby-token)=/i.test(url) || url.includes("/Audio/") || url.includes("/Videos/");
+  }
+  async function fetchPlaybackInfo2(serverBase, itemId, apiKey) {
+    try {
+      const playbackUrl = `${serverBase}/Items/${itemId}/PlaybackInfo?api_key=${apiKey}`;
+      log(`Fetching playback info from: ${playbackUrl}`);
+      const response = await http2.get(playbackUrl, {
+        headers: buildEmbyHeaders3(apiKey, {
+          Accept: "application/json"
+        })
+      });
+      log("Response received");
+      if (!response.data) {
+        throw new Error("No data received from Emby API");
+      }
+      if (typeof response.data === "object") {
+        log("Response data is already parsed object");
+        log(`MediaSources found: ${response.data.MediaSources ? response.data.MediaSources.length : "none"}`);
+        return response.data;
+      }
+      log("Response data is string, parsing manually");
+      log(`Response.data preview: ${String(response.data).substring(0, 200)}`);
+      return JSON.parse(response.data);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error fetching playback info: ${errorMsg}`);
+      throw error;
+    }
+  }
+  async function fetchItemMetadata2(serverBase, itemId, apiKey, userId) {
+    try {
+      const metadataUrl = userId ? `${serverBase}/Users/${encodeURIComponent(userId)}/Items/${encodeURIComponent(itemId)}?api_key=${apiKey}` : `${serverBase}/Items/${encodeURIComponent(itemId)}?api_key=${apiKey}`;
+      log(`Fetching item metadata from: ${metadataUrl}`);
+      const response = await http2.get(metadataUrl, {
+        headers: buildEmbyHeaders3(apiKey, {
+          Accept: "application/json"
+        })
+      });
+      log("Metadata response received");
+      if (!response.data) {
+        throw new Error("No metadata received from Emby API");
+      }
+      if (typeof response.data === "object") {
+        log("Metadata is already parsed object");
+        log(`Item name: ${response.data.Name}`);
+        log(`Item type: ${response.data.Type}`);
+        return response.data;
+      }
+      log("Metadata is string, parsing manually");
+      log(`Metadata preview: ${String(response.data).substring(0, 200)}`);
+      return JSON.parse(response.data);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error fetching item metadata: ${errorMsg}`);
+      throw error;
+    }
+  }
+  return {
+    getClientIdentity: getClientIdentity2,
+    buildAuthorizationHeader: buildAuthorizationHeader2,
+    buildEmbyHeaders: buildEmbyHeaders3,
+    parseEmbyUrl: parseEmbyUrl2,
+    isEmbyUrl: isEmbyUrl2,
+    fetchPlaybackInfo: fetchPlaybackInfo2,
+    fetchItemMetadata: fetchItemMetadata2,
+    secondsToTicks,
+    ticksToSeconds
+  };
+}
+
+// plugin/src/lib/media-actions.ts
+function createMediaActionsManager({
+  core: core2,
+  http: http2,
+  utils: utils2,
+  preferences: preferences2,
+  mpv: mpv2,
+  parseEmbyUrl: parseEmbyUrl2,
+  isEmbyUrl: isEmbyUrl2,
+  fetchPlaybackInfo: fetchPlaybackInfo2,
+  fetchItemMetadata: fetchItemMetadata2,
+  log
+}) {
+  let lastEmbyUrl = null;
+  let lastItemId = null;
+  async function setVideoTitleFromMetadata2(serverBase, itemId, apiKey) {
+    try {
+      if (!preferences2.get("set_video_title")) {
+        log("Video title setting is disabled in preferences");
+        return;
+      }
+      const metadata = await fetchItemMetadata2(serverBase, itemId, apiKey);
+      if (!metadata?.Name) {
+        log("No title found in metadata");
+        return;
+      }
+      let title = metadata.Name;
+      if (metadata.Type === "Episode") {
+        title = formatFullEpisodeTitle(metadata.SeriesName, metadata.ParentIndexNumber, metadata.IndexNumber, metadata.Name);
+      } else if (metadata.Type === "Movie" && metadata.ProductionYear) {
+        title = `${metadata.Name} (${metadata.ProductionYear})`;
+      }
+      log(`Setting video title to: "${title}"`);
+      let titleSet = false;
+      if (!titleSet && typeof mpv2 !== "undefined" && typeof mpv2.set === "function") {
+        try {
+          mpv2.set("force-media-title", title);
+          titleSet = true;
+          log(`Video title set via mpv property: ${title}`);
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          log(`mpv.set('force-media-title') failed: ${errorMsg}`);
+        }
+      }
+      if (!titleSet) {
+        log(`Could not set title via IINA API, title would be: ${title}`);
+      }
+      if (preferences2.get("show_notifications")) {
+        core2.osd(`Title: ${title}`);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error setting video title: ${errorMsg}`);
+    }
+  }
+  function subtitleExtensionForCodec(codec) {
+    if (codec === "subrip") return "srt";
+    if (codec === "webvtt" || codec === "vtt") return "vtt";
+    if (codec === "ass") return "ass";
+    if (codec === "ssa") return "ssa";
+    if (codec?.toLowerCase().includes("srt")) return "srt";
+    if (codec?.toLowerCase().includes("vtt")) return "vtt";
+    return "srt";
+  }
+  async function downloadExternalSubtitle(serverBase, itemId, mediaSourceId, streamIndex, subtitlePath, apiKey, language, codec) {
+    try {
+      const extension = subtitleExtensionForCodec(codec);
+      const subtitleUrl = `${serverBase}/Videos/${itemId}/${mediaSourceId || itemId}/Subtitles/${streamIndex}/stream.${extension}?api_key=${apiKey}`;
+      const sanitizedItemId = String(itemId).replace(/[^a-zA-Z0-9_-]/g, "_");
+      let suffix;
+      if (subtitlePath) {
+        const pathParts = subtitlePath.split(/[/\\]/);
+        suffix = pathParts[pathParts.length - 1].replace(/[^a-zA-Z0-9._-]/g, "_");
+      } else {
+        const sanitizedLanguage = String(language).replace(/[^a-zA-Z0-9_-]/g, "_");
+        suffix = `${sanitizedLanguage}.${extension}`;
+      }
+      const fileName = `emby_${sanitizedItemId}_${streamIndex}_${suffix}`;
+      log(`Using filename: ${fileName}`);
+      const localPath = `@tmp/${fileName}`;
+      log(`Downloading external subtitle: ${subtitleUrl}`);
+      log(`External subtitle path: ${subtitlePath}`);
+      log(`Stream index: ${streamIndex}`);
+      log(`Language: ${language}`);
+      log(`Codec: ${codec} -> Extension: ${extension}`);
+      log(`Local filename: ${fileName}`);
+      await http2.download(subtitleUrl, localPath);
+      const resolvedPath = utils2.resolvePath(localPath);
+      core2.subtitle.loadTrack(resolvedPath);
+      log(`External subtitle loaded successfully: ${resolvedPath}`);
+      if (preferences2.get("show_notifications")) {
+        core2.osd(`Loaded external ${language} subtitle`);
+      }
+      return true;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error downloading external subtitle: ${errorMsg}`);
+      return false;
+    }
+  }
+  async function downloadAllSubtitles2(serverBase, itemId, apiKey) {
+    try {
+      const playbackInfo = await fetchPlaybackInfo2(serverBase, itemId, apiKey);
+      if (!playbackInfo.MediaSources || playbackInfo.MediaSources.length === 0) {
+        log("No media sources found");
+        return;
+      }
+      const mediaSource = playbackInfo.MediaSources[0];
+      const mediaStreams = mediaSource.MediaStreams || [];
+      const subtitleStreams = mediaStreams.filter(
+        (stream) => stream.Type === "Subtitle" && stream.IsTextSubtitleStream && stream.IsExternal
+      );
+      log(`Found ${subtitleStreams.length} external subtitle stream(s)`);
+      const preferredLanguages = (preferences2.get("preferred_languages") || "en,eng").split(",").map((lang) => lang.trim().toLowerCase()).filter((lang) => lang.length > 0);
+      const shouldDownloadAll = preferences2.get("download_all_subtitles");
+      let downloadedCount = 0;
+      for (const stream of subtitleStreams) {
+        const language = stream.Language || "unknown";
+        const codec = stream.Codec || "srt";
+        const shouldDownload = shouldDownloadAll || preferredLanguages.some((prefLang) => language.toLowerCase().includes(prefLang) || prefLang.includes(language.toLowerCase()));
+        if (!shouldDownload) {
+          log(`Skipping subtitle: ${language} (not in preferred languages)`);
+          continue;
+        }
+        log(`Processing external subtitle: ${language} (${codec}) - Index: ${stream.Index}`);
+        try {
+          const downloaded = await downloadExternalSubtitle(
+            serverBase,
+            itemId,
+            mediaSource.Id,
+            stream.Index,
+            stream.Path,
+            apiKey,
+            language,
+            codec
+          );
+          if (downloaded) {
+            downloadedCount++;
+          }
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          log(`Failed to download subtitle ${language}: ${errorMsg}`);
+        }
+      }
+      if (downloadedCount > 0 && preferences2.get("show_notifications")) {
+        core2.osd(`Downloaded ${downloadedCount} subtitle(s)`);
+      } else if (downloadedCount === 0) {
+        log("No external subtitles downloaded");
+        if (preferences2.get("show_notifications")) {
+          core2.osd("No matching external subtitles found");
+        }
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error downloading subtitles: ${errorMsg}`);
+      if (preferences2.get("show_notifications")) {
+        core2.osd("Failed to download subtitles");
+      }
+    }
+  }
+  function updateLastFromCurrentUrl(currentUrl) {
+    const embyInfo = parseEmbyUrl2(currentUrl);
+    if (!embyInfo) {
+      log(`Failed to parse Emby URL: ${currentUrl}`);
+      return null;
+    }
+    lastEmbyUrl = currentUrl;
+    lastItemId = embyInfo.itemId;
+    return embyInfo;
+  }
+  function resolveCurrentEmbyUrl() {
+    let currentUrl = lastEmbyUrl;
+    if (!currentUrl) {
+      try {
+        const currentFile = core2.status.url;
+        log(`No stored URL, core.status.url = "${currentFile}"`);
+        if (currentFile && isEmbyUrl2(currentFile)) {
+          currentUrl = currentFile;
+          log(`Using current file URL: ${currentUrl}`);
+        } else {
+          log("Current file is not an Emby URL or is empty");
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        log(`Error getting current file URL: ${errorMsg}`);
+      }
+    }
+    return currentUrl;
+  }
+  function manualDownloadSubtitles2() {
+    log("Manual download requested");
+    log(`lastEmbyUrl = "${lastEmbyUrl}"`);
+    const currentUrl = resolveCurrentEmbyUrl();
+    if (!currentUrl) {
+      log("No Emby URL found - checking for Emby URL in current file");
+      core2.osd("No Emby media detected. Please open an Emby URL first.");
+      return;
+    }
+    log(`Attempting to download subtitles for: ${currentUrl}`);
+    if (!isEmbyUrl2(currentUrl)) {
+      log(`URL is not an Emby URL: ${currentUrl}`);
+      core2.osd("Current media is not from Emby");
+      return;
+    }
+    const embyInfo = updateLastFromCurrentUrl(currentUrl);
+    if (!embyInfo) {
+      core2.osd("Failed to parse Emby URL - check console for details");
+      return;
+    }
+    log(`Downloading subtitles for item: ${embyInfo.itemId}`);
+    core2.osd("Downloading subtitles...");
+    downloadAllSubtitles2(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+  }
+  function manualSetTitle2() {
+    log("Manual title setting requested");
+    log(`lastEmbyUrl = "${lastEmbyUrl}"`);
+    const currentUrl = resolveCurrentEmbyUrl();
+    if (!currentUrl) {
+      log("No Emby URL found - checking for Emby URL in current file");
+      core2.osd("No Emby media detected. Please open an Emby URL first.");
+      return;
+    }
+    log(`Attempting to set title for: ${currentUrl}`);
+    if (!isEmbyUrl2(currentUrl)) {
+      log(`URL is not an Emby URL: ${currentUrl}`);
+      core2.osd("Current media is not from Emby");
+      return;
+    }
+    const embyInfo = updateLastFromCurrentUrl(currentUrl);
+    if (!embyInfo) {
+      core2.osd("Failed to parse Emby URL - check console for details");
+      return;
+    }
+    log(`Setting title for item: ${embyInfo.itemId}`);
+    core2.osd("Fetching title...");
+    setVideoTitleFromMetadata2(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+  }
+  function updateFromFileUrl2(fileUrl) {
+    if (isEmbyUrl2(fileUrl)) {
+      const embyInfo = parseEmbyUrl2(fileUrl);
+      if (embyInfo) {
+        lastEmbyUrl = fileUrl || null;
+        lastItemId = embyInfo.itemId;
+        log(`Stored Emby media for manual download: ${embyInfo.itemId}`);
+        return embyInfo;
+      }
+      log("Failed to parse Emby URL");
+      return null;
+    }
+    log("Non-Emby URL loaded, clearing stored Emby data");
+    lastEmbyUrl = null;
+    lastItemId = null;
+    log("Not an Emby URL, skipping subtitle download");
+    return null;
+  }
+  function getLastItemId() {
+    return lastItemId;
+  }
+  return {
+    setVideoTitleFromMetadata: setVideoTitleFromMetadata2,
+    downloadAllSubtitles: downloadAllSubtitles2,
+    manualDownloadSubtitles: manualDownloadSubtitles2,
+    manualSetTitle: manualSetTitle2,
+    updateFromFileUrl: updateFromFileUrl2,
+    getLastItemId
+  };
+}
+
+// plugin/src/lib/playback-coordinator.ts
+var REPLACEMENT_GUARD_MS = 1e4;
+var PENDING_QUEUE_TTL_MS = 6e4;
+function createPlaybackCoordinator({
+  core: core2,
+  mpv: mpv2,
+  preferences: preferences2,
+  global: iinaGlobal2,
+  getCurrentPlaybackSession: getCurrentPlaybackSession2,
+  clearQueuedFlag: clearQueuedFlag2,
+  log
+}) {
+  let replacingPlaybackAt = 0;
+  function markReplacingPlayback() {
+    replacingPlaybackAt = Date.now();
+  }
+  function consumeReplacementGuard2() {
+    if (!replacingPlaybackAt) {
+      return false;
+    }
+    const age = Date.now() - replacingPlaybackAt;
+    replacingPlaybackAt = 0;
+    if (age > REPLACEMENT_GUARD_MS) {
+      log(`Ignoring replacement guard set ${age}ms ago (expired)`);
+      return false;
+    }
+    return true;
+  }
+  let launchedFromBrowser = false;
+  function markLaunchedFromBrowser2() {
+    launchedFromBrowser = true;
+  }
+  function clearLaunchedFromBrowser2() {
+    launchedFromBrowser = false;
+  }
+  function consumeLaunchedFromBrowser2() {
+    const wasLaunched = launchedFromBrowser;
+    launchedFromBrowser = false;
+    return wasLaunched;
+  }
+  function openInNewInstance(streamUrl, title, startPositionSeconds) {
+    if (iinaGlobal2 && typeof iinaGlobal2.postMessage === "function") {
+      log("Requesting new player instance from global entry");
+      iinaGlobal2.postMessage("create-player", { url: streamUrl, title, startPositionSeconds });
+    } else {
+      log("Global entry not available, opening in current window");
+      openInCurrentWindow(streamUrl, title, startPositionSeconds);
+    }
+  }
+  function openInCurrentWindow(streamUrl, title, startPositionSeconds) {
+    log("Opening media in current window: " + streamUrl);
+    if (getCurrentPlaybackSession2()) {
+      markReplacingPlayback();
+    }
+    try {
+      mpv2.command("playlist-clear", []);
+      clearQueuedFlag2();
+    } catch (clearError) {
+      const errorMsg = clearError instanceof Error ? clearError.message : String(clearError);
+      log(`Could not clear playlist before opening: ${errorMsg}`);
+    }
+    if (title) {
+      mpv2.set("force-media-title", title);
+    }
+    if (typeof startPositionSeconds === "number" && startPositionSeconds > 0) {
+      log(`Setting initial start position to ${startPositionSeconds}s`);
+      try {
+        mpv2.set("start", `${startPositionSeconds}`);
+      } catch (err) {
+        log(`Could not set mpv start position: ${String(err)}`);
+      }
+    }
+    core2.open(streamUrl);
+  }
+  let pendingPlaylistQueue = null;
+  function flushPendingPlaylistQueue2(fileUrl) {
+    if (!pendingPlaylistQueue) {
+      return;
+    }
+    const { items, at, itemId } = pendingPlaylistQueue;
+    pendingPlaylistQueue = null;
+    if (Date.now() - at > PENDING_QUEUE_TTL_MS) {
+      log("Queued playlist items are stale, not appending them");
+      return;
+    }
+    if (itemId && fileUrl && !String(fileUrl).includes(itemId)) {
+      log(`Loaded file is not the queued list's first item (${itemId}), dropping the queue`);
+      return;
+    }
+    try {
+      for (const item of items) {
+        const args = [item.streamUrl, "append"];
+        if (item.title) {
+          args.push("-1", `force-media-title=${item.title}`);
+        }
+        mpv2.command("loadfile", args);
+      }
+      log(`Appended ${items.length} queued item(s) to the playlist`);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log("Could not append queued items: " + errorMsg);
+    }
+  }
+  function handlePlayMediaList2(message) {
+    const rawItems = message?.items || [];
+    const items = rawItems.filter((item) => Boolean(item?.streamUrl)).map((item) => ({
+      ...item,
+      streamUrl: sanitizeStreamUrl(item.streamUrl) || item.streamUrl
+    }));
+    log(`handlePlayMediaList called with ${items.length} playable item(s)`);
+    if (items.length === 0) {
+      log("No playable items in list");
+      core2.osd("Nothing to play");
+      return;
+    }
+    const [firstItem, ...queuedItems] = items;
+    try {
+      if (queuedItems.length > 0) {
+        core2.osd(`Playing ${items.length} tracks, starting with: ${firstItem.title || ""}`);
+      } else {
+        core2.osd(`Opening: ${firstItem.title || ""}`);
+      }
+      const firstItemId = (String(firstItem.streamUrl).match(/\/(?:Items|Videos|Audio)\/([^/?]+)/) || [])[1] || null;
+      pendingPlaylistQueue = queuedItems.length > 0 ? { items: queuedItems, at: Date.now(), itemId: firstItemId } : null;
+      markLaunchedFromBrowser2();
+      openInCurrentWindow(firstItem.streamUrl, firstItem.title);
+      log(`Holding ${queuedItems.length} item(s) until the first one loads`);
+    } catch (error) {
+      clearLaunchedFromBrowser2();
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log.error("Error playing media list: " + errorMsg);
+      core2.osd("Failed to play tracks");
+    }
+  }
+  function handlePlayMedia2(message) {
+    log("HANDLE PLAY MEDIA CALLED");
+    log("handlePlayMedia called with message", {
+      title: message?.title,
+      streamUrl: message?.streamUrl
+    });
+    const streamUrl = sanitizeStreamUrl(message?.streamUrl);
+    const title = message?.title;
+    if (!streamUrl) {
+      log("handlePlayMedia called without streamUrl");
+      return;
+    }
+    log(`Opening media: ${title} - ${streamUrl}`);
+    const startPositionTicks = message?.startPositionTicks;
+    const startPositionSeconds = typeof startPositionTicks === "number" && startPositionTicks > 0 ? ticksToSeconds(startPositionTicks) : message?.startPositionSeconds;
+    try {
+      markLaunchedFromBrowser2();
+      const openInNewWindow = preferences2.get("open_in_new_window");
+      log("open_in_new_window preference: " + openInNewWindow);
+      if (openInNewWindow) {
+        log("Opening media in new instance: " + streamUrl);
+        core2.osd(`Opening in new window: ${title || ""}`);
+        openInNewInstance(streamUrl, title, startPositionSeconds);
+      } else {
+        core2.osd(`Opening: ${title || ""}`);
+        openInCurrentWindow(streamUrl, title, startPositionSeconds);
+      }
+      log("Successfully initiated media opening: " + streamUrl);
+    } catch (error) {
+      clearLaunchedFromBrowser2();
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log.error("Error opening media: " + errorMsg);
+      core2.osd("Failed to open media");
+      log.error(`URL that failed to open: ${streamUrl}`);
+    }
+  }
+  if (iinaGlobal2 && typeof iinaGlobal2.onMessage === "function") {
+    iinaGlobal2.onMessage("player-created", (data) => {
+      log("New player instance created", {
+        playerId: data?.playerId,
+        title: data?.title,
+        url: data?.url
+      });
+      if (data?.title) {
+        core2.osd(`Opened in new window: ${data.title}`);
+      }
+    });
+    iinaGlobal2.onMessage("player-creation-failed", (data) => {
+      log.error("Failed to create new player instance: " + (data?.error || ""));
+      core2.osd("Failed to open new window - opening in current window");
+      if (data?.url) {
+        core2.open(data.url);
+      }
+    });
+  }
+  return {
+    markReplacingPlayback,
+    consumeReplacementGuard: consumeReplacementGuard2,
+    markLaunchedFromBrowser: markLaunchedFromBrowser2,
+    clearLaunchedFromBrowser: clearLaunchedFromBrowser2,
+    consumeLaunchedFromBrowser: consumeLaunchedFromBrowser2,
+    openInNewInstance,
+    openInCurrentWindow,
+    flushPendingPlaylistQueue: flushPendingPlaylistQueue2,
+    handlePlayMediaList: handlePlayMediaList2,
+    handlePlayMedia: handlePlayMedia2
+  };
+}
+
+// plugin/src/lib/playback-tracking.ts
+function createPlaybackTrackingManager({
+  core: core2,
+  http: http2,
+  preferences: preferences2,
+  buildEmbyHeaders: buildEmbyHeaders3,
+  fetchPlaybackInfo: fetchPlaybackInfo2,
+  fetchItemMetadata: fetchItemMetadata2,
+  secondsToTicks: secondsToTicks3,
+  ticksToSeconds: ticksToSeconds3,
+  log
+}) {
+  let currentPlaybackSession = null;
+  let sessionRequestCounter = 0;
+  let lastReportedPosition = 0;
+  let lastKnownPosition = 0;
+  let hasStartedPlayback = false;
+  let playbackTickCount = 0;
+  let playbackTickTimer = null;
+  function samplePosition() {
+    const position = core2.status.position;
+    if (position === null || position === void 0 || position < 0) {
+      return null;
+    }
+    if (position > 0) {
+      hasStartedPlayback = true;
+      return position;
+    }
+    return hasStartedPlayback ? 0 : null;
+  }
+  const PLAYBACK_TICK_INTERVAL = 1e3;
+  const PROGRESS_REPORT_TICKS = 10;
+  const WATCHED_THRESHOLD = 0.95;
+  async function fetchResumePosition(serverBase, itemId, apiKey, userId) {
+    try {
+      if (!preferences2.get("sync_playback_progress")) {
+        log("Playback progress sync disabled, skipping resume position fetch");
+        return null;
+      }
+      const metadata = await fetchItemMetadata2(serverBase, itemId, apiKey, userId);
+      if (!metadata?.UserData) {
+        log("No UserData found in metadata");
+        return null;
+      }
+      const playbackPositionTicks = metadata.UserData.PlaybackPositionTicks;
+      const played = metadata.UserData.Played;
+      if (played) {
+        log("Item already marked as played, not resuming");
+        return null;
+      }
+      if (!playbackPositionTicks || playbackPositionTicks === 0) {
+        log("No resume position available");
+        return null;
+      }
+      const positionSeconds = ticksToSeconds3(playbackPositionTicks);
+      log(`Found resume position: ${positionSeconds.toFixed(1)}s (${playbackPositionTicks} ticks)`);
+      return positionSeconds;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error fetching resume position: ${errorMsg}`);
+      return null;
+    }
+  }
+  async function resumeFromEmby(serverBase, itemId, apiKey, userId) {
+    const session = currentPlaybackSession;
+    try {
+      const resumePosition = await fetchResumePosition(serverBase, itemId, apiKey, userId);
+      if (session) {
+        session.resumePosition = resumePosition ?? 0;
+      }
+      if (resumePosition === null || resumePosition < 15) {
+        log("No significant resume position, starting from beginning");
+        return;
+      }
+      if (currentPlaybackSession !== session) {
+        log(`Playback session changed while fetching resume position for ${itemId}, not seeking`);
+        return;
+      }
+      setTimeout(() => {
+        try {
+          if (currentPlaybackSession !== session) {
+            log(`Playback session changed before resume seek for ${itemId}, not seeking`);
+            return;
+          }
+          log(`Resuming playback at ${resumePosition.toFixed(1)}s`);
+          core2.seekTo(resumePosition);
+          if (preferences2.get("show_notifications")) {
+            const minutes = Math.floor(resumePosition / 60);
+            const seconds = Math.floor(resumePosition % 60);
+            core2.osd(`Resuming at ${minutes}:${seconds.toString().padStart(2, "0")}`);
+          }
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          log(`Error seeking to resume position: ${errorMsg}`);
+        }
+      }, 1e3);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error resuming from Emby: ${errorMsg}`);
+    }
+  }
+  async function reportPlaybackStart(serverBase, itemId, apiKey, playSessionId, mediaSourceId) {
+    try {
+      if (!preferences2.get("sync_playback_progress")) {
+        log("Playback progress sync disabled, skipping playback start report");
+        return false;
+      }
+      const url = `${serverBase}/Sessions/Playing?api_key=${apiKey}`;
+      log(`Reporting playback start for item: ${itemId}`);
+      const response = await http2.post(url, {
+        headers: buildEmbyHeaders3(apiKey, {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        }),
+        data: {
+          ItemId: itemId,
+          MediaSourceId: mediaSourceId || itemId,
+          PlaySessionId: playSessionId,
+          CanSeek: true,
+          PlayMethod: "DirectPlay",
+          PositionTicks: 0
+        }
+      });
+      if (response.statusCode >= 400) {
+        log(`Playback start failed with status: ${response.statusCode}`);
+        return false;
+      }
+      log(`Playback start reported, status: ${response.statusCode}`);
+      return response.statusCode === 204 || response.statusCode === 200;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : JSON.stringify(error);
+      log(`Error reporting playback start: ${errorMsg}`);
+      return false;
+    }
+  }
+  async function reportPlaybackProgress(serverBase, itemId, apiKey, positionSeconds, playSessionId, mediaSourceId, isPaused = false) {
+    try {
+      if (!preferences2.get("sync_playback_progress")) {
+        return false;
+      }
+      const positionTicks = secondsToTicks3(positionSeconds);
+      const url = `${serverBase}/Sessions/Playing/Progress?api_key=${apiKey}`;
+      const response = await http2.post(url, {
+        headers: buildEmbyHeaders3(apiKey, {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        }),
+        data: {
+          ItemId: itemId,
+          MediaSourceId: mediaSourceId || itemId,
+          PlaySessionId: playSessionId,
+          PositionTicks: positionTicks,
+          IsPaused: isPaused,
+          CanSeek: true,
+          PlayMethod: "DirectPlay"
+        }
+      });
+      if (response.statusCode >= 400) {
+        log(`Progress report failed with status: ${response.statusCode}`);
+        return false;
+      }
+      return response.statusCode === 204 || response.statusCode === 200;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : JSON.stringify(error);
+      log(`Error reporting playback progress: ${errorMsg}`);
+      return false;
+    }
+  }
+  async function reportPlaybackStop(serverBase, itemId, apiKey, positionSeconds, playSessionId, mediaSourceId) {
+    try {
+      if (!preferences2.get("sync_playback_progress")) {
+        log("Playback progress sync disabled, skipping playback stop report");
+        return false;
+      }
+      const positionTicks = secondsToTicks3(positionSeconds);
+      const url = `${serverBase}/Sessions/Playing/Stopped?api_key=${apiKey}`;
+      log(`Reporting playback stop: position=${positionSeconds}s (${positionTicks} ticks)`);
+      const response = await http2.post(url, {
+        headers: buildEmbyHeaders3(apiKey, {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        }),
+        data: {
+          ItemId: itemId,
+          MediaSourceId: mediaSourceId || itemId,
+          PlaySessionId: playSessionId,
+          PositionTicks: positionTicks
+        }
+      });
+      if (response.statusCode >= 400) {
+        log(`Playback stop failed with status: ${response.statusCode}`);
+        return false;
+      }
+      log(`Playback stop reported, status: ${response.statusCode}`);
+      return response.statusCode === 204 || response.statusCode === 200;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : JSON.stringify(error);
+      log(`Error reporting playback stop: ${errorMsg}`);
+      return false;
+    }
+  }
+  async function markAsWatched(serverBase, itemId, apiKey) {
+    try {
+      if (!preferences2.get("sync_playback_progress")) {
+        log("Playback progress sync disabled, skipping mark as watched");
+        return false;
+      }
+      const url = `${serverBase}/UserPlayedItems/${itemId}?api_key=${apiKey}`;
+      log(`Marking item as watched: ${itemId}`);
+      const response = await http2.post(url, {
+        headers: buildEmbyHeaders3(apiKey, {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        })
+      });
+      if (response.statusCode >= 400) {
+        log(`Mark as watched failed with status: ${response.statusCode}`);
+        return false;
+      }
+      log(`Item marked as watched, status: ${response.statusCode}`);
+      if ((response.statusCode === 200 || response.statusCode === 204) && preferences2.get("show_notifications")) {
+        core2.osd("Marked as watched in Emby");
+      }
+      return response.statusCode === 200 || response.statusCode === 204;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : JSON.stringify(error);
+      log(`Error marking item as watched: ${errorMsg}`);
+      return false;
+    }
+  }
+  async function startPlaybackTracking2(serverBase, itemId, apiKey, userId) {
+    stopPlaybackTracking2();
+    if (!preferences2.get("sync_playback_progress")) {
+      log("Playback progress sync disabled");
+      return;
+    }
+    log(`Starting playback tracking for item: ${itemId}`);
+    const requestId = ++sessionRequestCounter;
+    let playSessionId = null;
+    let mediaSourceId = null;
+    try {
+      const playbackInfo = await fetchPlaybackInfo2(serverBase, itemId, apiKey);
+      if (playbackInfo) {
+        playSessionId = playbackInfo.PlaySessionId || null;
+        if (playbackInfo.MediaSources && playbackInfo.MediaSources.length > 0) {
+          mediaSourceId = playbackInfo.MediaSources[0].Id || null;
+        }
+        log(`PlaySessionId: ${playSessionId}, MediaSourceId: ${mediaSourceId}`);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Could not fetch playback info for session: ${errorMsg}`);
+    }
+    if (requestId !== sessionRequestCounter) {
+      log(`Playback tracking for ${itemId} is stale, not starting`);
+      return;
+    }
+    currentPlaybackSession = {
+      serverBase,
+      itemId,
+      apiKey,
+      userId,
+      playSessionId,
+      mediaSourceId,
+      startTime: Date.now(),
+      resumePosition: null,
+      duration: null,
+      hasReportedWatched: false
+    };
+    reportPlaybackStart(serverBase, itemId, apiKey, playSessionId, mediaSourceId);
+    resumeFromEmby(serverBase, itemId, apiKey, userId);
+    try {
+      const duration = core2.status.duration;
+      if (duration) {
+        currentPlaybackSession.duration = duration;
+        log(`Media duration: ${duration}s`);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Could not get duration: ${errorMsg}`);
+    }
+    startPlaybackTick();
+    log("Playback tracking started");
+  }
+  function startPlaybackTick() {
+    stopPlaybackTick();
+    playbackTickCount = 0;
+    playbackTickTimer = setInterval(() => {
+      if (!currentPlaybackSession) {
+        stopPlaybackTick();
+        return;
+      }
+      try {
+        const position = samplePosition();
+        if (position !== null) {
+          lastKnownPosition = position;
+        }
+        if (!currentPlaybackSession.duration) {
+          const duration2 = core2.status.duration;
+          if (duration2) {
+            currentPlaybackSession.duration = duration2;
+          }
+        }
+        playbackTickCount++;
+        if (playbackTickCount >= PROGRESS_REPORT_TICKS) {
+          playbackTickCount = 0;
+          const isPaused = core2.status.paused || false;
+          const { serverBase, itemId, apiKey, playSessionId, mediaSourceId } = currentPlaybackSession;
+          reportPlaybackProgress(serverBase, itemId, apiKey, lastKnownPosition, playSessionId, mediaSourceId, isPaused);
+          lastReportedPosition = lastKnownPosition;
+          const duration2 = currentPlaybackSession.duration;
+          if (duration2 && !currentPlaybackSession.hasReportedWatched) {
+            const percentComplete = lastKnownPosition / duration2;
+            log(`Playback progress: ${(percentComplete * 100).toFixed(1)}%`);
+            if (percentComplete >= WATCHED_THRESHOLD) {
+              log(`Reached ${WATCHED_THRESHOLD * 100}% threshold, marking as watched`);
+              markAsWatched(serverBase, itemId, apiKey);
+              currentPlaybackSession.hasReportedWatched = true;
+            }
+          }
+        }
+        const duration = currentPlaybackSession.duration;
+        if (duration && lastKnownPosition > 0) {
+          const remaining = duration - lastKnownPosition;
+          if (remaining <= 0.5) {
+            log("EOF detected via tick, stopping playback tracking");
+            if (!currentPlaybackSession.hasReportedWatched) {
+              const finished = currentPlaybackSession;
+              finished.hasReportedWatched = true;
+              markAsWatched(finished.serverBase, finished.itemId, finished.apiKey);
+            }
+            stopPlaybackTracking2();
+          }
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        log(`Error in playback tick: ${errorMsg}`);
+      }
+    }, PLAYBACK_TICK_INTERVAL);
+  }
+  function stopPlaybackTick() {
+    if (playbackTickTimer) {
+      clearInterval(playbackTickTimer);
+      playbackTickTimer = null;
+    }
+    playbackTickCount = 0;
+  }
+  function handlePauseChange2() {
+    if (!currentPlaybackSession) return;
+    try {
+      const position = samplePosition();
+      if (position !== null) {
+        lastKnownPosition = position;
+      }
+      const isPaused = core2.status.paused || false;
+      log(`Pause state changed: isPaused=${isPaused}, position=${lastKnownPosition}`);
+      const { serverBase, itemId, apiKey, playSessionId, mediaSourceId } = currentPlaybackSession;
+      reportPlaybackProgress(serverBase, itemId, apiKey, lastKnownPosition, playSessionId, mediaSourceId, isPaused);
+      playbackTickCount = 0;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error in pause change handler: ${errorMsg}`);
+    }
+  }
+  function stopPlaybackTracking2() {
+    sessionRequestCounter++;
+    if (currentPlaybackSession) {
+      stopPlaybackTick();
+      const { serverBase, itemId, apiKey, playSessionId, mediaSourceId } = currentPlaybackSession;
+      let finalPosition = lastKnownPosition;
+      try {
+        const position = samplePosition();
+        if (position !== null) {
+          finalPosition = position;
+        }
+      } catch {
+        log(`Could not get final position from core, using lastKnownPosition: ${finalPosition}`);
+      }
+      if (!hasStartedPlayback) {
+        const preserved = currentPlaybackSession.resumePosition ?? lastReportedPosition;
+        log(`No playback observed, reporting the stored position (${preserved}s)`);
+        finalPosition = preserved;
+      }
+      reportPlaybackStop(serverBase, itemId, apiKey, finalPosition, playSessionId, mediaSourceId);
+      currentPlaybackSession = null;
+      lastReportedPosition = 0;
+      lastKnownPosition = 0;
+      hasStartedPlayback = false;
+      log("Playback session ended");
+    }
+  }
+  function getCurrentPlaybackSession2() {
+    return currentPlaybackSession;
+  }
+  return {
+    startPlaybackTracking: startPlaybackTracking2,
+    stopPlaybackTracking: stopPlaybackTracking2,
+    handlePauseChange: handlePauseChange2,
+    markAsWatched,
+    getCurrentPlaybackSession: getCurrentPlaybackSession2
+  };
+}
+
+// plugin/src/lib/server-session-store.ts
+function createServerSessionStore({ preferences: preferences2, sidebar: sidebar2, standaloneWindow: standaloneWindow2, log }) {
+  function notifyViews(name, data) {
+    for (const view of [sidebar2, standaloneWindow2]) {
+      if (view && typeof view.postMessage === "function") {
+        view.postMessage(name, data);
+      }
+    }
+  }
+  function loadStoredServers() {
+    try {
+      const serversJson = preferences2.get("emby_servers");
+      if (!serversJson) return [];
+      const servers = typeof serversJson === "string" ? JSON.parse(serversJson) : serversJson;
+      if (!Array.isArray(servers)) return [];
+      const usableServers = servers.filter((server) => server?.serverUrl && server.accessToken).map((server) => ({
+        ...server,
+        serverUrl: cleanServerUrl(server.serverUrl)
+      }));
+      const signedInUrls = new Set(usableServers.filter((server) => server.userId).map((server) => server.serverUrl));
+      const validServers = usableServers.filter((server) => server.userId || !signedInUrls.has(server.serverUrl));
+      if (validServers.length !== servers.length) {
+        log(`Cleaned ${servers.length - validServers.length} redundant server entries`);
+        saveStoredServers(validServers);
+      }
+      return validServers;
+    } catch {
+      log("Error loading stored servers, returning empty array");
+      return [];
+    }
+  }
+  function saveStoredServers(servers) {
+    try {
+      preferences2.set("emby_servers", JSON.stringify(servers));
+      preferences2.sync();
+      log(`Saved ${servers.length} server(s) to preferences`);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log.error(`Error saving servers: ${errorMsg}`);
+    }
+  }
+  function getActiveServerId() {
+    const id = preferences2.get("emby_active_server_id");
+    return id || null;
+  }
+  function setActiveServerId(serverId) {
+    preferences2.set("emby_active_server_id", serverId || "");
+    preferences2.sync();
+  }
+  function addOrUpdateServer(serverData) {
+    try {
+      const servers = loadStoredServers();
+      const normalizedUrl = cleanServerUrl(serverData.serverUrl);
+      const isSameUrl = (server) => server.serverUrl.replace(/\/$/, "") === normalizedUrl;
+      let existingIndex = -1;
+      if (serverData.userId) {
+        existingIndex = servers.findIndex((server) => isSameUrl(server) && server.userId === serverData.userId);
+      }
+      if (existingIndex < 0) {
+        existingIndex = servers.findIndex((server) => isSameUrl(server) && !server.userId);
+      }
+      const serverEntry = {
+        id: existingIndex >= 0 ? servers[existingIndex].id : `srv-${Date.now()}`,
+        serverUrl: normalizedUrl,
+        serverName: serverData.serverName || normalizedUrl,
+        accessToken: serverData.accessToken,
+        userId: serverData.userId || "",
+        username: serverData.username || "",
+        addedAt: existingIndex >= 0 ? servers[existingIndex].addedAt : Date.now(),
+        updatedAt: Date.now()
+      };
+      if (existingIndex >= 0) {
+        servers[existingIndex] = serverEntry;
+        log(`Updated existing server: ${serverEntry.serverName}`);
+      } else {
+        servers.push(serverEntry);
+        log(`Added new server: ${serverEntry.serverName}`);
+      }
+      saveStoredServers(servers);
+      if (servers.length === 1 || !getActiveServerId()) {
+        setActiveServerId(serverEntry.id);
+      }
+      return serverEntry;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log.error(`Error adding/updating server: ${errorMsg}`);
+      return null;
+    }
+  }
+  function removeServer(serverId) {
+    try {
+      let servers = loadStoredServers();
+      servers = servers.filter((server) => server.id !== serverId);
+      saveStoredServers(servers);
+      if (getActiveServerId() === serverId) {
+        setActiveServerId(servers.length > 0 ? servers[0].id : null);
+      }
+      log(`Removed server: ${serverId}`);
+      notifyViews("servers-updated", { servers, activeServerId: getActiveServerId() });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log.error(`Error removing server: ${errorMsg}`);
+    }
+  }
+  function getActiveServer() {
+    try {
+      const servers = loadStoredServers();
+      const activeId = getActiveServerId();
+      if (activeId) {
+        const activeServer = servers.find((server) => server.id === activeId);
+        if (activeServer) return activeServer;
+      }
+      return servers.length > 0 ? servers[0] : null;
+    } catch {
+      return null;
+    }
+  }
+  function switchActiveServer(serverId) {
+    const servers = loadStoredServers();
+    const server = servers.find((item) => item.id === serverId);
+    if (server) {
+      setActiveServerId(serverId);
+      log(`Switched active server to: ${server.serverName}`);
+      notifyViews("server-switched", { server, servers, activeServerId: serverId });
+    }
+  }
+  function storeEmbySession2(serverBase, apiKey) {
+    try {
+      const normalizedUrl = String(serverBase || "").replace(/\/$/, "");
+      const signedIn = loadStoredServers().find((server2) => server2.userId && server2.serverUrl.replace(/\/$/, "") === normalizedUrl);
+      if (signedIn) {
+        log(`Server ${normalizedUrl} is already signed in as ${signedIn.username || signedIn.userId}`);
+        notifyViews("session-available", {
+          serverUrl: signedIn.serverUrl,
+          accessToken: signedIn.accessToken,
+          serverId: signedIn.id
+        });
+        return;
+      }
+      log(`Storing Emby session data for: ${serverBase}`);
+      const server = addOrUpdateServer({
+        serverUrl: serverBase,
+        accessToken: apiKey
+      });
+      if (server) {
+        notifyViews("session-available", {
+          serverUrl: server.serverUrl,
+          accessToken: server.accessToken,
+          serverId: server.id
+        });
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log.error(`Error storing Emby session: ${errorMsg}`);
+    }
+  }
+  function clearEmbySession() {
+    try {
+      log("Clearing all Emby session data");
+      saveStoredServers([]);
+      setActiveServerId(null);
+      notifyViews("session-cleared", {});
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log.error(`Error clearing Emby session: ${errorMsg}`);
+    }
+  }
+  function getStoredEmbySession2() {
+    try {
+      const server = getActiveServer();
+      if (!server) {
+        log("No stored server found");
+        return null;
+      }
+      log(`Retrieved active server: ${server.serverName} (${server.serverUrl})`);
+      return {
+        serverUrl: server.serverUrl,
+        accessToken: server.accessToken,
+        serverId: server.id,
+        serverName: server.serverName,
+        userId: server.userId,
+        username: server.username
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log.error(`Error retrieving Emby session: ${errorMsg}`);
+      return null;
+    }
+  }
+  return {
+    loadStoredServers,
+    saveStoredServers,
+    getActiveServerId,
+    setActiveServerId,
+    addOrUpdateServer,
+    removeServer,
+    getActiveServer,
+    switchActiveServer,
+    storeEmbySession: storeEmbySession2,
+    clearEmbySession,
+    getStoredEmbySession: getStoredEmbySession2
+  };
+}
+
+// plugin/src/index.ts
+var { core, console: iinaConsole, menu, event, http, utils, preferences, mpv, sidebar, global: iinaGlobal, standaloneWindow } = iina;
+var debugLog = createDebugLogger(preferences, iinaConsole);
+var {
+  getClientIdentity,
+  buildEmbyHeaders: buildEmbyHeaders2,
+  parseEmbyUrl,
+  isEmbyUrl,
+  fetchPlaybackInfo,
+  fetchItemMetadata,
+  secondsToTicks: secondsToTicks2,
+  ticksToSeconds: ticksToSeconds2
+} = createEmbyApi({
+  http,
+  preferences,
+  log: debugLog
+});
+var serverSessionStore = createServerSessionStore({
+  preferences,
+  sidebar,
+  standaloneWindow,
+  log: debugLog
+});
+var { storeEmbySession, getStoredEmbySession } = serverSessionStore;
+debugLog("Emby Plugin loaded");
+var { startPlaybackTracking, stopPlaybackTracking, handlePauseChange, getCurrentPlaybackSession } = createPlaybackTrackingManager({
+  core,
+  http,
+  preferences,
+  buildEmbyHeaders: buildEmbyHeaders2,
+  fetchPlaybackInfo,
+  fetchItemMetadata,
+  secondsToTicks: secondsToTicks2,
+  ticksToSeconds: ticksToSeconds2,
+  log: debugLog
+});
+var { setupAutoplayForEpisode, resetForNewFile, clearQueuedFlag, isQueued } = createAutoplayManager({
+  http,
+  mpv,
+  core,
+  preferences,
+  buildEmbyHeaders: buildEmbyHeaders2,
+  fetchItemMetadata,
+  log: debugLog
+});
+var { setVideoTitleFromMetadata, downloadAllSubtitles, manualDownloadSubtitles, manualSetTitle, updateFromFileUrl } = createMediaActionsManager({
+  core,
+  http,
+  utils,
+  preferences,
+  mpv,
+  parseEmbyUrl,
+  isEmbyUrl,
+  fetchPlaybackInfo,
+  fetchItemMetadata,
+  log: debugLog
+});
+var {
+  handlePlayMedia,
+  handlePlayMediaList,
+  flushPendingPlaylistQueue,
+  consumeReplacementGuard,
+  markLaunchedFromBrowser,
+  clearLaunchedFromBrowser,
+  consumeLaunchedFromBrowser
+} = createPlaybackCoordinator({
+  core,
+  mpv,
+  preferences,
+  global: iinaGlobal,
+  getCurrentPlaybackSession,
+  clearQueuedFlag,
+  log: debugLog
+});
+if (iinaGlobal && typeof iinaGlobal.getLabel === "function") {
+  const label = iinaGlobal.getLabel();
+  if (label?.startsWith("emby-")) {
+    debugLog(`Player instance opened with label ${label}, marking as browser playback`);
+    markLaunchedFromBrowser();
+  }
+}
+if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
+  iinaGlobal.postMessage("player-registered", {});
+}
+if (iinaGlobal && typeof iinaGlobal.onMessage === "function") {
+  iinaGlobal.onMessage("play-media-command", (data) => {
+    debugLog("Received play-media-command from global entry", data);
+    handlePlayMedia(data);
+  });
+  iinaGlobal.onMessage("play-media-list-command", (data) => {
+    debugLog("Received play-media-list-command from global entry", data);
+    handlePlayMediaList(data);
+  });
+}
+function onFileLoaded(fileUrl) {
+  debugLog(`File loaded: ${fileUrl}`);
+  flushPendingPlaylistQueue(fileUrl);
+  stopPlaybackTracking();
+  const embyInfo = updateFromFileUrl(fileUrl);
+  if (!embyInfo) {
+    clearLaunchedFromBrowser();
+  } else {
+    let reportServerBase = embyInfo.serverBase;
+    let reportApiKey = embyInfo.apiKey;
+    let reportUserId;
+    const session = getStoredEmbySession();
+    if (session?.accessToken && isSameEmbyHost(session.serverUrl, embyInfo.serverBase)) {
+      reportUserId = session.userId;
+      if (preferences.get("use_connected_account")) {
+        reportServerBase = session.serverUrl;
+        reportApiKey = session.accessToken;
+        debugLog(
+          `Connected-account mode: reporting as ${session.username || session.serverName} @ ${reportServerBase} (ignoring URL api_key)`
+        );
+      }
+    } else if (session?.userId && isSameEmbyHost(session.serverUrl, embyInfo.serverBase)) {
+      reportUserId = session.userId;
+    } else if (preferences.get("auto_login_enabled")) {
+      storeEmbySession(embyInfo.serverBase, embyInfo.apiKey);
+    } else {
+      debugLog("Auto-login from Emby URLs disabled, not storing the URL credentials");
+    }
+    try {
+      mpv.set("start", "none");
+    } catch {
+    }
+    if (preferences.get("sync_playback_progress")) {
+      debugLog(`Starting playback tracking for: ${embyInfo.itemId}, userId: ${reportUserId || "none"}`);
+      startPlaybackTracking(reportServerBase, embyInfo.itemId, reportApiKey, reportUserId);
+    }
+    if (preferences.get("set_video_title")) {
+      debugLog(`Setting video title from metadata for: ${embyInfo.itemId}`);
+      setVideoTitleFromMetadata(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+    }
+    if (preferences.get("autoplay_next_episode")) {
+      debugLog(`Setting up autoplay for episode (itemId): ${embyInfo.itemId}`);
+      resetForNewFile(embyInfo.itemId);
+      setupAutoplayForEpisode(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+    }
+    if (preferences.get("auto_download_enabled")) {
+      debugLog(`Auto-downloading subtitles for: ${embyInfo.itemId}`);
+      downloadAllSubtitles(embyInfo.serverBase, embyInfo.itemId, embyInfo.apiKey);
+    } else {
+      debugLog("Auto download disabled, but Emby URL stored for manual download");
+    }
+  }
+}
+var bridgeDeps = createBridgeDeps({
+  core,
+  utils,
+  log: debugLog,
+  getClientIdentity,
+  serverStore: serverSessionStore,
+  onPlayMedia: handlePlayMedia,
+  onPlayMediaList: handlePlayMediaList
+});
+var { openEmbyStandaloneWindow, initSidebar } = createBrowserWindowManager({
+  core,
+  sidebar,
+  standaloneWindow,
+  preferences,
+  bridgeDeps,
+  log: debugLog
+});
+function handlePlaybackTermination(reason) {
+  const shouldReopen = preferences.get("reopen_browser_on_playback_end") !== false;
+  if (shouldReopen && consumeLaunchedFromBrowser()) {
+    console.log(`[iina-emby] Playback terminated (${reason}), requesting global reopen`);
+    debugLog(`Playback terminated (${reason}) for media launched from browser, requesting global reopen`);
+    if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
+      iinaGlobal.postMessage("reopen-browser", {});
+    } else {
+      openEmbyStandaloneWindow();
+    }
+  }
+}
+menu.addItem(menu.item("Download Emby Subtitles", manualDownloadSubtitles));
+menu.addItem(menu.item("Set Emby Title", manualSetTitle));
+event.on("iina.file-loaded", onFileLoaded);
+event.on("mpv.pause.changed", handlePauseChange);
+event.on("mpv.end-file", () => {
+  const queuedForAutoplay = isQueued();
+  const isReplacingPlayback = consumeReplacementGuard();
+  debugLog(`mpv.end-file triggered, isReplacingPlayback=${isReplacingPlayback}, autoplayQueued=${queuedForAutoplay}`);
+  if (isReplacingPlayback) {
+    debugLog("File replacement in progress, skipping stop report");
+    return;
+  }
+  if (queuedForAutoplay) {
+    debugLog("Autoplay queued, mpv will play next episode \u2014 skipping stop cleanup");
+    clearQueuedFlag();
+    return;
+  }
+  stopPlaybackTracking();
+  handlePlaybackTermination("end-file");
+});
+event.on("iina.window-will-close", () => {
+  debugLog("Window closing, stopping playback tracking");
+  if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
+    iinaGlobal.postMessage("player-unregistered", {});
+  }
+  stopPlaybackTracking();
+  handlePlaybackTermination("window-close");
+});
+event.on("iina.application-will-terminate", () => {
+  debugLog("Application terminating, stopping playback tracking");
+  stopPlaybackTracking();
+});
+event.on("iina.window-loaded", initSidebar);

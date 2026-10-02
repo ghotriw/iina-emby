@@ -6,7 +6,7 @@
   "ghRepo": "ghotriw/iina-emby",
   "ghVersion": 1,
   "author": {
-    "name": "ghotriw"
+    "name": "Andrii Honcharov"
   },
   "entry": "dist/plugin/index.js",
   "globalEntry": "dist/plugin/global.js",
