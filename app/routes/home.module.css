@@ -14,7 +14,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.5rem 1.5rem 0;
+  padding: 1.5rem 1.5rem 0.5rem;
   background: transparent;
   border: none;
   -webkit-app-region: drag;
@@ -28,30 +28,17 @@
 .headerRight {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  -webkit-app-region: no-drag;
-}
-
-.headerCenter {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  gap: 0.625rem;
   -webkit-app-region: no-drag;
 }
 
 .serverBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.25rem 0.625rem;
-  border-radius: var(--radius-control);
-  background: var(--macos-bg-panel);
-  border: 1px solid var(--macos-border-subtle);
+  gap: 0.375rem;
 }
 
 .activeDot {
-  width: 0.375rem;
-  height: 0.375rem;
+  width: 0.4375rem;
+  height: 0.4375rem;
   border-radius: 50%;
   background: var(--macos-accent-teal);
   box-shadow: 0 0 0.375rem var(--macos-accent-teal);
@@ -59,17 +46,20 @@
 }
 
 .serverName {
-  font-size: var(--font-size-body);
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--macos-text-primary);
   letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
 .userName {
-  font-size: var(--font-size-caption);
+  font-size: 0.75rem;
+  font-weight: 400;
   color: var(--macos-text-secondary);
+  white-space: nowrap;
+  margin-left: 0.25rem;
 }
-
 
 .spinning {
   animation: spin 0.8s linear infinite;
@@ -87,9 +77,13 @@
 /* Main scrollable body */
 .content {
   flex: 1;
-  padding: 1.25rem 1.5rem 2.5rem;
+  padding: 1.25rem 0 2.5rem;
   display: flex;
   flex-direction: column;
   gap: 1.75rem;
   box-sizing: border-box;
+}
+
+.alert {
+  margin: 0 1.5rem;
 }

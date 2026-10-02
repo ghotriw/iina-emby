@@ -10,8 +10,11 @@ import {
   ticksToSeconds,
 } from "@shared";
 import { IconMovie, IconPlayerPlay } from "@tabler/icons-react";
+import type React from "react";
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { buildStreamUrl } from "../lib/emby-library-client";
+import glassStyles from "./GlassElement.module.css";
 import classes from "./MediaThumb.module.css";
 
 export function MediaThumbSkeleton({ className }: { className?: string }) {
@@ -47,6 +50,7 @@ export interface MediaThumbProps {
 }
 
 export function MediaThumb({ item, server, onPlay, onClick, aspectRatio = 16 / 9, width, className }: MediaThumbProps) {
+  const navigate = useNavigate();
   const [imageError, setImageError] = useState(false);
 
   const isEpisode = item.Type === "Episode";
@@ -79,27 +83,39 @@ export function MediaThumb({ item, server, onPlay, onClick, aspectRatio = 16 / 9
     ? `${item.SeriesName || ""} - ${formatEpisodeSubtitle(item.ParentIndexNumber, item.IndexNumber, item.Name)}`
     : item.Name || "";
 
-  const handleClick = () => {
+  const handlePlayClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (onPlay) {
       onPlay({
         streamUrl: buildStreamUrl(server, item.Id),
         title: fullPlayTitle,
         startPositionTicks: item.UserData?.PlaybackPositionTicks,
       });
-    } else if (onClick) {
-      onClick(item);
     }
   };
 
+  const handleDetailClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onClick) {
+      onClick(item);
+      return;
+    }
+    const targetId = item.Type === "Episode" && item.SeriesId ? item.SeriesId : item.Id;
+    navigate(`/item/${targetId}`, {
+      state: targetId === item.Id ? { item } : undefined,
+    });
+  };
+
   return (
-    <button
-      type="button"
-      className={`${classes.card} ${className || ""}`}
-      style={{ width: width || "100%" }}
-      onClick={handleClick}
-      title={subtitle ? `${title} • ${subtitle}` : title}
-    >
-      <div className={classes.preview} style={{ aspectRatio }}>
+    <div className={`${classes.card} ${className || ""}`} style={{ width: width || "100%" }}>
+      <button
+        type="button"
+        className={classes.preview}
+        style={{ aspectRatio }}
+        onClick={handlePlayClick}
+        aria-label={`Play ${fullPlayTitle}`}
+        title={`Play ${fullPlayTitle}`}
+      >
         {imageUrl ? (
           <img src={imageUrl} alt={title} className={classes.image} loading="lazy" onError={() => setImageError(true)} />
         ) : (
@@ -108,11 +124,14 @@ export function MediaThumb({ item, server, onPlay, onClick, aspectRatio = 16 / 9
           </div>
         )}
 
-        {/* Hover play button */}
-        <div className={classes.hoverOverlay}>
-          <div className={classes.playButton}>
-            <IconPlayerPlay size={20} fill="currentColor" stroke={0} />
-          </div>
+        {/* Hover play button with liquid glass effect */}
+        <div className={classes.hoverOverlay} aria-hidden="true">
+          <span className={`${glassStyles.button} ${glassStyles.variantGlass} ${glassStyles.shapeCircle} ${glassStyles.iconLg}`}>
+            <span className={glassStyles.lens} />
+            <span className={glassStyles.content}>
+              <IconPlayerPlay size={22} fill="currentColor" stroke={0} />
+            </span>
+          </span>
         </div>
 
         {/* Scrim gradient & time overlay */}
@@ -131,13 +150,19 @@ export function MediaThumb({ item, server, onPlay, onClick, aspectRatio = 16 / 9
             <div className={classes.progressBarFill} style={{ width: `${progressPercent}%` }} />
           </div>
         )}
-      </div>
+      </button>
 
       {/* Title & subtitle below preview */}
-      <div className={classes.meta}>
+      <button
+        type="button"
+        className={classes.meta}
+        onClick={handleDetailClick}
+        aria-label={`View details for ${title}`}
+        title={subtitle ? `${title} • ${subtitle}` : title}
+      >
         <div className={classes.title}>{title}</div>
         {subtitle && <div className={classes.subtitle}>{subtitle}</div>}
-      </div>
-    </button>
+      </button>
+    </div>
   );
 }

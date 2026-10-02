@@ -23,20 +23,22 @@
   background: rgba(20, 20, 26, 0.8);
   border: none;
   box-shadow: var(--macos-shadow-card);
-  transition:
-    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: box-shadow 0.25s ease;
 }
 
-.card:hover .posterWrapper,
-.card:focus-visible .posterWrapper {
-  transform: scale(1.03);
+.card:hover .posterWrapper {
   box-shadow: var(--macos-shadow-poster-hover);
+}
+
+.card:hover .image,
+.card:focus-visible .image {
+  transform: scale(1.04);
 }
 
 .card:focus-visible .posterWrapper {
   outline: 2px solid var(--macos-accent-blue);
   outline-offset: 2px;
+  box-shadow: var(--macos-shadow-poster-hover);
 }
 
 .image {
@@ -44,7 +46,7 @@
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: opacity 0.2s ease;
+  transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1), opacity 0.2s ease;
 }
 
 .placeholder {

@@ -1,53 +1,60 @@
 import type React from "react";
 import { forwardRef, useCallback, useRef } from "react";
-import styles from "./GlassButton.module.css";
+import styles from "./GlassElement.module.css";
 
-export type GlassButtonVariant = "primary" | "glass" | "ghost";
-export type GlassButtonSize = "sm" | "md" | "lg";
-export type GlassButtonShape = "pill" | "circle" | "rounded";
+export type GlassElementVariant = "primary" | "glass" | "ghost";
+export type GlassElementSize = "sm" | "md" | "lg";
+export type GlassElementShape = "pill" | "circle" | "rounded";
 
-export interface GlassButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: GlassButtonVariant;
-  size?: GlassButtonSize;
-  shape?: GlassButtonShape;
+export interface GlassElementBaseProps {
+  variant?: GlassElementVariant;
+  size?: GlassElementSize;
+  shape?: GlassElementShape;
   isIconOnly?: boolean;
   fullWidth?: boolean;
+  interactive?: boolean;
   leftSection?: React.ReactNode;
   rightSection?: React.ReactNode;
 }
 
-export const GlassButton = forwardRef<HTMLButtonElement, GlassButtonProps>(
-  (
+export type GlassElementProps<E extends React.ElementType = "button"> = GlassElementBaseProps & {
+  as?: E;
+} & Omit<React.ComponentPropsWithRef<E>, keyof GlassElementBaseProps | "as">;
+
+export const GlassElement = forwardRef(
+  <E extends React.ElementType = "button">(
     {
+      as,
       variant = "glass",
       size = "md",
       shape = "pill",
       isIconOnly = false,
       fullWidth = false,
+      interactive,
       leftSection,
       rightSection,
       className,
       children,
-      type = "button",
       disabled,
       onPointerEnter,
       onPointerMove,
       onPointerLeave,
       ...props
-    },
-    forwardedRef,
+    }: GlassElementProps<E>,
+    forwardedRef: React.Ref<HTMLElement>,
   ) => {
-    const innerRef = useRef<HTMLButtonElement | null>(null);
+    const Component = as || "button";
+    const innerRef = useRef<HTMLElement | null>(null);
     const rectRef = useRef<DOMRect | null>(null);
     const rafIdRef = useRef<number | null>(null);
 
     const setRefs = useCallback(
-      (node: HTMLButtonElement | null) => {
+      (node: HTMLElement | null) => {
         innerRef.current = node;
         if (typeof forwardedRef === "function") {
           forwardedRef(node);
         } else if (forwardedRef) {
-          forwardedRef.current = node;
+          (forwardedRef as React.MutableRefObject<HTMLElement | null>).current = node;
         }
       },
       [forwardedRef],
@@ -68,7 +75,12 @@ export const GlassButton = forwardRef<HTMLButtonElement, GlassButtonProps>(
       el.style.setProperty("--rim-angle", `${angle.toFixed(0)}deg`);
     };
 
-    const handlePointerEnter = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const isInteractive =
+      interactive !== undefined
+        ? interactive
+        : Component === "button" || Component === "a" || Boolean((props as { onClick?: unknown }).onClick);
+
+    const handlePointerEnter = (e: React.PointerEvent<HTMLElement>) => {
       if (!disabled && innerRef.current) {
         const r = innerRef.current.getBoundingClientRect();
         rectRef.current = r;
@@ -77,7 +89,7 @@ export const GlassButton = forwardRef<HTMLButtonElement, GlassButtonProps>(
       onPointerEnter?.(e);
     };
 
-    const handlePointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const handlePointerMove = (e: React.PointerEvent<HTMLElement>) => {
       if (!disabled && innerRef.current) {
         let r = rectRef.current;
         if (!r) {
@@ -101,7 +113,7 @@ export const GlassButton = forwardRef<HTMLButtonElement, GlassButtonProps>(
       onPointerMove?.(e);
     };
 
-    const handlePointerLeave = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const handlePointerLeave = (e: React.PointerEvent<HTMLElement>) => {
       rectRef.current = null;
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current);
@@ -110,11 +122,9 @@ export const GlassButton = forwardRef<HTMLButtonElement, GlassButtonProps>(
       onPointerLeave?.(e);
     };
 
-    const variantClass =
-      variant === "primary" ? styles.variantPrimary : variant === "ghost" ? styles.variantGhost : styles.variantGlass;
+    const variantClass = variant === "primary" ? styles.variantPrimary : variant === "ghost" ? styles.variantGhost : styles.variantGlass;
 
-    const shapeClass =
-      shape === "circle" ? styles.shapeCircle : shape === "rounded" ? styles.shapeRounded : styles.shapePill;
+    const shapeClass = shape === "circle" ? styles.shapeCircle : shape === "rounded" ? styles.shapeRounded : styles.shapePill;
 
     let sizeClass = styles.sizeMd;
     if (isIconOnly) {
@@ -128,6 +138,7 @@ export const GlassButton = forwardRef<HTMLButtonElement, GlassButtonProps>(
 
     const classNames = [
       styles.button,
+      !isInteractive ? styles.nonInteractive : "",
       variantClass,
       shapeClass,
       sizeClass,
@@ -137,26 +148,39 @@ export const GlassButton = forwardRef<HTMLButtonElement, GlassButtonProps>(
       .filter(Boolean)
       .join(" ");
 
+    const componentProps: Record<string, unknown> = {
+      ref: setRefs,
+      className: classNames,
+      onPointerEnter: handlePointerEnter,
+      onPointerMove: handlePointerMove,
+      onPointerLeave: handlePointerLeave,
+      ...props,
+    };
+
+    if (Component === "button") {
+      componentProps.type = (props as { type?: string }).type || "button";
+      componentProps.disabled = disabled;
+    } else if (disabled) {
+      componentProps["aria-disabled"] = true;
+    }
+
     return (
-      <button
-        ref={setRefs}
-        type={type}
-        disabled={disabled}
-        className={classNames}
-        onPointerEnter={handlePointerEnter}
-        onPointerMove={handlePointerMove}
-        onPointerLeave={handlePointerLeave}
-        {...props}
-      >
+      <Component {...componentProps}>
         <span className={styles.lens} aria-hidden="true" />
         <span className={styles.content}>
           {leftSection && <span className={styles.iconWrapper}>{leftSection}</span>}
           {children}
           {rightSection && <span className={styles.iconWrapper}>{rightSection}</span>}
         </span>
-      </button>
+      </Component>
     );
   },
 );
 
-GlassButton.displayName = "GlassButton";
+GlassElement.displayName = "GlassElement";
+
+export const GlassButton = GlassElement;
+export type GlassButtonVariant = GlassElementVariant;
+export type GlassButtonSize = GlassElementSize;
+export type GlassButtonShape = GlassElementShape;
+export type GlassButtonProps = GlassElementProps<"button">;

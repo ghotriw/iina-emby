@@ -9,6 +9,7 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0.625rem;
+  padding: 0 1.5rem;
 }
 
 .title {
@@ -22,12 +23,12 @@
 .scroller {
   display: flex;
   overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
-  /* Extra vertical padding so hover scale and focus rings don't get clipped */
-  padding: 0.375rem 0.125rem 0.75rem 0.125rem;
-  margin: -0.375rem -0.125rem -0.75rem -0.125rem;
+  /* Extra vertical padding so hover scale and focus rings don't get clipped; horizontal padding aligns with header */
+  padding: 0.375rem 1.5rem 0.75rem 1.5rem;
+  scroll-padding: 0 1.5rem;
+  overscroll-behavior-x: contain;
   scrollbar-width: none;
 }
 
@@ -38,4 +39,14 @@
 .itemWrapper {
   flex: 0 0 auto;
   scroll-snap-align: start;
+}
+
+.itemWrapper:last-child {
+  scroll-snap-align: end;
+}
+
+.emptyText {
+  padding: 0.5rem 1.5rem;
+  color: var(--macos-text-tertiary);
+  font-size: var(--font-size-body);
 }

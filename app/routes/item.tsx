@@ -3,7 +3,7 @@ import { getEmbyImageUrl, getItemImageUrl } from "@shared";
 import { IconChevronLeft, IconPlayerPlayFilled } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
-import { GlassButton } from "../components/GlassButton";
+import { GlassButton } from "../components/GlassElement";
 import { useIINABridge } from "../hooks/useIINABridge";
 import { buildStreamUrl, fetchItemDetails, fetchNextUp } from "../lib/emby-library-client";
 import styles from "./item.module.css";

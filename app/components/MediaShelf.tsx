@@ -22,42 +22,63 @@ export interface MediaShelfProps {
 
 export function MediaShelf({ title, rightSection, children, itemWidth = 260, gap = 16, className, emptyText }: MediaShelfProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const rafIdRef = useRef<number | null>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
   const checkScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const { scrollLeft, scrollWidth, clientWidth } = el;
-    setCanScrollLeft(scrollLeft > 3);
-    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 3);
+    if (rafIdRef.current !== null) return;
+    rafIdRef.current = requestAnimationFrame(() => {
+      rafIdRef.current = null;
+      const el = scrollRef.current;
+      if (!el) return;
+      const { scrollLeft, scrollWidth, clientWidth } = el;
+      const nextLeft = scrollLeft > 5;
+      const nextRight = scrollLeft + clientWidth < scrollWidth - 5;
+      setCanScrollLeft((prev) => (prev !== nextLeft ? nextLeft : prev));
+      setCanScrollRight((prev) => (prev !== nextRight ? nextRight : prev));
+    });
   }, []);
 
+  const childCount = React.Children.count(children);
+
   useEffect(() => {
-    checkScroll();
+    if (childCount > 0) {
+      checkScroll();
+    }
     const el = scrollRef.current;
     if (!el) return;
 
-    el.addEventListener("scroll", checkScroll, { passive: true });
+    const ro = new ResizeObserver(() => {
+      checkScroll();
+    });
+    ro.observe(el);
+
     window.addEventListener("resize", checkScroll, { passive: true });
 
     return () => {
-      el.removeEventListener("scroll", checkScroll);
+      ro.disconnect();
       window.removeEventListener("resize", checkScroll);
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
     };
-  }, [checkScroll]);
+  }, [checkScroll, childCount]);
 
   const handleScroll = (direction: "left" | "right") => {
     const el = scrollRef.current;
     if (!el) return;
-    const scrollAmount = Math.max(260, el.clientWidth * 0.75);
+    const numericItemWidth = typeof itemWidth === "number" ? itemWidth : Number.parseInt(String(itemWidth), 10) || 260;
+    const itemStep = numericItemWidth + gap;
+    const visibleItems = Math.max(1, Math.floor(el.clientWidth / itemStep));
+    const scrollAmount = visibleItems * itemStep;
     el.scrollBy({
       left: direction === "left" ? -scrollAmount : scrollAmount,
       behavior: "smooth",
     });
   };
 
-  const childCount = React.Children.count(children);
   const showNavArrows = canScrollLeft || canScrollRight;
 
   return (
@@ -75,6 +96,7 @@ export function MediaShelf({ title, rightSection, children, itemWidth = 260, gap
                   color="gray"
                   size="sm"
                   disabled={!canScrollLeft}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleScroll("left")}
                   aria-label="Scroll left"
                 >
@@ -85,6 +107,7 @@ export function MediaShelf({ title, rightSection, children, itemWidth = 260, gap
                   color="gray"
                   size="sm"
                   disabled={!canScrollRight}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleScroll("right")}
                   aria-label="Scroll right"
                 >
@@ -97,7 +120,7 @@ export function MediaShelf({ title, rightSection, children, itemWidth = 260, gap
       )}
 
       {childCount > 0 ? (
-        <div ref={scrollRef} className={classes.scroller} style={{ gap }}>
+        <div ref={scrollRef} className={classes.scroller} style={{ gap }} onScroll={checkScroll}>
           {React.Children.map(children, (child) => {
             if (!child) return null;
             return (
@@ -108,7 +131,7 @@ export function MediaShelf({ title, rightSection, children, itemWidth = 260, gap
           })}
         </div>
       ) : emptyText ? (
-        <div style={{ color: "var(--macos-text-tertiary)", fontSize: "var(--font-size-body)", padding: "0.5rem 0" }}>{emptyText}</div>
+        <div className={classes.emptyText}>{emptyText}</div>
       ) : null}
     </section>
   );

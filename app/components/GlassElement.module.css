@@ -39,6 +39,14 @@
     box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.nonInteractive {
+  cursor: default;
+}
+
+.nonInteractive:active {
+  transform: none;
+}
+
 /*  Layer 1: Lens */
 .lens {
   position: absolute;

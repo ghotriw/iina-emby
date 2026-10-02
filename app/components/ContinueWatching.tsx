@@ -29,7 +29,7 @@ export const ContinueWatching = forwardRef<ContinueWatchingHandle, ContinueWatch
   return (
     <div>
       {error && (
-        <Alert icon={<IconAlertCircle size={16} />} title="Error loading items" color="red" variant="light" mb="md">
+        <Alert icon={<IconAlertCircle size={16} />} title="Error loading items" color="red" variant="light" mb="md" mx="1.5rem">
           {error}
         </Alert>
       )}

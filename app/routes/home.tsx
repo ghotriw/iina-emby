@@ -3,7 +3,7 @@ import { IconAlertCircle, IconChevronLeft, IconReload } from "@tabler/icons-reac
 import { useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router";
 import { ContinueWatching, type ContinueWatchingHandle } from "../components/ContinueWatching";
-import { GlassButton } from "../components/GlassButton";
+import { GlassButton, GlassElement } from "../components/GlassElement";
 import { LibraryShelf, LibraryShelfSkeleton } from "../components/LibraryShelf";
 import { useIINABridge } from "../hooks/useIINABridge";
 import { useLibrarySections } from "../hooks/useLibrarySections";
@@ -38,10 +38,7 @@ export default function HomeRoute() {
     if (isRefreshing) return;
     setIsRefreshing(true);
     try {
-      await Promise.allSettled([
-        reload(),
-        continueWatchingRef.current?.refresh(),
-      ]);
+      await Promise.allSettled([reload(), continueWatchingRef.current?.refresh()]);
     } finally {
       setIsRefreshing(false);
     }
@@ -52,7 +49,7 @@ export default function HomeRoute() {
       {/* Top navigation bar on common background */}
       <header className={styles.header}>
         <div className={styles.headerLeft}>
-          <GlassButton
+          <GlassElement
             variant="glass"
             shape="circle"
             size="sm"
@@ -62,15 +59,20 @@ export default function HomeRoute() {
             aria-label="Back to servers"
           >
             <IconChevronLeft size={18} />
-          </GlassButton>
-        </div>
+          </GlassElement>
 
-        <div className={styles.headerCenter}>
-          <div className={styles.serverBadge}>
-            <span className={styles.activeDot} />
+          <GlassElement
+            as="div"
+            variant="glass"
+            shape="pill"
+            size="sm"
+            interactive={false}
+            leftSection={<span className={styles.activeDot} />}
+            className={styles.serverBadge}
+          >
             <span className={styles.serverName}>{activeServer.serverName || "Emby"}</span>
             {activeServer.username && <span className={styles.userName}>({activeServer.username})</span>}
-          </div>
+          </GlassElement>
         </div>
 
         <div className={styles.headerRight}>
@@ -95,7 +97,7 @@ export default function HomeRoute() {
         <ContinueWatching ref={continueWatchingRef} server={activeServer} onPlayMedia={playMedia} />
 
         {sectionsError && (
-          <Alert icon={<IconAlertCircle size={16} />} title="Error loading libraries" color="red" variant="light" mb="md">
+          <Alert icon={<IconAlertCircle size={16} />} title="Error loading libraries" color="red" variant="light" mb="md" mx="1.5rem">
             {sectionsError.message}
           </Alert>
         )}
@@ -108,13 +110,7 @@ export default function HomeRoute() {
           </>
         ) : (
           sections.map(({ view, items, isLoading: isShelfLoading }) => (
-            <LibraryShelf
-              key={view.Id}
-              view={view}
-              items={items}
-              server={activeServer}
-              isLoading={isShelfLoading}
-            />
+            <LibraryShelf key={view.Id} view={view} items={items} server={activeServer} isLoading={isShelfLoading} />
           ))
         )}
       </main>
