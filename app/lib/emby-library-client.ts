@@ -171,3 +171,58 @@ export function buildStreamUrl(server: EmbyServer, itemId: string): string {
   const base = server.serverUrl.replace(/\/+$/, "");
   return `${base}/Videos/${encodeURIComponent(itemId)}/stream?static=true&api_key=${encodeURIComponent(server.accessToken)}`;
 }
+
+/**
+ * Fetch all seasons for a series.
+ */
+export async function fetchSeasons(server: EmbyServer, seriesId: string): Promise<EmbyItemMetadata[]> {
+  const base = server.serverUrl.replace(/\/+$/, "");
+  const query = new URLSearchParams({
+    UserId: server.userId,
+    Fields: "ItemCounts,PrimaryImageAspectRatio,Overview,UserData",
+  });
+
+  const url = `${base}/Shows/${encodeURIComponent(seriesId)}/Seasons?${query.toString()}`;
+  const response = await fetch(url, {
+    headers: buildAuthHeaders(server.accessToken, {
+      Accept: "application/json",
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch seasons: ${response.status} ${response.statusText}`);
+  }
+
+  const data = (await response.json()) as EmbyItemsResponse<EmbyItemMetadata>;
+  return data.Items || [];
+}
+
+/**
+ * Fetch episodes for a series, optionally filtered by seasonId.
+ */
+export async function fetchEpisodes(server: EmbyServer, seriesId: string, seasonId?: string): Promise<EmbyItemMetadata[]> {
+  const base = server.serverUrl.replace(/\/+$/, "");
+  const query = new URLSearchParams({
+    UserId: server.userId,
+    Fields:
+      "Overview,PrimaryImageAspectRatio,SeriesName,SeasonId,SeriesId,ParentIndexNumber,IndexNumber,MediaSources,MediaStreams,ImageTags,UserData,RunTimeTicks",
+  });
+
+  if (seasonId) {
+    query.set("seasonId", seasonId);
+  }
+
+  const url = `${base}/Shows/${encodeURIComponent(seriesId)}/Episodes?${query.toString()}`;
+  const response = await fetch(url, {
+    headers: buildAuthHeaders(server.accessToken, {
+      Accept: "application/json",
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch episodes: ${response.status} ${response.statusText}`);
+  }
+
+  const data = (await response.json()) as EmbyItemsResponse<EmbyItemMetadata>;
+  return data.Items || [];
+}

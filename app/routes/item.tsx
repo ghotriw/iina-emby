@@ -1,11 +1,14 @@
+import { Modal, Select } from "@mantine/core";
 import type { EmbyItemMetadata, EmbyMediaStream } from "@shared";
 import { getEmbyImageUrl, getItemImageUrl } from "@shared";
-import { IconChevronLeft, IconPlayerPlayFilled } from "@tabler/icons-react";
+import { IconChevronLeft, IconPlayerPlayFilled, IconX } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { GlassButton } from "../components/GlassElement";
+import { MediaShelf } from "../components/MediaShelf";
+import { MediaThumb, MediaThumbSkeleton } from "../components/MediaThumb";
 import { useIINABridge } from "../hooks/useIINABridge";
-import { buildStreamUrl, fetchItemDetails, fetchNextUp } from "../lib/emby-library-client";
+import { buildStreamUrl, fetchEpisodes, fetchItemDetails, fetchNextUp, fetchSeasons } from "../lib/emby-library-client";
 import styles from "./item.module.css";
 
 export function meta() {
@@ -59,6 +62,14 @@ export default function ItemDetailRoute() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [logoError, setLogoError] = useState(false);
 
+  // Series Seasons & Episodes state
+  const isSeries = item?.Type === "Series";
+  const [seasons, setSeasons] = useState<EmbyItemMetadata[]>([]);
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
+  const [episodes, setEpisodes] = useState<EmbyItemMetadata[]>([]);
+  const [isEpisodesLoading, setIsEpisodesLoading] = useState(false);
+  const [detailEpisode, setDetailEpisode] = useState<EmbyItemMetadata | null>(null);
+
   useEffect(() => {
     if (!activeServer || !id) return;
 
@@ -100,6 +111,62 @@ export default function ItemDetailRoute() {
       isCancelled = true;
     };
   }, [activeServer, item]);
+
+  // Fetch seasons for series
+  useEffect(() => {
+    if (!activeServer || !item || item.Type !== "Series") return;
+
+    let isCancelled = false;
+
+    fetchSeasons(activeServer, item.Id)
+      .then((seasonList) => {
+        if (isCancelled) return;
+        setSeasons(seasonList);
+
+        if (seasonList.length > 0) {
+          setSelectedSeasonId((current) => {
+            if (current && seasonList.some((s) => s.Id === current)) return current;
+            if (nextUpEpisode?.SeasonId && seasonList.some((s) => s.Id === nextUpEpisode.SeasonId)) {
+              return nextUpEpisode.SeasonId;
+            }
+            return seasonList[0].Id;
+          });
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load seasons:", err);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeServer, item, nextUpEpisode?.SeasonId]);
+
+  // Fetch episodes when selected season changes
+  useEffect(() => {
+    if (!activeServer || !item || item.Type !== "Series" || !selectedSeasonId) return;
+
+    let isCancelled = false;
+    setIsEpisodesLoading(true);
+
+    fetchEpisodes(activeServer, item.Id, selectedSeasonId)
+      .then((epList) => {
+        if (isCancelled) return;
+        setEpisodes(epList);
+      })
+      .catch((err) => {
+        console.error("Failed to load episodes for season:", err);
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsEpisodesLoading(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeServer, item, selectedSeasonId]);
 
   if (!activeServer) {
     return null;
@@ -195,7 +262,7 @@ export default function ItemDetailRoute() {
   const resumeTicks = targetItem?.UserData?.PlaybackPositionTicks || item?.UserData?.PlaybackPositionTicks;
   const resumeTimeClock = formatResumeTime(resumeTicks);
 
-  // Overview / Synopsis with optional prefix (e.g. "[The Agency (2024) · Seasons 2/1 · Episode 2]")
+  // Overview / Synopsis with optional prefix
   let overviewPrefix: string | null = null;
   if (item?.Type === "Series" && nextUpEpisode) {
     const sNum = nextUpEpisode.ParentIndexNumber ?? 1;
@@ -207,7 +274,7 @@ export default function ItemDetailRoute() {
 
   const overviewText: string = String(targetItem?.Overview || item?.Overview || "");
 
-  // Playback execution
+  // Main hero playback execution
   const handlePlay = () => {
     if (!targetItem || isPlaying) return;
 
@@ -230,6 +297,24 @@ export default function ItemDetailRoute() {
       setIsPlaying(false);
     }
   };
+
+  // Episode card playback execution
+  const handlePlayEpisode = (ep: EmbyItemMetadata) => {
+    const sNum = ep.ParentIndexNumber !== undefined ? String(ep.ParentIndexNumber).padStart(2, "0") : "01";
+    const eNum = ep.IndexNumber !== undefined ? String(ep.IndexNumber).padStart(2, "0") : "01";
+    const playTitle = `${item?.Name || "Series"} - S${sNum}E${eNum} - ${ep.Name || "Episode"}`;
+
+    playMedia({
+      title: playTitle,
+      streamUrl: buildStreamUrl(activeServer, ep.Id),
+      startPositionTicks: ep.UserData?.PlaybackPositionTicks,
+    });
+  };
+
+  const seasonOptions = seasons.map((s) => ({
+    value: s.Id,
+    label: s.Name || `Season ${s.IndexNumber ?? 1}`,
+  }));
 
   return (
     <div className={styles.container}>
@@ -256,7 +341,7 @@ export default function ItemDetailRoute() {
       </header>
 
       {/* Hero Bottom Layout */}
-      <main className={styles.heroContent}>
+      <main className={`${styles.heroContent}`}>
         <div className={styles.row}>
           <div className={styles.leftColumn}>
             <div className={styles.logoWrapper}>
@@ -321,6 +406,99 @@ export default function ItemDetailRoute() {
           </div>
         </div>
       </main>
+
+      {/* Series Seasons & Episodes Shelf */}
+      {isSeries && (
+        <section className={styles.seriesSection}>
+          <MediaShelf
+            title={
+              <div className={styles.shelfHeader}>
+                <h3 className={styles.shelfTitle}>Episodes</h3>
+                {seasons.length > 0 && (
+                  <Select
+                    data={seasonOptions}
+                    value={selectedSeasonId}
+                    onChange={(val) => {
+                      if (val) setSelectedSeasonId(val);
+                    }}
+                    allowDeselect={false}
+                    className={styles.seasonSelect}
+                    comboboxProps={{
+                      withinPortal: true,
+                      transitionProps: { transition: "fade", duration: 120 },
+                      shadow: "md",
+                    }}
+                  />
+                )}
+              </div>
+            }
+            itemWidth={300}
+            gap={16}
+            emptyText={!isEpisodesLoading ? "No episodes available for this season." : undefined}
+          >
+            {isEpisodesLoading && episodes.length === 0
+              ? [1, 2, 3, 4, 5].map((id) => <MediaThumbSkeleton key={id} />)
+              : episodes.map((ep) => {
+                  const sNum = ep.ParentIndexNumber !== undefined ? String(ep.ParentIndexNumber).padStart(2, "0") : "01";
+                  const eNum = ep.IndexNumber !== undefined ? String(ep.IndexNumber).padStart(2, "0") : "01";
+                  const cardTitle = `S${sNum} - E${eNum} - ${ep.Name || `Episode ${ep.IndexNumber || ""}`}`;
+                  return (
+                    <MediaThumb
+                      key={ep.Id}
+                      item={ep}
+                      server={activeServer}
+                      title={cardTitle}
+                      subtitle={ep.Overview || undefined}
+                      subtitleLines={3}
+                      onPlay={() => handlePlayEpisode(ep)}
+                      onClick={() => setDetailEpisode(ep)}
+                    />
+                  );
+                })}
+          </MediaShelf>
+        </section>
+      )}
+
+      {/* Episode Full Overview Modal */}
+      <Modal
+        opened={Boolean(detailEpisode)}
+        onClose={() => setDetailEpisode(null)}
+        centered
+        size="28rem"
+        withCloseButton={false}
+        classNames={{
+          content: styles.modalContent,
+          overlay: styles.modalOverlay,
+        }}
+      >
+        {detailEpisode && (
+          <div className={styles.modalBody}>
+            <div className={styles.modalHeader}>
+              <div className={styles.modalHeaderInfo}>
+                <div className={styles.modalEpisodeCode}>
+                  S{String(detailEpisode.ParentIndexNumber ?? 1).padStart(2, "0")} · E
+                  {String(detailEpisode.IndexNumber ?? 1).padStart(2, "0")}
+                </div>
+                <h3 className={styles.modalEpisodeTitle}>{detailEpisode.Name || "Episode"}</h3>
+              </div>
+
+              <button
+                type="button"
+                className={styles.modalCloseButton}
+                onClick={() => setDetailEpisode(null)}
+                aria-label="Close"
+                title="Close"
+              >
+                <IconX size={16} />
+              </button>
+            </div>
+
+            <div className={styles.modalOverviewScroll}>
+              <p className={styles.modalOverviewText}>{detailEpisode.Overview || "No overview available for this episode."}</p>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

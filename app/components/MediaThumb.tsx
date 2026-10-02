@@ -47,19 +47,36 @@ export interface MediaThumbProps {
   aspectRatio?: number;
   width?: number | string;
   className?: string;
+  title?: string;
+  subtitle?: string;
+  subtitleLines?: number;
 }
 
-export function MediaThumb({ item, server, onPlay, onClick, aspectRatio = 16 / 9, width, className }: MediaThumbProps) {
+export function MediaThumb({
+  item,
+  server,
+  onPlay,
+  onClick,
+  aspectRatio = 16 / 9,
+  width,
+  className,
+  title: customTitle,
+  subtitle: customSubtitle,
+  subtitleLines,
+}: MediaThumbProps) {
   const navigate = useNavigate();
   const [imageError, setImageError] = useState(false);
 
   const isEpisode = item.Type === "Episode";
-  const title = isEpisode ? item.SeriesName || item.Name || "Episode" : item.Name || "Movie";
-  const subtitle = isEpisode
+  const defaultTitle = isEpisode ? item.SeriesName || item.Name || "Episode" : item.Name || "Movie";
+  const title = customTitle ?? defaultTitle;
+
+  const defaultSubtitle = isEpisode
     ? formatEpisodeSubtitle(item.ParentIndexNumber, item.IndexNumber, item.Name)
     : item.ProductionYear
       ? String(item.ProductionYear)
       : undefined;
+  const subtitle = customSubtitle !== undefined ? customSubtitle : defaultSubtitle;
 
   const imageUrl = !imageError
     ? getItemImageUrl(server.serverUrl, item, {
@@ -79,9 +96,11 @@ export function MediaThumb({ item, server, onPlay, onClick, aspectRatio = 16 / 9
 
   const timeLabel = hasProgress ? formatTimeProgress(currentSec, totalSec) : totalSec > 0 ? formatDuration(totalSec) : null;
 
-  const fullPlayTitle = isEpisode
-    ? `${item.SeriesName || ""} - ${formatEpisodeSubtitle(item.ParentIndexNumber, item.IndexNumber, item.Name)}`
-    : item.Name || "";
+  const fullPlayTitle = customTitle
+    ? customTitle
+    : isEpisode
+      ? `${item.SeriesName || ""} - ${formatEpisodeSubtitle(item.ParentIndexNumber, item.IndexNumber, item.Name)}`
+      : item.Name || "";
 
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -161,7 +180,14 @@ export function MediaThumb({ item, server, onPlay, onClick, aspectRatio = 16 / 9
         title={subtitle ? `${title} • ${subtitle}` : title}
       >
         <div className={classes.title}>{title}</div>
-        {subtitle && <div className={classes.subtitle}>{subtitle}</div>}
+        {subtitle && (
+          <div
+            className={`${classes.subtitle} ${subtitleLines ? classes.subtitleClamped : ""}`}
+            style={subtitleLines ? { WebkitLineClamp: subtitleLines } : undefined}
+          >
+            {subtitle}
+          </div>
+        )}
       </button>
     </div>
   );
