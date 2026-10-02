@@ -1,10 +1,10 @@
 {
   "name": "Emby",
   "identifier": "com.ghotriw.iina-emby",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Emby plugin for IINA.",
   "ghRepo": "ghotriw/iina-emby",
-  "ghVersion": 2,
+  "ghVersion": 3,
   "author": {
     "name": "Andrii Honcharov"
   },
@@ -21,7 +21,7 @@
     "show_notifications": false,
     "debug_logging": false,
     "set_video_title": true,
-    "open_in_new_window": true,
+    "open_in_new_window": false,
     "auto_login_enabled": true,
     "autoplay_next_episode": true,
     "sync_playback_progress": true,

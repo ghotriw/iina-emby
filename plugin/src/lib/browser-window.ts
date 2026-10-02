@@ -12,51 +12,58 @@ export interface BrowserWindowDeps {
 }
 
 export function createBrowserWindowManager({ core, sidebar, standaloneWindow, preferences, bridgeDeps, log }: BrowserWindowDeps) {
+  let standaloneInitialized = false;
+
   function openEmbyStandaloneWindow(): void {
     try {
-      log("Creating standalone Emby browser window");
+      log("Opening standalone Emby browser window");
 
-      // Load the React SPA HTML in standalone window
-      standaloneWindow.loadFile("dist/client/index.html");
+      if (!standaloneInitialized) {
+        standaloneInitialized = true;
 
-      // Restore previously saved window dimensions or use default 520x720
-      const savedWidth = preferences.get("standalone_window_width") as number | undefined;
-      const savedHeight = preferences.get("standalone_window_height") as number | undefined;
-      const width = typeof savedWidth === "number" && savedWidth >= 320 ? savedWidth : 520;
-      const height = typeof savedHeight === "number" && savedHeight >= 400 ? savedHeight : 720;
+        // Load the React SPA HTML in standalone window
+        standaloneWindow.loadFile("dist/client/index.html");
 
-      // setFrame takes (w, h, x, y). Passing null for x and y preserves position
-      standaloneWindow.setFrame(width, height, null, null);
+        // Restore previously saved window dimensions or use default 520x720
+        const savedWidth = preferences.get("standalone_window_width") as number | undefined;
+        const savedHeight = preferences.get("standalone_window_height") as number | undefined;
+        const width = typeof savedWidth === "number" && savedWidth >= 320 ? savedWidth : 520;
+        const height = typeof savedHeight === "number" && savedHeight >= 400 ? savedHeight : 720;
 
-      const saWithProps = standaloneWindow as unknown as {
-        setProperty?: (props: Record<string, unknown>) => void;
-      };
-      if (typeof saWithProps.setProperty === "function") {
-        saWithProps.setProperty({
-          title: "Emby Browser",
-          resizable: true,
-          enableWebInspector: true,
-        });
-      }
+        // setFrame takes (w, h, x, y). Passing null for x and y preserves position
+        standaloneWindow.setFrame(width, height, null, null);
 
-      // Listen for window resize events from the webview to persist size
-      standaloneWindow.onMessage("save-window-size", (data?: { width?: number; height?: number }) => {
-        if (data?.width && data?.height && data.width >= 320 && data.height >= 400) {
-          const w = Math.round(data.width);
-          const h = Math.round(data.height);
-          preferences.set("standalone_window_width", w);
-          preferences.set("standalone_window_height", h);
-          preferences.sync();
-          log(`Saved standalone window size: ${w}x${h}`);
+        const saWithProps = standaloneWindow as unknown as {
+          setProperty?: (props: Record<string, unknown>) => void;
+        };
+        if (typeof saWithProps.setProperty === "function") {
+          saWithProps.setProperty({
+            title: "Emby Browser",
+            resizable: true,
+            enableWebInspector: true,
+          });
         }
-      });
 
-      // Register bridge handlers with auto-close on media play
-      registerBridgeHandlers(standaloneWindow, bridgeDeps, { closeOnPlay: true, isStandalone: true });
+        // Listen for window resize events from the webview to persist size
+        standaloneWindow.onMessage("save-window-size", (data?: { width?: number; height?: number }) => {
+          if (data?.width && data?.height && data.width >= 320 && data.height >= 400) {
+            const w = Math.round(data.width);
+            const h = Math.round(data.height);
+            preferences.set("standalone_window_width", w);
+            preferences.set("standalone_window_height", h);
+            preferences.sync();
+            log(`Saved standalone window size: ${w}x${h}`);
+          }
+        });
+
+        // Register bridge handlers with auto-close on media play
+        registerBridgeHandlers(standaloneWindow, bridgeDeps, { closeOnPlay: true, isStandalone: true });
+      }
 
       // Open the window
       standaloneWindow.open();
       standaloneWindow.postMessage("window-context", { isStandalone: true });
+      standaloneWindow.postMessage("window-reopened", { timestamp: Date.now() });
 
       log("Standalone Emby browser window opened successfully");
       const sessionData = bridgeDeps.getStoredEmbySession();
@@ -93,7 +100,9 @@ export function createBrowserWindowManager({ core, sidebar, standaloneWindow, pr
 
     if (windowAvailable && sidebar && typeof sidebar.show === "function") {
       try {
+        initSidebar();
         sidebar.show();
+        sidebar.postMessage("window-reopened", { timestamp: Date.now() });
         log("Sidebar shown successfully");
         return;
       } catch (error: unknown) {
@@ -107,8 +116,11 @@ export function createBrowserWindowManager({ core, sidebar, standaloneWindow, pr
     openEmbyStandaloneWindow();
   }
 
+  let sidebarInitialized = false;
+
   function initSidebar(): void {
-    if (!sidebar) return;
+    if (!sidebar || sidebarInitialized) return;
+    sidebarInitialized = true;
     sidebar.loadFile("dist/client/index.html");
     registerBridgeHandlers(sidebar, bridgeDeps, { closeOnPlay: false, isStandalone: false });
     sidebar.postMessage("window-context", { isStandalone: false });

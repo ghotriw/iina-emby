@@ -56,6 +56,10 @@ export interface WindowContextPayload {
   isStandalone: boolean;
 }
 
+export interface WindowReopenedPayload {
+  timestamp?: number;
+}
+
 /**
  * Messages sent from IINA plugin to WebView (inbound to React)
  */
@@ -66,6 +70,7 @@ export interface BridgeInboundMap {
   "session-data": StoredSessionPayload | null;
   "session-available": StoredSessionPayload;
   "window-context": WindowContextPayload;
+  "window-reopened": WindowReopenedPayload;
 }
 
 /**

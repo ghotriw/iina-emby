@@ -4,9 +4,9 @@ import { useLocation, useNavigate, useParams } from "react-router";
 import { EpisodeDetailModal } from "../components/EpisodeDetailModal";
 import { ItemHero } from "../components/ItemHero";
 import { SeriesEpisodesShelf } from "../components/SeriesEpisodesShelf";
-import { useIINABridge } from "../hooks/useIINABridge";
+import { useIINABridge, useOnWindowReopen } from "../hooks/useIINABridge";
 import { useSeriesEpisodes } from "../hooks/useSeriesEpisodes";
-import { buildStreamUrl, fetchItemDetails } from "../lib/emby-library-client";
+import { buildStreamUrl, clearLibraryCache, fetchItemDetails } from "../lib/emby-library-client";
 import styles from "./item.module.css";
 
 export function meta() {
@@ -23,6 +23,12 @@ export default function ItemDetailRoute() {
   const [item, setItem] = useState<EmbyItemMetadata | undefined>(stateItem);
   const [isPlaying, setIsPlaying] = useState(false);
   const [detailEpisode, setDetailEpisode] = useState<EmbyItemMetadata | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
+
+  useOnWindowReopen(() => {
+    clearLibraryCache();
+    setReloadNonce((prev) => prev + 1);
+  });
 
   // Fetch full item details
   useEffect(() => {
@@ -46,7 +52,7 @@ export default function ItemDetailRoute() {
     return () => {
       controller.abort();
     };
-  }, [activeServer, id]);
+  }, [activeServer, id, reloadNonce]);
 
   // Series next-up, seasons, and episodes management
   const { isSeries, nextUpEpisode, seasons, selectedSeasonId, setSelectedSeasonId, episodes, isEpisodesLoading } = useSeriesEpisodes(

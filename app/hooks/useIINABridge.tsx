@@ -1,6 +1,6 @@
 import type { EmbyServer, PlayMediaPayload, TypedIinaBridge } from "@shared";
 import type React from "react";
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { setClientIdentity } from "../lib/emby-auth-client";
 
 declare global {
@@ -19,6 +19,7 @@ export interface IINABridgeContextType {
   isIinaAvailable: boolean;
   isStandalone: boolean;
   isLoading: boolean;
+  reopenCount: number;
   saveServer: (server: EmbyServer) => void;
   selectServer: (serverId: string) => void;
   removeServer: (serverId: string) => void;
@@ -52,6 +53,7 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
   const [isIinaAvailable, setIsIinaAvailable] = useState<boolean>(hasIina);
   const [isStandalone, setIsStandalone] = useState<boolean>(() => typeof window !== "undefined" && window.innerWidth >= 450);
   const [isLoading, setIsLoading] = useState<boolean>(hasIina);
+  const [reopenCount, setReopenCount] = useState<number>(0);
 
   // Standalone web dev fallback: synchronize servers and active server ID to localStorage only when NOT in IINA
   useEffect(() => {
@@ -79,6 +81,10 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
         if (data && typeof data.isStandalone === "boolean") {
           setIsStandalone(data.isStandalone);
         }
+      });
+
+      window.iina.onMessage("window-reopened", () => {
+        setReopenCount((prev) => prev + 1);
       });
 
       window.iina.onMessage("client-identity", (identity) => {
@@ -220,6 +226,7 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
     isIinaAvailable,
     isStandalone,
     isLoading,
+    reopenCount,
     saveServer,
     selectServer,
     removeServer,
@@ -235,4 +242,19 @@ export function useIINABridge(): IINABridgeContextType {
     throw new Error("useIINABridge must be used within an IINABridgeProvider");
   }
   return context;
+}
+
+export function useOnWindowReopen(callback: () => void) {
+  const { reopenCount } = useIINABridge();
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
+  const isFirstMount = useRef(true);
+
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
+    callbackRef.current();
+  }, [reopenCount]);
 }

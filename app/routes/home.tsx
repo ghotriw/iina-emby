@@ -5,7 +5,7 @@ import { Alert } from "../components/Alert";
 import { ContinueWatching, type ContinueWatchingHandle } from "../components/ContinueWatching";
 import { GlassElement } from "../components/GlassElement";
 import { LibraryShelf, LibraryShelfSkeleton } from "../components/LibraryShelf";
-import { useIINABridge } from "../hooks/useIINABridge";
+import { useIINABridge, useOnWindowReopen } from "../hooks/useIINABridge";
 import { useLibrarySections } from "../hooks/useLibrarySections";
 import { clearLibraryCache } from "../lib/emby-library-client";
 import styles from "./home.module.css";
@@ -21,6 +21,21 @@ export default function HomeRoute() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const continueWatchingRef = useRef<ContinueWatchingHandle | null>(null);
 
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    clearLibraryCache();
+    try {
+      await Promise.allSettled([reload(), continueWatchingRef.current?.refresh()]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  useOnWindowReopen(() => {
+    handleRefresh();
+  });
+
   // Wait for IINA bridge to report servers list before redirecting
   if (isLoading) {
     return null;
@@ -33,17 +48,6 @@ export default function HomeRoute() {
 
   const handleBack = () => {
     navigate("/servers");
-  };
-
-  const handleRefresh = async () => {
-    if (isRefreshing) return;
-    setIsRefreshing(true);
-    clearLibraryCache();
-    try {
-      await Promise.allSettled([reload(), continueWatchingRef.current?.refresh()]);
-    } finally {
-      setIsRefreshing(false);
-    }
   };
 
   return (

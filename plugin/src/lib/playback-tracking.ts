@@ -497,17 +497,19 @@ export function createPlaybackTrackingManager({
       let finalPosition = lastKnownPosition;
       try {
         const position = samplePosition();
-        if (position !== null) {
+        if (position !== null && position > 0) {
           finalPosition = position;
         }
       } catch {
         log(`Could not get final position from core, using lastKnownPosition: ${finalPosition}`);
       }
 
-      if (!hasStartedPlayback) {
+      if (!hasStartedPlayback || finalPosition === 0) {
         const preserved = currentPlaybackSession.resumePosition ?? lastReportedPosition;
-        log(`No playback observed, reporting the stored position (${preserved}s)`);
-        finalPosition = preserved;
+        if (typeof preserved === "number" && preserved > 0) {
+          log(`Preserving previous position (${preserved}s) as observed position is 0`);
+          finalPosition = preserved;
+        }
       }
 
       reportPlaybackStop(serverBase, itemId, apiKey, finalPosition, playSessionId, mediaSourceId);

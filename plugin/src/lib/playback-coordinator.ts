@@ -126,6 +126,7 @@ export function createPlaybackCoordinator({
    */
   function openInCurrentWindow(streamUrl: string, title?: string, startPositionSeconds?: number): void {
     log("Opening media in current window: " + streamUrl);
+    markLaunchedFromBrowser();
 
     currentPlaybackTitle = title || null;
     currentPlaybackItemId = (String(streamUrl).match(/\/(?:Items|Videos|Audio)\/([^/?]+)/) || [])[1] || null;

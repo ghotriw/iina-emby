@@ -368,10 +368,8 @@ export function createAutoplayManager({
     })();
   }
 
-  function resetForNewFile(episodeId?: string | null) {
-    if (!episodeId || lastProcessedEpisodeId !== episodeId) {
-      lastProcessedEpisodeId = null;
-    }
+  function resetForNewFile(_episodeId?: string | null) {
+    lastProcessedEpisodeId = null;
     autoplayQueued = false;
   }
 

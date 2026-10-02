@@ -3,7 +3,7 @@
 // shared/constants.ts
 var CLIENT_NAME = "IINA Emby Plugin";
 var DEVICE_NAME = "IINA";
-var CLIENT_VERSION = true ? "0.1.3" : "0.1.0";
+var CLIENT_VERSION = true ? "0.2.0" : "0.1.0";
 
 // shared/utils/auth.ts
 function buildAuthorizationHeader(identity, token) {
@@ -363,10 +363,8 @@ ${episode.playUrl}
       }
     })();
   }
-  function resetForNewFile2(episodeId) {
-    if (!episodeId || lastProcessedEpisodeId !== episodeId) {
-      lastProcessedEpisodeId = null;
-    }
+  function resetForNewFile2(_episodeId) {
+    lastProcessedEpisodeId = null;
     autoplayQueued = false;
   }
   function clearQueuedFlag2() {
@@ -380,203 +378,6 @@ ${episode.playUrl}
     resetForNewFile: resetForNewFile2,
     clearQueuedFlag: clearQueuedFlag2,
     isQueued: isQueued2
-  };
-}
-
-// plugin/src/lib/webview-bridge.ts
-function createBridgeDeps({
-  utils: utils2,
-  log,
-  getClientIdentity: getClientIdentity2,
-  serverStore,
-  onPlayMedia,
-  onPlayMediaList,
-  core: core2
-}) {
-  return {
-    core: core2,
-    utils: utils2,
-    log,
-    getClientIdentity: getClientIdentity2,
-    getStoredEmbySession: serverStore.getStoredEmbySession,
-    clearEmbySession: serverStore.clearEmbySession,
-    loadStoredServers: serverStore.loadStoredServers,
-    getActiveServerId: serverStore.getActiveServerId,
-    setActiveServerId: serverStore.setActiveServerId,
-    addOrUpdateServer: serverStore.addOrUpdateServer,
-    removeServer: serverStore.removeServer,
-    switchActiveServer: serverStore.switchActiveServer,
-    onPlayMedia,
-    onPlayMediaList
-  };
-}
-function registerBridgeHandlers(view, deps, options) {
-  view.onMessage("get-window-context", () => {
-    view.postMessage("window-context", { isStandalone: Boolean(options?.isStandalone) });
-  });
-  view.onMessage("get-client-identity", () => {
-    view.postMessage("client-identity", deps.getClientIdentity());
-  });
-  view.onMessage("get-session", () => {
-    view.postMessage("session-data", deps.getStoredEmbySession());
-  });
-  view.onMessage("clear-session", () => {
-    deps.clearEmbySession();
-  });
-  view.onMessage("store-session", (data) => {
-    if (data?.serverUrl && data?.accessToken) {
-      const server = deps.addOrUpdateServer({
-        serverUrl: data.serverUrl,
-        accessToken: data.accessToken,
-        serverName: data.serverName || "",
-        userId: data.userId || "",
-        username: data.username || ""
-      });
-      if (server) {
-        deps.setActiveServerId(server.id);
-        view.postMessage("servers-updated", {
-          servers: deps.loadStoredServers(),
-          activeServerId: server.id
-        });
-      }
-    }
-  });
-  view.onMessage("get-servers", () => {
-    const servers = deps.loadStoredServers();
-    const activeServerId = deps.getActiveServerId();
-    view.postMessage("servers-list", { servers, activeServerId });
-  });
-  view.onMessage("remove-server", (data) => {
-    if (data?.serverId) {
-      deps.removeServer(data.serverId);
-    }
-  });
-  view.onMessage("switch-server", (data) => {
-    if (data?.serverId) {
-      deps.switchActiveServer(data.serverId);
-    }
-  });
-  view.onMessage("open-external-url", (data) => {
-    if (data?.url) {
-      deps.log(`Opening external URL: ${data.url}`);
-      try {
-        const success = deps.utils.open(data.url);
-        if (success) {
-          deps.log("Successfully opened URL in browser");
-          if (data.title) {
-            deps.core?.osd(`Opened ${data.title} in browser`);
-          } else {
-            deps.core?.osd("Opened Emby page in browser");
-          }
-        } else {
-          throw new Error("utils.open returned false");
-        }
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        deps.log.error(`Failed to open external URL: ${errorMsg}`);
-        deps.core?.osd("Failed to open Emby page in browser");
-        deps.log.error(`URL that failed to open: ${data.url}`);
-      }
-    } else {
-      deps.log("Invalid open-external-url message - missing URL");
-    }
-  });
-  view.onMessage("play-media", (data) => {
-    deps.onPlayMedia(data);
-    if (options?.closeOnPlay && typeof view.close === "function") {
-      view.close();
-    }
-  });
-  view.onMessage("play-media-list", (data) => {
-    deps.onPlayMediaList(data);
-    if (options?.closeOnPlay && typeof view.close === "function") {
-      view.close();
-    }
-  });
-}
-
-// plugin/src/lib/browser-window.ts
-function createBrowserWindowManager({ core: core2, sidebar: sidebar2, standaloneWindow: standaloneWindow2, preferences: preferences2, bridgeDeps: bridgeDeps2, log }) {
-  function openEmbyStandaloneWindow2() {
-    try {
-      log("Creating standalone Emby browser window");
-      standaloneWindow2.loadFile("dist/client/index.html");
-      const savedWidth = preferences2.get("standalone_window_width");
-      const savedHeight = preferences2.get("standalone_window_height");
-      const width = typeof savedWidth === "number" && savedWidth >= 320 ? savedWidth : 520;
-      const height = typeof savedHeight === "number" && savedHeight >= 400 ? savedHeight : 720;
-      standaloneWindow2.setFrame(width, height, null, null);
-      const saWithProps = standaloneWindow2;
-      if (typeof saWithProps.setProperty === "function") {
-        saWithProps.setProperty({
-          title: "Emby Browser",
-          resizable: true,
-          enableWebInspector: true
-        });
-      }
-      standaloneWindow2.onMessage("save-window-size", (data) => {
-        if (data?.width && data?.height && data.width >= 320 && data.height >= 400) {
-          const w = Math.round(data.width);
-          const h = Math.round(data.height);
-          preferences2.set("standalone_window_width", w);
-          preferences2.set("standalone_window_height", h);
-          preferences2.sync();
-          log(`Saved standalone window size: ${w}x${h}`);
-        }
-      });
-      registerBridgeHandlers(standaloneWindow2, bridgeDeps2, { closeOnPlay: true, isStandalone: true });
-      standaloneWindow2.open();
-      standaloneWindow2.postMessage("window-context", { isStandalone: true });
-      log("Standalone Emby browser window opened successfully");
-      const sessionData = bridgeDeps2.getStoredEmbySession();
-      if (core2) {
-        if (sessionData) {
-          core2.osd(`Emby Browser opened in standalone window
-Server: ${sessionData.serverUrl.replace(/^https?:\/\//, "")}`);
-        } else {
-          core2.osd("Emby Browser opened in standalone window\nPlease login to access your media");
-        }
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      log.error(`Failed to create standalone window: ${errorMsg}`);
-    }
-  }
-  function showEmbyBrowser() {
-    log("Attempting to show Emby browser");
-    let windowAvailable = false;
-    if (core2) {
-      try {
-        windowAvailable = Boolean(core2.window?.loaded && core2.window.visible);
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        log(`Could not read window state: ${errorMsg}`);
-      }
-    }
-    if (windowAvailable && sidebar2 && typeof sidebar2.show === "function") {
-      try {
-        sidebar2.show();
-        log("Sidebar shown successfully");
-        return;
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        log(`Direct sidebar.show() failed: ${errorMsg}`);
-      }
-    } else {
-      log(`No visible player window (windowAvailable=${windowAvailable}), using standalone`);
-    }
-    openEmbyStandaloneWindow2();
-  }
-  function initSidebar2() {
-    if (!sidebar2) return;
-    sidebar2.loadFile("dist/client/index.html");
-    registerBridgeHandlers(sidebar2, bridgeDeps2, { closeOnPlay: false, isStandalone: false });
-    sidebar2.postMessage("window-context", { isStandalone: false });
-  }
-  return {
-    openEmbyStandaloneWindow: openEmbyStandaloneWindow2,
-    showEmbyBrowser,
-    initSidebar: initSidebar2
   };
 }
 
@@ -1208,6 +1009,7 @@ function createPlaybackCoordinator({
   }
   function openInCurrentWindow(streamUrl, title, startPositionSeconds) {
     log("Opening media in current window: " + streamUrl);
+    markLaunchedFromBrowser2();
     currentPlaybackTitle = title || null;
     currentPlaybackItemId = (String(streamUrl).match(/\/(?:Items|Videos|Audio)\/([^/?]+)/) || [])[1] || null;
     if (getCurrentPlaybackSession2()) {
@@ -1759,16 +1561,18 @@ function createPlaybackTrackingManager({
       let finalPosition = lastKnownPosition;
       try {
         const position = samplePosition();
-        if (position !== null) {
+        if (position !== null && position > 0) {
           finalPosition = position;
         }
       } catch {
         log(`Could not get final position from core, using lastKnownPosition: ${finalPosition}`);
       }
-      if (!hasStartedPlayback) {
+      if (!hasStartedPlayback || finalPosition === 0) {
         const preserved = currentPlaybackSession.resumePosition ?? lastReportedPosition;
-        log(`No playback observed, reporting the stored position (${preserved}s)`);
-        finalPosition = preserved;
+        if (typeof preserved === "number" && preserved > 0) {
+          log(`Preserving previous position (${preserved}s) as observed position is 0`);
+          finalPosition = preserved;
+        }
       }
       reportPlaybackStop(serverBase, itemId, apiKey, finalPosition, playSessionId, mediaSourceId);
       currentPlaybackSession = null;
@@ -1791,9 +1595,9 @@ function createPlaybackTrackingManager({
 }
 
 // plugin/src/lib/server-session-store.ts
-function createServerSessionStore({ preferences: preferences2, sidebar: sidebar2, standaloneWindow: standaloneWindow2, log }) {
+function createServerSessionStore({ preferences: preferences2, sidebar, standaloneWindow, log }) {
   function notifyViews(name, data) {
-    for (const view of [sidebar2, standaloneWindow2]) {
+    for (const view of [sidebar, standaloneWindow]) {
       if (view && typeof view.postMessage === "function") {
         view.postMessage(name, data);
       }
@@ -1995,7 +1799,7 @@ function createServerSessionStore({ preferences: preferences2, sidebar: sidebar2
 }
 
 // plugin/src/index.ts
-var { core, console: iinaConsole, menu, event, http, utils, preferences, mpv, sidebar, global: iinaGlobal, standaloneWindow, file } = iina;
+var { core, console: iinaConsole, menu, event, http, utils, preferences, mpv, global: iinaGlobal, file } = iina;
 var debugLog = createDebugLogger(preferences, iinaConsole);
 var {
   getClientIdentity,
@@ -2013,8 +1817,6 @@ var {
 });
 var serverSessionStore = createServerSessionStore({
   preferences,
-  sidebar,
-  standaloneWindow,
   log: debugLog
 });
 var { storeEmbySession, getStoredEmbySession } = serverSessionStore;
@@ -2084,16 +1886,23 @@ if (iinaGlobal && typeof iinaGlobal.getLabel === "function") {
     markLaunchedFromBrowser();
   }
 }
-if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
-  iinaGlobal.postMessage("player-registered", {});
-}
 if (iinaGlobal && typeof iinaGlobal.onMessage === "function") {
   iinaGlobal.onMessage("play-media-command", (data) => {
     debugLog("Received play-media-command from global entry", data);
+    isWindowClosing = false;
+    currentLoadedFileUrl = null;
+    resetForNewFile();
+    clearQueuedFlag();
+    markLaunchedFromBrowser();
     handlePlayMedia(data);
   });
   iinaGlobal.onMessage("play-media-list-command", (data) => {
     debugLog("Received play-media-list-command from global entry", data);
+    isWindowClosing = false;
+    currentLoadedFileUrl = null;
+    resetForNewFile();
+    clearQueuedFlag();
+    markLaunchedFromBrowser();
     handlePlayMediaList(data);
   });
 }
@@ -2118,10 +1927,7 @@ function getEffectiveFileUrl(fileUrl) {
   return void 0;
 }
 function onFileLoaded(fileUrl) {
-  if (isWindowClosing) {
-    debugLog("Window is closing, ignoring onFileLoaded");
-    return;
-  }
+  isWindowClosing = false;
   const resolvedUrl = getEffectiveFileUrl(fileUrl);
   debugLog(`File loaded event: raw=${fileUrl}, resolved=${resolvedUrl}`);
   if (!resolvedUrl) {
@@ -2181,7 +1987,7 @@ function onFileLoaded(fileUrl) {
     }
     if (preferences.get("autoplay_next_episode")) {
       debugLog(`Setting up autoplay for episode (itemId): ${embyInfo.itemId}, userId: ${reportUserId || "none"}`);
-      resetForNewFile(embyInfo.itemId);
+      resetForNewFile();
       setupAutoplayForEpisode(reportServerBase, embyInfo.itemId, reportApiKey, reportUserId);
     }
     if (preferences.get("auto_download_enabled")) {
@@ -2195,26 +2001,13 @@ function onFileLoaded(fileUrl) {
         itemId: embyInfo.itemId,
         url: resolvedUrl
       });
+      iinaGlobal.postMessage("player-active", {
+        itemId: embyInfo.itemId,
+        url: resolvedUrl
+      });
     }
   }
 }
-var bridgeDeps = createBridgeDeps({
-  core,
-  utils,
-  log: debugLog,
-  getClientIdentity,
-  serverStore: serverSessionStore,
-  onPlayMedia: handlePlayMedia,
-  onPlayMediaList: handlePlayMediaList
-});
-var { openEmbyStandaloneWindow, initSidebar } = createBrowserWindowManager({
-  core,
-  sidebar,
-  standaloneWindow,
-  preferences,
-  bridgeDeps,
-  log: debugLog
-});
 function handlePlaybackTermination(reason) {
   const shouldReopen = preferences.get("reopen_browser_on_playback_end") !== false;
   if (shouldReopen && consumeLaunchedFromBrowser()) {
@@ -2222,8 +2015,6 @@ function handlePlaybackTermination(reason) {
     debugLog(`Playback terminated (${reason}) for media launched from browser, requesting global reopen`);
     if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
       iinaGlobal.postMessage("reopen-browser", {});
-    } else {
-      openEmbyStandaloneWindow();
     }
   }
 }
@@ -2231,18 +2022,22 @@ menu.addItem(menu.item("Download Emby Subtitles", manualDownloadSubtitles));
 menu.addItem(menu.item("Set Emby Title", manualSetTitle));
 event.on("iina.file-loaded", onFileLoaded);
 event.on("iina.file-started", () => {
-  if (isWindowClosing) return;
+  isWindowClosing = false;
   onFileLoaded();
 });
 event.on("mpv.file-loaded", () => {
-  if (isWindowClosing) return;
+  isWindowClosing = false;
   onFileLoaded();
 });
 event.on("mpv.path.changed", (newPath) => {
-  if (isWindowClosing) return;
   if (typeof newPath === "string" && newPath.trim().length > 0) {
+    isWindowClosing = false;
     onFileLoaded(newPath);
   }
+});
+event.on("iina.window-loaded", () => {
+  debugLog("Window loaded event received");
+  isWindowClosing = false;
 });
 event.on("mpv.playlist-pos.changed", () => {
   if (isWindowClosing) return;
@@ -2288,8 +2083,11 @@ event.on("iina.window-will-close", () => {
   isWindowClosing = true;
   debugLog("Window closing, stopping playback tracking");
   currentLoadedFileUrl = null;
+  resetForNewFile();
+  clearQueuedFlag();
   if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
     iinaGlobal.postMessage("player-unregistered", {});
+    iinaGlobal.postMessage("player-inactive", {});
   }
   stopPlaybackTracking();
   handlePlaybackTermination("window-close");
@@ -2299,4 +2097,3 @@ event.on("iina.application-will-terminate", () => {
   debugLog("Application terminating, stopping playback tracking");
   stopPlaybackTracking();
 });
-event.on("iina.window-loaded", initSidebar);

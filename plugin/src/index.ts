@@ -4,16 +4,15 @@
 
 import { isSameEmbyHost } from "@shared";
 import { createAutoplayManager } from "./lib/autoplay-manager";
-import { createBrowserWindowManager } from "./lib/browser-window";
 import { createDebugLogger } from "./lib/debug-log";
 import { createEmbyApi } from "./lib/emby-api";
 import { createMediaActionsManager } from "./lib/media-actions";
 import { createPlaybackCoordinator } from "./lib/playback-coordinator";
 import { createPlaybackTrackingManager } from "./lib/playback-tracking";
 import { createServerSessionStore } from "./lib/server-session-store";
-import { createBridgeDeps, type PlayMediaListMessage, type PlayMediaMessage } from "./lib/webview-bridge";
+import type { PlayMediaListMessage, PlayMediaMessage } from "./lib/webview-bridge";
 
-const { core, console: iinaConsole, menu, event, http, utils, preferences, mpv, sidebar, global: iinaGlobal, standaloneWindow, file } = iina;
+const { core, console: iinaConsole, menu, event, http, utils, preferences, mpv, global: iinaGlobal, file } = iina;
 
 const debugLog = createDebugLogger(preferences, iinaConsole);
 
@@ -34,8 +33,6 @@ const {
 
 const serverSessionStore = createServerSessionStore({
   preferences,
-  sidebar,
-  standaloneWindow,
   log: debugLog,
 });
 
@@ -116,19 +113,24 @@ if (iinaGlobal && typeof iinaGlobal.getLabel === "function") {
   }
 }
 
-// Register with global entry
-if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
-  iinaGlobal.postMessage("player-registered", {});
-}
-
 // Listen for playback commands forwarded from global standalone window
 if (iinaGlobal && typeof iinaGlobal.onMessage === "function") {
   iinaGlobal.onMessage("play-media-command", (data?: PlayMediaMessage) => {
     debugLog("Received play-media-command from global entry", data);
+    isWindowClosing = false;
+    currentLoadedFileUrl = null;
+    resetForNewFile();
+    clearQueuedFlag();
+    markLaunchedFromBrowser();
     handlePlayMedia(data);
   });
   iinaGlobal.onMessage("play-media-list-command", (data?: PlayMediaListMessage) => {
     debugLog("Received play-media-list-command from global entry", data);
+    isWindowClosing = false;
+    currentLoadedFileUrl = null;
+    resetForNewFile();
+    clearQueuedFlag();
+    markLaunchedFromBrowser();
     handlePlayMediaList(data);
   });
 }
@@ -161,10 +163,7 @@ function getEffectiveFileUrl(fileUrl?: string): string | undefined {
  * Handle file loaded event
  */
 function onFileLoaded(fileUrl?: string): void {
-  if (isWindowClosing) {
-    debugLog("Window is closing, ignoring onFileLoaded");
-    return;
-  }
+  isWindowClosing = false;
 
   const resolvedUrl = getEffectiveFileUrl(fileUrl);
   debugLog(`File loaded event: raw=${fileUrl}, resolved=${resolvedUrl}`);
@@ -251,7 +250,7 @@ function onFileLoaded(fileUrl?: string): void {
     // Setup autoplay for TV episodes if enabled
     if (preferences.get("autoplay_next_episode")) {
       debugLog(`Setting up autoplay for episode (itemId): ${embyInfo.itemId}, userId: ${reportUserId || "none"}`);
-      resetForNewFile(embyInfo.itemId);
+      resetForNewFile();
       setupAutoplayForEpisode(reportServerBase, embyInfo.itemId, reportApiKey, reportUserId);
     }
 
@@ -268,30 +267,13 @@ function onFileLoaded(fileUrl?: string): void {
         itemId: embyInfo.itemId,
         url: resolvedUrl,
       });
+      iinaGlobal.postMessage("player-active", {
+        itemId: embyInfo.itemId,
+        url: resolvedUrl,
+      });
     }
   }
 }
-
-// Setup unified webview bridge dependencies
-const bridgeDeps = createBridgeDeps({
-  core,
-  utils,
-  log: debugLog,
-  getClientIdentity,
-  serverStore: serverSessionStore,
-  onPlayMedia: handlePlayMedia,
-  onPlayMediaList: handlePlayMediaList,
-});
-
-// Browser window manager (sidebar & standalone window)
-const { openEmbyStandaloneWindow, initSidebar } = createBrowserWindowManager({
-  core,
-  sidebar,
-  standaloneWindow,
-  preferences,
-  bridgeDeps,
-  log: debugLog,
-});
 
 /**
  * Automatically reopen the standalone content browser if media that originated
@@ -304,8 +286,6 @@ function handlePlaybackTermination(reason: "end-file" | "window-close"): void {
     debugLog(`Playback terminated (${reason}) for media launched from browser, requesting global reopen`);
     if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
       iinaGlobal.postMessage("reopen-browser", {});
-    } else {
-      openEmbyStandaloneWindow();
     }
   }
 }
@@ -318,20 +298,25 @@ menu.addItem(menu.item("Set Emby Title", manualSetTitle));
 event.on("iina.file-loaded", onFileLoaded);
 
 event.on("iina.file-started", () => {
-  if (isWindowClosing) return;
+  isWindowClosing = false;
   onFileLoaded();
 });
 
 event.on("mpv.file-loaded", () => {
-  if (isWindowClosing) return;
+  isWindowClosing = false;
   onFileLoaded();
 });
 
 event.on("mpv.path.changed", (newPath: unknown) => {
-  if (isWindowClosing) return;
   if (typeof newPath === "string" && newPath.trim().length > 0) {
+    isWindowClosing = false;
     onFileLoaded(newPath);
   }
+});
+
+event.on("iina.window-loaded", () => {
+  debugLog("Window loaded event received");
+  isWindowClosing = false;
 });
 
 event.on("mpv.playlist-pos.changed", () => {
@@ -386,8 +371,11 @@ event.on("iina.window-will-close", () => {
 
   debugLog("Window closing, stopping playback tracking");
   currentLoadedFileUrl = null;
+  resetForNewFile();
+  clearQueuedFlag();
   if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
     iinaGlobal.postMessage("player-unregistered", {});
+    iinaGlobal.postMessage("player-inactive", {});
   }
   stopPlaybackTracking();
   handlePlaybackTermination("window-close");
@@ -398,6 +386,3 @@ event.on("iina.application-will-terminate", () => {
   debugLog("Application terminating, stopping playback tracking");
   stopPlaybackTracking();
 });
-
-// Initialize sidebar when window is loaded
-event.on("iina.window-loaded", initSidebar);

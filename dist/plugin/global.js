@@ -114,36 +114,41 @@ function registerBridgeHandlers(view, deps, options) {
 
 // plugin/src/lib/browser-window.ts
 function createBrowserWindowManager({ core, sidebar, standaloneWindow: standaloneWindow2, preferences: preferences2, bridgeDeps: bridgeDeps2, log }) {
+  let standaloneInitialized = false;
   function openEmbyStandaloneWindow2() {
     try {
-      log("Creating standalone Emby browser window");
-      standaloneWindow2.loadFile("dist/client/index.html");
-      const savedWidth = preferences2.get("standalone_window_width");
-      const savedHeight = preferences2.get("standalone_window_height");
-      const width = typeof savedWidth === "number" && savedWidth >= 320 ? savedWidth : 520;
-      const height = typeof savedHeight === "number" && savedHeight >= 400 ? savedHeight : 720;
-      standaloneWindow2.setFrame(width, height, null, null);
-      const saWithProps = standaloneWindow2;
-      if (typeof saWithProps.setProperty === "function") {
-        saWithProps.setProperty({
-          title: "Emby Browser",
-          resizable: true,
-          enableWebInspector: true
-        });
-      }
-      standaloneWindow2.onMessage("save-window-size", (data) => {
-        if (data?.width && data?.height && data.width >= 320 && data.height >= 400) {
-          const w = Math.round(data.width);
-          const h = Math.round(data.height);
-          preferences2.set("standalone_window_width", w);
-          preferences2.set("standalone_window_height", h);
-          preferences2.sync();
-          log(`Saved standalone window size: ${w}x${h}`);
+      log("Opening standalone Emby browser window");
+      if (!standaloneInitialized) {
+        standaloneInitialized = true;
+        standaloneWindow2.loadFile("dist/client/index.html");
+        const savedWidth = preferences2.get("standalone_window_width");
+        const savedHeight = preferences2.get("standalone_window_height");
+        const width = typeof savedWidth === "number" && savedWidth >= 320 ? savedWidth : 520;
+        const height = typeof savedHeight === "number" && savedHeight >= 400 ? savedHeight : 720;
+        standaloneWindow2.setFrame(width, height, null, null);
+        const saWithProps = standaloneWindow2;
+        if (typeof saWithProps.setProperty === "function") {
+          saWithProps.setProperty({
+            title: "Emby Browser",
+            resizable: true,
+            enableWebInspector: true
+          });
         }
-      });
-      registerBridgeHandlers(standaloneWindow2, bridgeDeps2, { closeOnPlay: true, isStandalone: true });
+        standaloneWindow2.onMessage("save-window-size", (data) => {
+          if (data?.width && data?.height && data.width >= 320 && data.height >= 400) {
+            const w = Math.round(data.width);
+            const h = Math.round(data.height);
+            preferences2.set("standalone_window_width", w);
+            preferences2.set("standalone_window_height", h);
+            preferences2.sync();
+            log(`Saved standalone window size: ${w}x${h}`);
+          }
+        });
+        registerBridgeHandlers(standaloneWindow2, bridgeDeps2, { closeOnPlay: true, isStandalone: true });
+      }
       standaloneWindow2.open();
       standaloneWindow2.postMessage("window-context", { isStandalone: true });
+      standaloneWindow2.postMessage("window-reopened", { timestamp: Date.now() });
       log("Standalone Emby browser window opened successfully");
       const sessionData = bridgeDeps2.getStoredEmbySession();
       if (core) {
@@ -172,7 +177,9 @@ Server: ${sessionData.serverUrl.replace(/^https?:\/\//, "")}`);
     }
     if (windowAvailable && sidebar && typeof sidebar.show === "function") {
       try {
+        initSidebar();
         sidebar.show();
+        sidebar.postMessage("window-reopened", { timestamp: Date.now() });
         log("Sidebar shown successfully");
         return;
       } catch (error) {
@@ -184,8 +191,10 @@ Server: ${sessionData.serverUrl.replace(/^https?:\/\//, "")}`);
     }
     openEmbyStandaloneWindow2();
   }
+  let sidebarInitialized = false;
   function initSidebar() {
-    if (!sidebar) return;
+    if (!sidebar || sidebarInitialized) return;
+    sidebarInitialized = true;
     sidebar.loadFile("dist/client/index.html");
     registerBridgeHandlers(sidebar, bridgeDeps2, { closeOnPlay: false, isStandalone: false });
     sidebar.postMessage("window-context", { isStandalone: false });
@@ -295,7 +304,7 @@ function createDebugLogger(preferences2, loggerConsole) {
 // shared/constants.ts
 var CLIENT_NAME = "IINA Emby Plugin";
 var DEVICE_NAME = "IINA";
-var CLIENT_VERSION = true ? "0.1.3" : "0.1.0";
+var CLIENT_VERSION = true ? "0.2.0" : "0.1.0";
 
 // shared/utils/auth.ts
 function buildAuthorizationHeader(identity, token) {
@@ -735,14 +744,18 @@ var serverSessionStore = createServerSessionStore({
   standaloneWindow,
   log: debugLog
 });
-var activePlayerCount = 0;
-global.onMessage("player-registered", () => {
-  activePlayerCount++;
-  debugLog("Player instance registered, active count:", activePlayerCount);
+var activePlayerTarget = null;
+global.onMessage("player-active", (data, player) => {
+  debugLog("Player reported active:", { data, player });
+  if (activePlayerTarget === null && player) {
+    activePlayerTarget = player;
+  }
 });
-global.onMessage("player-unregistered", () => {
-  activePlayerCount = Math.max(0, activePlayerCount - 1);
-  debugLog("Player instance unregistered, active count:", activePlayerCount);
+global.onMessage("player-inactive", (data, player) => {
+  debugLog("Player reported inactive (retaining player instance for reuse):", { data, player });
+});
+global.onMessage("player-unregistered", (data, player) => {
+  debugLog("Player instance unregistered (retaining player instance for reuse):", player);
 });
 global.onMessage("player-file-loaded", (data) => {
   debugLog("Player file loaded:", data);
@@ -750,38 +763,45 @@ global.onMessage("player-file-loaded", (data) => {
 global.onMessage("player-next-queued", (data) => {
   debugLog("Player queued upcoming episodes:", data);
 });
+function spawnNewPlayerInstance(streamUrl, title) {
+  debugLog("Creating new player instance for playback:", title);
+  try {
+    const playerId = global.createPlayerInstance({
+      url: streamUrl,
+      label: `emby-${Date.now()}`,
+      enablePlugins: false,
+      disableWindowAnimation: false
+    });
+    debugLog(`Created player instance ${playerId} for: ${title}`);
+    if (typeof playerId === "number") {
+      activePlayerTarget = playerId;
+    }
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    debugLog.error("Failed to create player instance: " + errorMsg);
+  }
+}
 function handleGlobalPlayMedia(data) {
   if (!data?.streamUrl) return;
   const openInNewWindow = preferences.get("open_in_new_window");
   debugLog("Global entry handleGlobalPlayMedia:", {
     title: data.title,
     streamUrl: data.streamUrl,
-    activePlayerCount,
+    activePlayerTarget,
     openInNewWindow
   });
-  if (activePlayerCount > 0 && !openInNewWindow) {
-    debugLog("Forwarding play-media to active player instance");
-    global.postMessage(null, "play-media-command", data);
+  if (activePlayerTarget !== null && !openInNewWindow) {
+    debugLog("Forwarding play-media to active player instance:", activePlayerTarget);
+    global.postMessage(activePlayerTarget, "play-media-command", data);
   } else {
-    debugLog("Creating new player instance for playback");
-    try {
-      const playerId = global.createPlayerInstance({
-        url: data.streamUrl,
-        label: `emby-${Date.now()}`,
-        enablePlugins: true,
-        disableWindowAnimation: false
-      });
-      debugLog(`Created player instance ${playerId} for: ${data.title}`);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      debugLog.error("Failed to create player instance: " + errorMsg);
-    }
+    spawnNewPlayerInstance(data.streamUrl, data.title);
   }
 }
 function handleGlobalPlayMediaList(data) {
-  if (activePlayerCount > 0) {
-    debugLog("Forwarding play-media-list to active player instance");
-    global.postMessage(null, "play-media-list-command", data);
+  const openInNewWindow = preferences.get("open_in_new_window");
+  if (activePlayerTarget !== null && !openInNewWindow) {
+    debugLog("Forwarding play-media-list to active player instance:", activePlayerTarget);
+    global.postMessage(activePlayerTarget, "play-media-list-command", data);
   } else {
     const firstItem = data?.items?.[0];
     if (firstItem) {
@@ -827,10 +847,13 @@ global.onMessage("create-player", (data, player) => {
     const playerId = global.createPlayerInstance({
       url,
       label: `emby-${Date.now()}`,
-      enablePlugins: true,
+      enablePlugins: false,
       disableWindowAnimation: false
     });
     debugLog(`Created new player instance ${playerId} for: ${title}`);
+    if (typeof playerId === "number") {
+      activePlayerTarget = playerId;
+    }
     if (player !== void 0) {
       global.postMessage(player, "player-created", {
         playerId,
