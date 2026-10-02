@@ -3,11 +3,9 @@ import { createTheme } from "@mantine/core";
 export const mantineTheme = createTheme({
   primaryColor: "teal",
   defaultRadius: "sm",
-  fontFamily:
-    '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif',
+  fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif',
   headings: {
-    fontFamily:
-      '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif',
   },
   components: {
     Button: {

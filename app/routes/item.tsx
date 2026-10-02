@@ -1,7 +1,7 @@
 import type { EmbyItemMetadata, EmbyMediaStream } from "@shared";
 import { getEmbyImageUrl, getItemImageUrl } from "@shared";
 import { IconChevronLeft, IconPlayerPlayFilled } from "@tabler/icons-react";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { GlassButton } from "../components/GlassButton";
 import { useIINABridge } from "../hooks/useIINABridge";
@@ -250,15 +250,7 @@ export default function ItemDetailRoute() {
 
       {/* Top Floating Navigation */}
       <header className={styles.topNav}>
-        <GlassButton
-          variant="glass"
-          shape="circle"
-          size="md"
-          isIconOnly
-          onClick={() => navigate(-1)}
-          aria-label="Back"
-          title="Back"
-        >
+        <GlassButton variant="glass" shape="circle" size="md" isIconOnly onClick={() => navigate(-1)} aria-label="Back" title="Back">
           <IconChevronLeft size={22} />
         </GlassButton>
       </header>
@@ -329,7 +321,6 @@ export default function ItemDetailRoute() {
           </div>
         </div>
       </main>
-
     </div>
   );
 }

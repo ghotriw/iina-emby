@@ -60,8 +60,7 @@ export async function fetchLatestItems(server: EmbyServer, parentId: string, lim
   const query = new URLSearchParams({
     ParentId: parentId,
     Limit: String(limit),
-    Fields:
-      "CommunityRating,ProductionYear,ImageTags,BackdropImageTags,UserData,PrimaryImageAspectRatio,SeriesName",
+    Fields: "CommunityRating,ProductionYear,ImageTags,BackdropImageTags,UserData,PrimaryImageAspectRatio,SeriesName",
     EnableImageTypes: "Primary,Backdrop,Thumb",
     ImageTypeLimit: "1",
   });
@@ -172,4 +171,3 @@ export function buildStreamUrl(server: EmbyServer, itemId: string): string {
   const base = server.serverUrl.replace(/\/+$/, "");
   return `${base}/Videos/${encodeURIComponent(itemId)}/stream?static=true&api_key=${encodeURIComponent(server.accessToken)}`;
 }
-

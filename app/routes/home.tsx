@@ -34,9 +34,7 @@ export default function HomeRoute() {
           <div className={styles.serverBadge}>
             <span className={styles.activeDot} />
             <span className={styles.serverName}>{activeServer.serverName || "Emby"}</span>
-            {activeServer.username && (
-              <span className={styles.userName}>({activeServer.username})</span>
-            )}
+            {activeServer.username && <span className={styles.userName}>({activeServer.username})</span>}
           </div>
         </div>
 
@@ -60,12 +58,7 @@ export default function HomeRoute() {
 
         {/* 2. Library shelves (Movies, TV shows, etc.) */}
         {sections.map(({ view, items }) => (
-          <LibraryShelf
-            key={view.Id}
-            view={view}
-            items={items}
-            server={activeServer}
-          />
+          <LibraryShelf key={view.Id} view={view} items={items} server={activeServer} />
         ))}
       </main>
     </div>
