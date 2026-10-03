@@ -11,11 +11,14 @@
   --bg-window: #202026;
   --bg-sidebar: linear-gradient(180deg, #1e1e1e 0%, #121212 100%);
   --bg-panel: rgb(from var(--material-base) r g b / 4%);
+
   --bg-control: rgb(from var(--material-base) r g b / 10%);
   --bg-control-hover: rgb(from var(--material-base) r g b / 16%);
   --bg-control-active: rgb(from var(--material-base) r g b / 22%);
+
+  --bg-row: rgb(from var(--material-base) r g b / 5%);
   --bg-row-hover: rgb(from var(--material-base) r g b / 8%);
-  --bg-row-active: rgb(from var(--material-base) r g b / 5%);
+
   --bg-input: rgb(from var(--scrim-base) r g b / 30%);
   --bg-dialog: rgb(26 26 32 / 92%);
   --bg-overlay: rgb(from var(--scrim-base) r g b / 45%);
@@ -35,6 +38,7 @@
   /* Accent Colors (Dynamic hover via color-mix in oklch) */
   --accent-blue: #007aff;
   --accent-blue-hover: color-mix(in oklch, var(--accent-blue) 85%, black);
+  --accent-blue-bg-hover: rgb(from var(--accent-blue) r g b / 12%);
   --accent-teal: #00c781;
   --accent-teal-hover: color-mix(in oklch, var(--accent-teal) 85%, black);
   --accent-red: #ff453a;

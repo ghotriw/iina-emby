@@ -1,7 +1,7 @@
 import { type EmbyItemMetadata, formatEpisodeCode } from "@shared";
 import { IconX } from "@tabler/icons-react";
 import styles from "./EpisodeDetailModal.module.css";
-import { Modal } from "./Modal";
+import { Modal } from "./ui/Modal";
 
 export interface EpisodeDetailModalProps {
   episode: EmbyItemMetadata | null;

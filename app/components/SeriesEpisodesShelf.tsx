@@ -1,8 +1,8 @@
 import { type EmbyItemMetadata, type EmbyServer, formatEpisodeSubtitle } from "@shared";
 import { MediaShelf } from "./MediaShelf";
 import { MediaThumb, MediaThumbSkeleton } from "./MediaThumb";
-import { Select } from "./Select";
 import styles from "./SeriesEpisodesShelf.module.css";
+import { Select } from "./ui/Select";
 
 export interface SeriesEpisodesShelfProps {
   activeServer: EmbyServer;

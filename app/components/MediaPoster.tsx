@@ -5,7 +5,7 @@ import type React from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import classes from "./MediaPoster.module.css";
-import { Skeleton } from "./Skeleton";
+import { Skeleton } from "./ui/Skeleton";
 
 export function MediaPosterSkeleton({ className }: { className?: string }) {
   return (

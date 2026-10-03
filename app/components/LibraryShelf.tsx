@@ -5,7 +5,7 @@ import styles from "./LibraryShelf.module.css";
 import { MediaPoster, MediaPosterSkeleton } from "./MediaPoster";
 import { MediaShelf } from "./MediaShelf";
 import shelfClasses from "./MediaShelf.module.css";
-import { Skeleton } from "./Skeleton";
+import { Skeleton } from "./ui/Skeleton";
 
 export interface LibraryShelfSkeletonProps {
   shelfId?: string | number;
@@ -60,12 +60,7 @@ export function LibraryShelf({ view, items, server, isLoading }: LibraryShelfPro
   );
 
   const titleNode = (
-    <button
-      type="button"
-      className={styles.titleBtn}
-      onClick={handleOpenSection}
-      title={`View all in ${view.Name}`}
-    >
+    <button type="button" className={styles.titleBtn} onClick={handleOpenSection} title={`View all in ${view.Name}`}>
       <h3 className={shelfClasses.title}>{view.Name}</h3>
     </button>
   );

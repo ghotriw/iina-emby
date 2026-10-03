@@ -13,9 +13,9 @@ import type React from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { buildStreamUrl } from "../lib/emby-library-client";
-import glassStyles from "./GlassElement.module.css";
 import classes from "./MediaThumb.module.css";
-import { Skeleton } from "./Skeleton";
+import glassStyles from "./ui/GlassElement.module.css";
+import { Skeleton } from "./ui/Skeleton";
 
 export function MediaThumbSkeleton({ className }: { className?: string }) {
   return (
@@ -92,10 +92,7 @@ export function MediaThumb({
   const totalSec = ticksToSeconds(item.RunTimeTicks);
 
   const isPlayed = Boolean(item.UserData?.Played);
-  const unplayedCount =
-    item.UserData?.UnplayedItemCount && item.UserData.UnplayedItemCount > 0
-      ? item.UserData.UnplayedItemCount
-      : null;
+  const unplayedCount = item.UserData?.UnplayedItemCount && item.UserData.UnplayedItemCount > 0 ? item.UserData.UnplayedItemCount : null;
 
   const hasProgress = totalSec > 0 && currentSec > 0;
   const progressPercent = hasProgress ? Math.min(100, Math.max(0, (currentSec / totalSec) * 100)) : 0;

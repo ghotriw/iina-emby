@@ -1,0 +1,147 @@
+/* Section Header */
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.25rem;
+  padding: 0 0.25rem;
+}
+
+.sectionTitle {
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+}
+
+/* Native macOS List of Saved Servers (cornerRadius: 6px = 0.375rem) */
+.serverList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  -webkit-app-region: no-drag;
+}
+
+.serverRow {
+  display: flex;
+  min-height: 2.75rem;
+  gap: 1px;
+  justify-content: center;
+  align-items: initial;
+}
+
+.serverSelectBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1;
+  border: none;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  outline: none;
+  border-radius: var(--radius-m) 0 0 var(--radius-m);
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-row);
+  cursor: pointer;
+  transition: background 0.12s ease;
+
+  &:hover {
+    background: var(--bg-row-hover);
+  }
+}
+
+.serverSelectBtn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: calc(var(--radius-m) - 2px);
+}
+
+.serverRowIcon {
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.serverRowActive .serverRowIcon {
+  color: var(--accent-teal);
+}
+
+.serverRowDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.serverRowNameRow {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.serverRowName {
+  font-size: var(--font-size-body);
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.serverRowSub {
+  font-size: var(--font-size-caption);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.activeDot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: var(--accent-teal);
+  box-shadow: 0 0 0.3125rem var(--accent-teal);
+  flex-shrink: 0;
+}
+
+.serverActionBtn {
+  display: flex;
+  flex-shrink: 0;
+  background: var(--bg-row);
+  color: var(--text-secondary);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    color 0.12s ease,
+    background 0.12s ease;
+  border: none;
+  width: 2.75rem;
+  padding: 0;
+}
+
+.deleteBtn {
+  border-radius: 0 var(--radius-m) var(--radius-m) 0;
+
+  &:hover {
+    color: var(--accent-red);
+    background: var(--danger-bg-hover);
+  }
+}
+
+.editBtn {
+  border-radius: 0;
+
+  &:hover {
+    color: var(--accent-blue);
+    background: var(--accent-blue-bg-hover);
+  }
+}

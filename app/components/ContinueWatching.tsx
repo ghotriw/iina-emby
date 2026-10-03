@@ -3,11 +3,11 @@ import { IconAlertCircle, IconChevronRight } from "@tabler/icons-react";
 import { forwardRef, useImperativeHandle } from "react";
 import { useNavigate } from "react-router";
 import { useContinueWatching } from "../hooks/useContinueWatching";
-import { Alert } from "./Alert";
 import shelfStyles from "./LibraryShelf.module.css";
 import { MediaShelf } from "./MediaShelf";
 import shelfClasses from "./MediaShelf.module.css";
 import { MediaThumb, MediaThumbSkeleton } from "./MediaThumb";
+import { Alert } from "./ui/Alert";
 
 export interface ContinueWatchingProps {
   server: EmbyServer;
@@ -48,12 +48,7 @@ export const ContinueWatching = forwardRef<ContinueWatchingHandle, ContinueWatch
   );
 
   const titleNode = (
-    <button
-      type="button"
-      className={shelfStyles.titleBtn}
-      onClick={handleOpenContinueWatching}
-      title="View all in Continue Watching"
-    >
+    <button type="button" className={shelfStyles.titleBtn} onClick={handleOpenContinueWatching} title="View all in Continue Watching">
       <h3 className={shelfClasses.title}>Continue Watching</h3>
     </button>
   );

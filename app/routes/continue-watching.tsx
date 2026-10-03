@@ -2,9 +2,9 @@ import type { EmbyItemMetadata } from "@shared";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router";
-import { Alert } from "../components/Alert";
 import { MediaThumb, MediaThumbSkeleton } from "../components/MediaThumb";
 import { PageHeader } from "../components/PageHeader";
+import { Alert } from "../components/ui";
 import { useIINABridge, useOnWindowReopen } from "../hooks/useIINABridge";
 import { clearLibraryCache, fetchResumeItems } from "../lib/emby-library-client";
 import styles from "./continue-watching.module.css";
@@ -159,15 +159,10 @@ export default function ContinueWatchingRoute() {
               {items.map((item) => (
                 <MediaThumb key={item.Id} item={item} server={activeServer} onPlay={playMedia} />
               ))}
-              {isLoadingMore &&
-                Array.from({ length: 4 }).map((_, index) => (
-                  <MediaThumbSkeleton key={`more-skeleton-${index}`} />
-                ))}
+              {isLoadingMore && Array.from({ length: 4 }).map((_, index) => <MediaThumbSkeleton key={`more-skeleton-${index}`} />)}
             </div>
 
-            {items.length < totalCount && (
-              <div ref={sentinelRef} className={styles.sentinel} aria-hidden="true" />
-            )}
+            {items.length < totalCount && <div ref={sentinelRef} className={styles.sentinel} aria-hidden="true" />}
           </>
         )}
       </main>

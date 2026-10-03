@@ -1,14 +1,12 @@
 import type { EmbyServer } from "@shared";
-import { IconAlertCircle, IconCheck, IconPlus, IconServer, IconTrash } from "@tabler/icons-react";
-import type React from "react";
+import { IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
 import { useIINABridge } from "../hooks/useIINABridge";
-import { authenticateByName } from "../lib/emby-auth-client";
-import { Alert } from "./Alert";
-import { ConfirmModal } from "./ConfirmModal";
 import { IINAEmbyLogo } from "./IINAEmbyLogo";
+import { ServerConnectForm } from "./ServerConnectForm";
+import { ServerList } from "./ServerList";
 import styles from "./ServerManagement.module.css";
-import { Tooltip } from "./Tooltip";
+import { ConfirmModal } from "./ui";
 
 interface ServerManagementProps {
   onServerSelected?: (serverId: string) => void;
@@ -18,46 +16,29 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
   const { servers, activeServerId, selectServer, removeServer, saveServer } = useIINABridge();
 
   const [serverToDelete, setServerToDelete] = useState<EmbyServer | null>(null);
+  const [editingServer, setEditingServer] = useState<EmbyServer | null>(null);
   const [isAdding, setIsAdding] = useState(false);
-  const showForm = isAdding || servers.length === 0;
-
-  const [serverUrl, setServerUrl] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleConnect = async (e: React.SubmitEvent) => {
-    e.preventDefault();
-    if (!serverUrl || !username) {
-      setError("Server URL and username are required");
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    const result = await authenticateByName(serverUrl, username, password);
-
-    setIsLoading(false);
-
-    if (result.success && result.server) {
-      saveServer(result.server);
-      setIsAdding(false);
-      setPassword("");
-      if (onServerSelected) {
-        onServerSelected(result.server.id);
-      }
-    } else {
-      setError(result.error || "Connection failed");
-    }
-  };
+  const showForm = isAdding || editingServer !== null || servers.length === 0;
 
   const handleSelect = (serverId: string) => {
     selectServer(serverId);
     if (onServerSelected) {
       onServerSelected(serverId);
     }
+  };
+
+  const handleServerSaved = (server: EmbyServer) => {
+    saveServer(server);
+    setIsAdding(false);
+    setEditingServer(null);
+    if (onServerSelected) {
+      onServerSelected(server.id);
+    }
+  };
+
+  const handleCancelForm = () => {
+    setIsAdding(false);
+    setEditingServer(null);
   };
 
   return (
@@ -78,60 +59,27 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
         <div className={styles.contentDragRegion} />
 
         {/* Saved servers section */}
-        {servers.length > 0 && (
-          <>
-            <div className={styles.sectionHeader}>
-              <span className={styles.sectionTitle}>Saved Servers</span>
-            </div>
-
-            <div className={styles.serverList}>
-              {servers.map((server) => {
-                const isActive = server.id === activeServerId;
-                return (
-                  <div key={server.id} className={`${styles.serverRow} ${isActive ? styles.serverRowActive : ""}`}>
-                    <button
-                      type="button"
-                      className={styles.serverSelectBtn}
-                      onClick={() => handleSelect(server.id)}
-                      aria-label={`Select ${server.serverName || "Emby Server"}`}
-                    >
-                      <span className={styles.serverRowIcon}>
-                        <IconServer size={18} stroke={1.8} />
-                      </span>
-                      <div className={styles.serverRowDetails}>
-                        <div className={styles.serverRowNameRow}>
-                          <span className={styles.serverRowName}>{server.serverName || "Emby Server"}</span>
-                          {isActive && <span className={styles.activeDot} title="Active Server" />}
-                        </div>
-                        <span className={styles.serverRowSub}>
-                          {server.serverUrl}
-                          {server.username ? ` · ${server.username}` : ""}
-                        </span>
-                      </div>
-                    </button>
-
-                    <div className={styles.serverRowActions}>
-                      <Tooltip label="Remove server">
-                        <button
-                          type="button"
-                          className={styles.deleteBtn}
-                          onClick={() => setServerToDelete(server)}
-                          aria-label="Remove server"
-                        >
-                          <IconTrash size={17} stroke={1.8} />
-                        </button>
-                      </Tooltip>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
+        <ServerList
+          servers={servers}
+          activeServerId={activeServerId}
+          onSelectServer={handleSelect}
+          onRequestDelete={setServerToDelete}
+          onRequestEdit={(server) => {
+            setIsAdding(false);
+            setEditingServer(server);
+          }}
+        />
 
         {/* Add server button (placed below saved servers) */}
         {!showForm && servers.length > 0 && (
-          <button className={styles.actionRow} type="button" onClick={() => setIsAdding(true)}>
+          <button
+            className={styles.actionRow}
+            type="button"
+            onClick={() => {
+              setEditingServer(null);
+              setIsAdding(true);
+            }}
+          >
             <div className={styles.actionLeft}>
               <IconPlus size={15} stroke={2.2} />
               <span>Add Another Server...</span>
@@ -140,93 +88,14 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
           </button>
         )}
 
-        {/* Native macOS Form Sheet/Panel */}
+        {/* Connect / Edit Server Form */}
         {showForm && (
-          <div className={styles.formPanel}>
-            <form onSubmit={handleConnect}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <h3 className={styles.formTitle}>{servers.length === 0 ? "Connect to Emby" : "Add Emby Server"}</h3>
-
-                {error && (
-                  <Alert
-                    icon={<IconAlertCircle size={15} />}
-                    title="Connection Error"
-                    styles={{
-                      root: {
-                        backgroundColor: "var(--danger-bg)",
-                        borderColor: "var(--danger-border)",
-                        padding: "0.375rem 0.625rem",
-                        borderRadius: "var(--radius-m)",
-                      },
-                      message: { fontSize: "var(--font-size-sub)" },
-                      title: { fontSize: "var(--font-size-sub)", fontWeight: 600 },
-                    }}
-                  >
-                    {error}
-                  </Alert>
-                )}
-
-                <div className={styles.fieldGroup}>
-                  <label className={styles.fieldLabel} htmlFor="serverUrl">
-                    Server Address
-                  </label>
-                  <input
-                    id="serverUrl"
-                    type="url"
-                    className={styles.nativeInput}
-                    placeholder="http://192.168.1.100:8096"
-                    required
-                    value={serverUrl}
-                    onChange={(e) => setServerUrl(e.target.value)}
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div className={styles.fieldGroup}>
-                  <label className={styles.fieldLabel} htmlFor="serverUsername">
-                    Username
-                  </label>
-                  <input
-                    id="serverUsername"
-                    type="text"
-                    className={styles.nativeInput}
-                    placeholder="Username"
-                    required
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div className={styles.fieldGroup}>
-                  <label className={styles.fieldLabel} htmlFor="serverPassword">
-                    Password
-                  </label>
-                  <input
-                    id="serverPassword"
-                    type="password"
-                    className={styles.nativeInput}
-                    placeholder="Password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div className={styles.formActions}>
-                  {servers.length > 0 && (
-                    <button type="button" className={styles.macCancelBtn} onClick={() => setIsAdding(false)} disabled={isLoading}>
-                      Cancel
-                    </button>
-                  )}
-                  <button type="submit" className={styles.macPrimaryBtn} disabled={isLoading}>
-                    {!isLoading && <IconCheck size={14} />}
-                    {isLoading ? "Connecting..." : "Connect"}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
+          <ServerConnectForm
+            isFirstServer={servers.length === 0}
+            initialServer={editingServer}
+            onSuccess={handleServerSaved}
+            onCancel={servers.length > 0 ? handleCancelForm : undefined}
+          />
         )}
       </main>
 
@@ -243,8 +112,10 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
         message={
           <>
             Are you sure you want to remove{" "}
-            <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{serverToDelete?.serverName || "this server"}</span>? You will
-            need to sign in again to reconnect.
+            <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+              {serverToDelete?.serverName || "this server"}
+            </span>
+            ? You will need to sign in again to reconnect.
           </>
         }
         confirmLabel="Remove"

@@ -2,17 +2,12 @@ import type { EmbyItemMetadata } from "@shared";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams } from "react-router";
-import { Alert } from "../components/Alert";
 import { MediaPoster, MediaPosterSkeleton } from "../components/MediaPoster";
 import { PageHeader } from "../components/PageHeader";
+import { Alert } from "../components/ui";
 import { WatchStatusTabs } from "../components/WatchStatusTabs";
 import { useIINABridge, useOnWindowReopen } from "../hooks/useIINABridge";
-import {
-  clearLibraryCache,
-  fetchSectionItems,
-  fetchUserViews,
-  type SectionFilter,
-} from "../lib/emby-library-client";
+import { clearLibraryCache, fetchSectionItems, fetchUserViews, type SectionFilter } from "../lib/emby-library-client";
 import styles from "./section.module.css";
 
 export function meta() {
@@ -56,13 +51,7 @@ export default function SectionRoute() {
 
       try {
         setError(null);
-        const result = await fetchSectionItems(
-          activeServer,
-          id,
-          { limit: 1000, filter: currentFilter },
-          signal,
-          bypassCache,
-        );
+        const result = await fetchSectionItems(activeServer, id, { limit: 1000, filter: currentFilter }, signal, bypassCache);
         if (signal?.aborted) return;
         setItems(result.items);
         setTotalCount(result.totalRecordCount);
@@ -141,22 +130,12 @@ export default function SectionRoute() {
 
   return (
     <div className={styles.container}>
-      <PageHeader
-        onBack={handleBack}
-        backTitle="Home"
-        title={titleNode}
-        onRefresh={handleRefresh}
-        isRefreshing={isRefreshing}
-      />
+      <PageHeader onBack={handleBack} backTitle="Home" title={titleNode} onRefresh={handleRefresh} isRefreshing={isRefreshing} />
 
       <main className={styles.content}>
         <WatchStatusTabs value={filter} onChange={handleFilterChange} />
 
-        {error && (
-          <Alert icon={<IconAlertCircle size={18} />}>
-            {error}
-          </Alert>
-        )}
+        {error && <Alert icon={<IconAlertCircle size={18} />}>{error}</Alert>}
 
         {isLoading ? (
           <div className={styles.grid}>

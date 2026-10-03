@@ -3,8 +3,8 @@ import { getEmbyImageUrl, getItemImageUrl } from "@shared";
 import { IconChevronLeft, IconPlayerPlayFilled } from "@tabler/icons-react";
 import { useState } from "react";
 import { formatResumeTime, getMediaBadges } from "../lib/media-formatters";
-import { GlassElement } from "./GlassElement";
 import styles from "./ItemHero.module.css";
+import { GlassElement } from "./ui/GlassElement";
 
 export interface ItemHeroProps {
   item?: EmbyItemMetadata;

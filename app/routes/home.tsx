@@ -1,10 +1,10 @@
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router";
-import { Alert } from "../components/Alert";
 import { ContinueWatching, type ContinueWatchingHandle } from "../components/ContinueWatching";
 import { LibraryShelf, LibraryShelfSkeleton } from "../components/LibraryShelf";
 import { PageHeader } from "../components/PageHeader";
+import { Alert } from "../components/ui";
 import { useIINABridge, useOnWindowReopen } from "../hooks/useIINABridge";
 import { useLibrarySections } from "../hooks/useLibrarySections";
 import { clearLibraryCache } from "../lib/emby-library-client";

@@ -1,7 +1,7 @@
 import { IconChevronLeft, IconReload } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { GlassElement } from "./GlassElement";
 import styles from "./PageHeader.module.css";
+import { GlassElement } from "./ui/GlassElement";
 
 export interface PageHeaderProps {
   onBack?: () => void;
@@ -28,15 +28,7 @@ export function PageHeader({
     <header className={`${styles.header} ${className || ""}`}>
       <div className={styles.headerLeft}>
         {onBack && (
-          <GlassElement
-            variant="glass"
-            shape="rounded"
-            size="sm"
-            isIconOnly
-            onClick={onBack}
-            title={backTitle}
-            aria-label={backTitle}
-          >
+          <GlassElement variant="glass" shape="rounded" size="sm" isIconOnly onClick={onBack} title={backTitle} aria-label={backTitle}>
             <IconChevronLeft size={18} />
           </GlassElement>
         )}
