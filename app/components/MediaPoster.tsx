@@ -1,6 +1,6 @@
 import type { EmbyItemMetadata, EmbyServer } from "@shared";
 import { getItemImageUrl } from "@shared";
-import { IconMovie } from "@tabler/icons-react";
+import { IconCheck, IconMovie } from "@tabler/icons-react";
 import type React from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
@@ -53,6 +53,7 @@ export function MediaPoster({ item, server, onClick, className }: MediaPosterPro
   const rating = typeof item.CommunityRating === "number" && item.CommunityRating > 0 ? item.CommunityRating.toFixed(1) : null;
 
   const unplayedCount = item.UserData?.UnplayedItemCount && item.UserData.UnplayedItemCount > 0 ? item.UserData.UnplayedItemCount : null;
+  const isPlayed = Boolean(item.UserData?.Played);
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -79,12 +80,16 @@ export function MediaPoster({ item, server, onClick, className }: MediaPosterPro
           </div>
         )}
 
-        {/* Top-Right: Unplayed Episode Count for Series */}
-        {unplayedCount !== null && (
+        {/* Top-Right: Unplayed Episode Count for Series OR Played Checkmark */}
+        {unplayedCount !== null ? (
           <div className={classes.unplayedBadge} title={`${unplayedCount} unplayed episodes`}>
             {unplayedCount}
           </div>
-        )}
+        ) : isPlayed ? (
+          <div className={classes.playedBadge} title="Played">
+            <IconCheck size={14} stroke={2.5} />
+          </div>
+        ) : null}
 
         {/* Bottom-Right: Community Rating */}
         {rating !== null && (

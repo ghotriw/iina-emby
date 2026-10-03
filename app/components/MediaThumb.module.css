@@ -202,3 +202,42 @@
   white-space: normal;
   line-height: 1.35;
 }
+
+/* Unplayed Episode Badge (Top-Right) */
+.unplayedBadge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+  background: var(--accent-blue);
+  color: var(--text-primary);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  min-width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 0.6875rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  box-shadow: var(--shadow-badge);
+  pointer-events: none;
+}
+
+/* Played Badge (Top-Right) */
+.playedBadge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+  background: var(--accent-teal);
+  color: var(--text-primary);
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-badge);
+  pointer-events: none;
+}

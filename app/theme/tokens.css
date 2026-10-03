@@ -35,7 +35,7 @@
   /* Accent Colors (Dynamic hover via color-mix in oklch) */
   --accent-blue: #007aff;
   --accent-blue-hover: color-mix(in oklch, var(--accent-blue) 85%, black);
-  --accent-teal: #12b886;
+  --accent-teal: #00c781;
   --accent-teal-hover: color-mix(in oklch, var(--accent-teal) 85%, black);
   --accent-red: #ff453a;
   --accent-red-hover: color-mix(in oklch, var(--accent-red) 85%, black);
@@ -105,7 +105,7 @@
 @media (color-gamut: p3) {
   :root {
     --accent-blue: color(display-p3 0 0.4784 1);
-    --accent-teal: color(display-p3 0.15 0.71 0.52);
+    --accent-teal: color(display-p3 0 0.78 0.52);
     --accent-red: color(display-p3 1 0.2706 0.2275);
   }
 }

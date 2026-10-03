@@ -8,7 +8,7 @@ import {
   type PlayMediaPayload,
   ticksToSeconds,
 } from "@shared";
-import { IconMovie, IconPlayerPlay } from "@tabler/icons-react";
+import { IconCheck, IconMovie, IconPlayerPlay } from "@tabler/icons-react";
 import type React from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
@@ -91,6 +91,12 @@ export function MediaThumb({
   const currentSec = ticksToSeconds(item.UserData?.PlaybackPositionTicks);
   const totalSec = ticksToSeconds(item.RunTimeTicks);
 
+  const isPlayed = Boolean(item.UserData?.Played);
+  const unplayedCount =
+    item.UserData?.UnplayedItemCount && item.UserData.UnplayedItemCount > 0
+      ? item.UserData.UnplayedItemCount
+      : null;
+
   const hasProgress = totalSec > 0 && currentSec > 0;
   const progressPercent = hasProgress ? Math.min(100, Math.max(0, (currentSec / totalSec) * 100)) : 0;
 
@@ -142,6 +148,17 @@ export function MediaThumb({
             <IconMovie size={38} stroke={1.5} />
           </div>
         )}
+
+        {/* Top-Right: Unplayed Episode Count OR Played Checkmark */}
+        {unplayedCount !== null ? (
+          <div className={classes.unplayedBadge} title={`${unplayedCount} unplayed episodes`}>
+            {unplayedCount}
+          </div>
+        ) : isPlayed ? (
+          <div className={classes.playedBadge} title="Played">
+            <IconCheck size={14} stroke={2.5} />
+          </div>
+        ) : null}
 
         {/* Hover play button with liquid glass effect */}
         <div className={classes.hoverOverlay} aria-hidden="true">
