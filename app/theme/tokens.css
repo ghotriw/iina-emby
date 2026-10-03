@@ -38,11 +38,16 @@
   /* Accent Colors (Dynamic hover via color-mix in oklch) */
   --accent-blue: #007aff;
   --accent-blue-hover: color-mix(in oklch, var(--accent-blue) 85%, black);
-  --accent-blue-bg-hover: rgb(from var(--accent-blue) r g b / 12%);
+  --accent-blue-bg: rgb(from var(--accent-blue) r g b / 12%);
   --accent-teal: #00c781;
+  --accent-teal-bg: rgb(from var(--accent-teal) r g b / 12%);
+  --accent-teal-border: rgb(from var(--accent-teal) r g b / 35%);
   --accent-teal-hover: color-mix(in oklch, var(--accent-teal) 85%, black);
   --accent-red: #ff453a;
   --accent-red-hover: color-mix(in oklch, var(--accent-red) 85%, black);
+  --accent-orange: #ff9500;
+  --accent-orange-bg: rgb(from var(--accent-orange) r g b / 12%);
+  --accent-orange-border: rgb(from var(--accent-orange) r g b / 35%);
 
   /* Feedback & Alert Tokens */
   --danger-bg: rgb(from var(--accent-red) r g b / 12%);
@@ -111,5 +116,6 @@
     --accent-blue: color(display-p3 0 0.4784 1);
     --accent-teal: color(display-p3 0 0.78 0.52);
     --accent-red: color(display-p3 1 0.2706 0.2275);
+    --accent-orange: color(display-p3 1 0.5843 0);
   }
 }

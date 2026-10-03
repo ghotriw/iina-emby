@@ -1,4 +1,4 @@
-import type { EmbyItemMetadata, EmbyItemsResponse, EmbyServer, EmbyView } from "@shared";
+import type { EmbyItemMetadata, EmbyItemsResponse, EmbyServer, EmbySystemInfo, EmbyView } from "@shared";
 import { buildAuthHeaders } from "./emby-auth-client";
 
 interface CacheEntry<T> {
@@ -443,3 +443,32 @@ export async function fetchEpisodes(
     return data.Items || [];
   });
 }
+
+/**
+ * Fetch authenticated server system information (version, updates, OS).
+ */
+export async function fetchServerSystemInfo(
+  server: EmbyServer,
+  signal?: AbortSignal,
+  bypassCache = false,
+): Promise<EmbySystemInfo> {
+  const base = server.serverUrl.replace(/\/+$/, "");
+  const cacheKey = `${base}:system_info`;
+
+  return getOrFetchCached(cacheKey, DEFAULT_CACHE_TTL_MS, bypassCache, async () => {
+    const url = `${base}/System/Info`;
+    const response = await fetch(url, {
+      signal,
+      headers: buildAuthHeaders(server.accessToken, {
+        Accept: "application/json",
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch system info: ${response.status} ${response.statusText}`);
+    }
+
+    return (await response.json()) as EmbySystemInfo;
+  });
+}
+

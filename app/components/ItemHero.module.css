@@ -99,7 +99,7 @@
 }
 
 .logoWrapper {
-  min-height: 60px;
+  height: 85px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -107,17 +107,17 @@
 
 .logoImage {
   max-width: 280px;
-  max-height: 85px;
   width: auto;
-  height: auto;
+  height: 85px;
   object-fit: contain;
   object-position: bottom left;
   filter: drop-shadow(0 4px 16px rgb(from var(--scrim-base) r g b / 70%));
 }
 
 .titleFallback {
+  height: 85px;
   font-size: 32px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.15;
   color: var(--text-primary);
   margin: 0;

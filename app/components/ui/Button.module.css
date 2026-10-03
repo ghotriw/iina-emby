@@ -1,0 +1,32 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.75rem;
+  height: var(--height-action);
+  border-radius: var(--radius-m);
+  background: var(--bg-control);
+  border: none;
+  color: var(--text-primary);
+  font-size: var(--font-size-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  -webkit-app-region: no-drag;
+
+  &:hover {
+    background: var(--bg-control-hover);
+  }
+
+  &:active {
+    background: var(--bg-control-active);
+  }
+}
+
+.glyph {
+  font-size: var(--font-size-sub);
+  color: var(--text-tertiary);
+  font-family: var(--font-system);
+  letter-spacing: 0.05em;
+  padding-left: 2rem;
+}

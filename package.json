@@ -8,6 +8,8 @@
     "build:plugin": "tsup",
     "dev:plugin": "tsup --watch",
     "dev": "vite",
+    "preview": "vite preview --open",
+    "build:preview": "vite build && vite preview --open",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

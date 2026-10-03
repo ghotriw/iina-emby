@@ -24,6 +24,13 @@ export interface EmbySystemInfo {
   ServerName?: string;
   Version?: string;
   Id?: string;
+  OperatingSystem?: string;
+  HasUpdateAvailable?: boolean;
+  CanSelfUpdate?: boolean;
+  SystemUpdateLevel?: string;
+  PackageName?: string;
+  LocalAddress?: string;
+  WanAddress?: string;
 }
 
 export interface ClientIdentity {

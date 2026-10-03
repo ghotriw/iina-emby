@@ -1,4 +1,4 @@
-import { IconChevronLeft, IconReload } from "@tabler/icons-react";
+import { IconChevronLeft, IconReload, IconSettings2 } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import styles from "./PageHeader.module.css";
 import { GlassElement } from "./ui/GlassElement";
@@ -49,8 +49,19 @@ export function PageHeader({
       </div>
 
       <div className={styles.headerRight}>
+        <GlassElement
+          as="a"
+          href="/#/settings"
+          variant="glass"
+          shape="rounded"
+          size="sm"
+          isIconOnly
+          title="Setting"
+          aria-label="Open settings"
+        >
+          <IconSettings2 size={16} />
+        </GlassElement>
         {rightSection}
-
         {onRefresh && (
           <GlassElement
             variant="glass"
