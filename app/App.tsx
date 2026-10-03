@@ -2,6 +2,7 @@ import { HashRouter, Navigate, Route, Routes } from "react-router";
 import { IINABridgeProvider } from "./hooks/useIINABridge";
 import HomeRoute from "./routes/home";
 import ItemDetailRoute from "./routes/item";
+import SectionRoute from "./routes/section";
 import ServersRoute from "./routes/servers";
 
 export function App() {
@@ -10,6 +11,7 @@ export function App() {
       <HashRouter>
         <Routes>
           <Route path="/" element={<HomeRoute />} />
+          <Route path="/section/:id" element={<SectionRoute />} />
           <Route path="/item/:id" element={<ItemDetailRoute />} />
           <Route path="/servers" element={<ServersRoute />} />
           <Route path="*" element={<Navigate to="/" replace />} />

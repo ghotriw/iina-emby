@@ -1,4 +1,7 @@
 import type { EmbyItemMetadata, EmbyServer, EmbyView } from "@shared";
+import { IconChevronRight } from "@tabler/icons-react";
+import { useNavigate } from "react-router";
+import styles from "./LibraryShelf.module.css";
 import { MediaPoster, MediaPosterSkeleton } from "./MediaPoster";
 import { MediaShelf } from "./MediaShelf";
 import shelfClasses from "./MediaShelf.module.css";
@@ -37,9 +40,39 @@ export interface LibraryShelfProps {
 }
 
 export function LibraryShelf({ view, items, server, isLoading }: LibraryShelfProps) {
+  const navigate = useNavigate();
+
+  const handleOpenSection = () => {
+    navigate(`/section/${view.Id}`, { state: { name: view.Name } });
+  };
+
+  const moreButton = (
+    <button
+      type="button"
+      className={styles.moreBtn}
+      onClick={handleOpenSection}
+      title={`View all in ${view.Name}`}
+      aria-label={`View all in ${view.Name}`}
+    >
+      <span>More</span>
+      <IconChevronRight size={14} />
+    </button>
+  );
+
+  const titleNode = (
+    <button
+      type="button"
+      className={styles.titleBtn}
+      onClick={handleOpenSection}
+      title={`View all in ${view.Name}`}
+    >
+      <h3 className={shelfClasses.title}>{view.Name}</h3>
+    </button>
+  );
+
   if (isLoading) {
     return (
-      <MediaShelf title={view.Name} itemWidth={140} gap={14}>
+      <MediaShelf title={view.Name} rightSection={moreButton} itemWidth={140} gap={14}>
         {[1, 2, 3, 4, 5].map((id) => (
           <MediaPosterSkeleton key={`${view.Id}-${id}`} />
         ))}
@@ -52,7 +85,7 @@ export function LibraryShelf({ view, items, server, isLoading }: LibraryShelfPro
   }
 
   return (
-    <MediaShelf title={view.Name} itemWidth={140} gap={14}>
+    <MediaShelf title={titleNode} rightSection={moreButton} itemWidth={140} gap={14}>
       {items.map((item) => (
         <MediaPoster key={item.Id} item={item} server={server} />
       ))}

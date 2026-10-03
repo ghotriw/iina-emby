@@ -122,6 +122,70 @@ export async function fetchLatestItems(
   });
 }
 
+export interface FetchSectionItemsResult {
+  items: EmbyItemMetadata[];
+  totalRecordCount: number;
+}
+
+/**
+ * Fetch all items for a specific library section (ParentId).
+ */
+export async function fetchSectionItems(
+  server: EmbyServer,
+  parentId: string,
+  options?: {
+    sortBy?: string;
+    sortOrder?: "Ascending" | "Descending";
+    limit?: number;
+    startIndex?: number;
+    includeItemTypes?: string;
+  },
+  signal?: AbortSignal,
+  bypassCache = false,
+): Promise<FetchSectionItemsResult> {
+  const base = server.serverUrl.replace(/\/+$/, "");
+  const sortBy = options?.sortBy || "SortName";
+  const sortOrder = options?.sortOrder || "Ascending";
+  const limit = options?.limit ?? 500;
+  const startIndex = options?.startIndex ?? 0;
+  const includeItemTypes = options?.includeItemTypes || "Movie,Series,BoxSet,Video";
+
+  const cacheKey = `${base}:${server.userId}:section:${parentId}:${sortBy}:${sortOrder}:${startIndex}:${limit}:${includeItemTypes}`;
+
+  return getOrFetchCached(cacheKey, DEFAULT_CACHE_TTL_MS, bypassCache, async () => {
+    const query = new URLSearchParams({
+      ParentId: parentId,
+      Recursive: "true",
+      SortBy: sortBy,
+      SortOrder: sortOrder,
+      StartIndex: String(startIndex),
+      Limit: String(limit),
+      IncludeItemTypes: includeItemTypes,
+      Fields: "CommunityRating,ProductionYear,ImageTags,BackdropImageTags,UserData,PrimaryImageAspectRatio,SeriesName,RunTimeTicks,Overview",
+      EnableImageTypes: "Primary,Backdrop,Thumb",
+      ImageTypeLimit: "1",
+    });
+
+    const url = `${base}/Users/${encodeURIComponent(server.userId)}/Items?${query.toString()}`;
+    const response = await fetch(url, {
+      signal,
+      headers: buildAuthHeaders(server.accessToken, {
+        Accept: "application/json",
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch section items: ${response.status} ${response.statusText}`);
+    }
+
+    const data = (await response.json()) as EmbyItemsResponse<EmbyItemMetadata>;
+    return {
+      items: data.Items || [],
+      totalRecordCount: data.TotalRecordCount ?? (data.Items?.length || 0),
+    };
+  });
+}
+
 /**
  * Fetch next up episode for a series.
  */

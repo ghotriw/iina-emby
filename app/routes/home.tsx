@@ -1,10 +1,10 @@
-import { IconAlertCircle, IconChevronLeft, IconReload } from "@tabler/icons-react";
+import { IconAlertCircle } from "@tabler/icons-react";
 import { useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router";
 import { Alert } from "../components/Alert";
 import { ContinueWatching, type ContinueWatchingHandle } from "../components/ContinueWatching";
-import { GlassElement } from "../components/GlassElement";
 import { LibraryShelf, LibraryShelfSkeleton } from "../components/LibraryShelf";
+import { PageHeader } from "../components/PageHeader";
 import { useIINABridge, useOnWindowReopen } from "../hooks/useIINABridge";
 import { useLibrarySections } from "../hooks/useLibrarySections";
 import { clearLibraryCache } from "../lib/emby-library-client";
@@ -52,49 +52,14 @@ export default function HomeRoute() {
 
   return (
     <div className={styles.container}>
-      {/* Top navigation bar on common background */}
-      <header className={styles.header}>
-        <div className={styles.headerLeft}>
-          <GlassElement
-            variant="glass"
-            shape="rounded"
-            size="sm"
-            isIconOnly
-            onClick={handleBack}
-            title="Servers"
-            aria-label="Back to servers"
-          >
-            <IconChevronLeft size={18} />
-          </GlassElement>
-
-          <GlassElement
-            as="div"
-            variant="glass"
-            shape="rounded"
-            size="sm"
-            interactive={false}
-            leftSection={<span className={styles.activeDot} />}
-            className={styles.serverBadge}
-          >
-            <span className={styles.serverName}>{activeServer.serverName || "Emby"}</span>
-          </GlassElement>
-        </div>
-
-        <div className={styles.headerRight}>
-          <GlassElement
-            variant="glass"
-            shape="rounded"
-            size="sm"
-            isIconOnly
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            title="Refresh"
-            aria-label="Refresh library"
-          >
-            <IconReload size={16} className={isRefreshing ? styles.spinning : ""} />
-          </GlassElement>
-        </div>
-      </header>
+      <PageHeader
+        onBack={handleBack}
+        backTitle="Servers"
+        title={activeServer.serverName || "Emby"}
+        showActiveDot
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
+      />
 
       {/* Main shelves content */}
       <main className={styles.content}>
