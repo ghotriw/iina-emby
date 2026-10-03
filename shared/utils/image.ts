@@ -3,6 +3,7 @@ export interface EmbyImageUrlOptions {
   maxWidth?: number;
   maxHeight?: number;
   quality?: number;
+  format?: "webp" | "jpg" | "png";
   tag?: string;
   accessToken?: string;
 }
@@ -14,7 +15,8 @@ export function getEmbyImageUrl(serverUrl: string, itemId: string, options?: Emb
 
   if (options?.maxWidth) params.set("maxWidth", String(options.maxWidth));
   if (options?.maxHeight) params.set("maxHeight", String(options.maxHeight));
-  if (options?.quality) params.set("quality", String(options.quality));
+  params.set("quality", String(options?.quality ?? 85));
+  params.set("format", options?.format ?? "webp");
   if (options?.tag) params.set("tag", options.tag);
   if (options?.accessToken) params.set("api_key", options.accessToken);
 
@@ -39,6 +41,7 @@ export interface ItemImageUrlOptions {
   maxWidth?: number;
   maxHeight?: number;
   quality?: number;
+  format?: "webp" | "jpg" | "png";
   accessToken?: string;
   /**
    * Priority strategy:
