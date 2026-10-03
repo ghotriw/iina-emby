@@ -20,6 +20,7 @@ export interface IINABridgeContextType {
   isStandalone: boolean;
   isLoading: boolean;
   reopenCount: number;
+  progressUpdateCount: number;
   saveServer: (server: EmbyServer) => void;
   selectServer: (serverId: string) => void;
   removeServer: (serverId: string) => void;
@@ -54,6 +55,7 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
   const [isStandalone, setIsStandalone] = useState<boolean>(() => typeof window !== "undefined" && window.innerWidth >= 450);
   const [isLoading, setIsLoading] = useState<boolean>(hasIina);
   const [reopenCount, setReopenCount] = useState<number>(0);
+  const [progressUpdateCount, setProgressUpdateCount] = useState<number>(0);
 
   // Standalone web dev fallback: synchronize servers and active server ID to localStorage only when NOT in IINA
   useEffect(() => {
@@ -128,6 +130,10 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
         setServers([]);
         setActiveServerId(null);
         setIsLoading(false);
+      });
+
+      window.iina.onMessage("playback-progress-updated", () => {
+        setProgressUpdateCount((prev) => prev + 1);
       });
 
       // Request window context, identity, and servers list on mount
@@ -231,6 +237,7 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
     isStandalone,
     isLoading,
     reopenCount,
+    progressUpdateCount,
     saveServer,
     selectServer,
     removeServer,
@@ -261,4 +268,19 @@ export function useOnWindowReopen(callback: () => void) {
     }
     callbackRef.current();
   }, [reopenCount]);
+}
+
+export function useOnPlaybackProgressUpdated(callback: () => void) {
+  const { progressUpdateCount } = useIINABridge();
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
+  const isFirstMount = useRef(true);
+
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
+    callbackRef.current();
+  }, [progressUpdateCount]);
 }

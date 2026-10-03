@@ -5,7 +5,7 @@ import { ContinueWatching, type ContinueWatchingHandle } from "../components/Con
 import { LibraryShelf, LibraryShelfSkeleton } from "../components/LibraryShelf";
 import { PageHeader } from "../components/PageHeader";
 import { Alert } from "../components/ui";
-import { useIINABridge, useOnWindowReopen } from "../hooks/useIINABridge";
+import { useIINABridge, useOnPlaybackProgressUpdated, useOnWindowReopen } from "../hooks/useIINABridge";
 import { useLibrarySections } from "../hooks/useLibrarySections";
 import { clearLibraryCache } from "../lib/emby-library-client";
 import styles from "./home.module.css";
@@ -34,6 +34,11 @@ export default function HomeRoute() {
 
   useOnWindowReopen(() => {
     handleRefresh();
+  });
+
+  // Automatically refresh continue watching when player updates progress to Emby
+  useOnPlaybackProgressUpdated(() => {
+    continueWatchingRef.current?.refresh();
   });
 
   // Wait for IINA bridge to report servers list before redirecting

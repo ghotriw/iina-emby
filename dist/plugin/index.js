@@ -3,7 +3,7 @@
 // shared/constants.ts
 var CLIENT_NAME = "IINA Emby Plugin";
 var DEVICE_NAME = "IINA";
-var CLIENT_VERSION = true ? "0.3.2" : "0.1.0";
+var CLIENT_VERSION = true ? "0.3.3" : "0.1.0";
 
 // shared/utils/auth.ts
 function buildAuthorizationHeader(identity, token) {
@@ -1232,6 +1232,7 @@ function createPlaybackTrackingManager({
   fetchItemMetadata: fetchItemMetadata2,
   secondsToTicks: secondsToTicks3,
   ticksToSeconds: ticksToSeconds3,
+  onProgressUpdated,
   log
 }) {
   let currentPlaybackSession = null;
@@ -1381,6 +1382,9 @@ function createPlaybackTrackingManager({
       if (response.statusCode >= 400) {
         log(`Progress report failed with status: ${response.statusCode}`);
         return false;
+      }
+      if (typeof onProgressUpdated === "function") {
+        onProgressUpdated({ itemId, positionTicks, isPaused });
       }
       return response.statusCode === 204 || response.statusCode === 200;
     } catch (error) {
@@ -1884,6 +1888,11 @@ var { startPlaybackTracking, stopPlaybackTracking, handlePauseChange, getCurrent
   fetchItemMetadata,
   secondsToTicks: secondsToTicks2,
   ticksToSeconds: ticksToSeconds2,
+  onProgressUpdated: (data) => {
+    if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
+      iinaGlobal.postMessage("playback-progress-updated", data);
+    }
+  },
   log: debugLog
 });
 var isWindowClosing = false;

@@ -49,6 +49,11 @@ const { startPlaybackTracking, stopPlaybackTracking, handlePauseChange, getCurre
   fetchItemMetadata,
   secondsToTicks,
   ticksToSeconds,
+  onProgressUpdated: (data) => {
+    if (iinaGlobal && typeof iinaGlobal.postMessage === "function") {
+      iinaGlobal.postMessage("playback-progress-updated", data);
+    }
+  },
   log: debugLog,
 });
 

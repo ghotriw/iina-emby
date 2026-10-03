@@ -10,6 +10,7 @@ export interface PlaybackTrackingDeps {
   fetchItemMetadata: (serverBase: string, itemId: string, apiKey: string, userId?: string) => Promise<EmbyItemMetadata>;
   secondsToTicks: (seconds: number) => number;
   ticksToSeconds: (ticks: number) => number;
+  onProgressUpdated?: (data: { itemId: string; positionTicks: number; isPaused: boolean }) => void;
   log: DebugLogger;
 }
 
@@ -36,6 +37,7 @@ export function createPlaybackTrackingManager({
   fetchItemMetadata,
   secondsToTicks,
   ticksToSeconds,
+  onProgressUpdated,
   log,
 }: PlaybackTrackingDeps) {
   let currentPlaybackSession: PlaybackSession | null = null;
@@ -238,6 +240,10 @@ export function createPlaybackTrackingManager({
       if (response.statusCode >= 400) {
         log(`Progress report failed with status: ${response.statusCode}`);
         return false;
+      }
+
+      if (typeof onProgressUpdated === "function") {
+        onProgressUpdated({ itemId, positionTicks, isPaused });
       }
 
       return response.statusCode === 204 || response.statusCode === 200;

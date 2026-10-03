@@ -44,14 +44,12 @@
 }
 
 /* Top Floating Nav Bar */
-.topNav {
+.pageHeader {
   position: absolute;
-  left: 0;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 10;
-  padding: 1.5rem;
-  display: flex;
-  align-items: center;
 }
 
 /* Hero Content Area positioned over the bottom of the backdrop */

@@ -1,9 +1,9 @@
-import type { EmbyItemMetadata, EmbyServer } from "@shared";
-import { getEmbyImageUrl, getItemImageUrl } from "@shared";
-import { IconChevronLeft, IconPlayerPlayFilled } from "@tabler/icons-react";
+import { type EmbyItemMetadata, type EmbyServer, getEmbyImageUrl, getItemImageUrl } from "@shared";
+import { IconPlayerPlayFilled } from "@tabler/icons-react";
 import { useState } from "react";
 import { formatResumeTime, getMediaBadges } from "../lib/media-formatters";
 import styles from "./ItemHero.module.css";
+import { PageHeader } from "./PageHeader";
 import { GlassElement } from "./ui/GlassElement";
 
 export interface ItemHeroProps {
@@ -13,9 +13,20 @@ export interface ItemHeroProps {
   isPlaying?: boolean;
   onPlay: () => void;
   onBack: () => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
-export function ItemHero({ item, nextUpEpisode, activeServer, isPlaying = false, onPlay, onBack }: ItemHeroProps) {
+export function ItemHero({
+  item,
+  nextUpEpisode,
+  activeServer,
+  isPlaying = false,
+  onPlay,
+  onBack,
+  onRefresh,
+  isRefreshing = false,
+}: ItemHeroProps) {
   const [logoError, setLogoError] = useState(false);
 
   // The active playable target (episode if Series has NextUp, or the item itself)
@@ -93,12 +104,8 @@ export function ItemHero({ item, nextUpEpisode, activeServer, isPlaying = false,
         </div>
       ) : null}
 
-      {/* Top Floating Navigation */}
-      <header className={styles.topNav}>
-        <GlassElement variant="glass" shape="rounded" size="md" isIconOnly onClick={onBack} aria-label="Back" title="Back">
-          <IconChevronLeft size={22} />
-        </GlassElement>
-      </header>
+      {/* Top Floating Navigation Bar with Back & Refresh */}
+      <PageHeader onBack={onBack} backTitle="Back" onRefresh={onRefresh} isRefreshing={isRefreshing} className={styles.pageHeader} />
 
       {/* Hero Bottom Layout */}
       <main className={styles.heroContent}>

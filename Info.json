@@ -1,7 +1,7 @@
 {
   "name": "Emby",
   "identifier": "com.ghotriw.iina-emby",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Emby plugin for IINA.",
   "ghRepo": "ghotriw/iina-emby",
   "ghVersion": 5,

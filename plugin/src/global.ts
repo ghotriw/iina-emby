@@ -56,6 +56,12 @@ global.onMessage("player-next-queued", (data?: { count?: number; firstTitle?: st
   debugLog("Player queued upcoming episodes:", data);
 });
 
+global.onMessage("playback-progress-updated", (data?: unknown) => {
+  if (standaloneWindow && typeof standaloneWindow.postMessage === "function") {
+    standaloneWindow.postMessage("playback-progress-updated", data);
+  }
+});
+
 function spawnNewPlayerInstance(streamUrl: string, title?: string): void {
   debugLog("Creating new player instance for playback:", title);
   try {

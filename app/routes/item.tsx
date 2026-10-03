@@ -4,7 +4,7 @@ import { useLocation, useNavigate, useParams } from "react-router";
 import { EpisodeDetailModal } from "../components/EpisodeDetailModal";
 import { ItemHero } from "../components/ItemHero";
 import { SeriesEpisodesShelf } from "../components/SeriesEpisodesShelf";
-import { useIINABridge, useOnWindowReopen } from "../hooks/useIINABridge";
+import { useIINABridge, useOnPlaybackProgressUpdated, useOnWindowReopen } from "../hooks/useIINABridge";
 import { useSeriesEpisodes } from "../hooks/useSeriesEpisodes";
 import { buildStreamUrl, clearLibraryCache, fetchItemDetails } from "../lib/emby-library-client";
 import styles from "./item.module.css";
@@ -24,8 +24,25 @@ export default function ItemDetailRoute() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [detailEpisode, setDetailEpisode] = useState<EmbyItemMetadata | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    clearLibraryCache();
+    setReloadNonce((prev) => prev + 1);
+    // Short visual indicator for refresh button
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 600);
+  };
 
   useOnWindowReopen(() => {
+    handleRefresh();
+  });
+
+  // Automatically refresh when player reports progress back to Emby
+  useOnPlaybackProgressUpdated(() => {
     clearLibraryCache();
     setReloadNonce((prev) => prev + 1);
   });
@@ -108,6 +125,8 @@ export default function ItemDetailRoute() {
         isPlaying={isPlaying}
         onPlay={handlePlay}
         onBack={() => navigate(-1)}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
       />
 
       {isSeries && (
