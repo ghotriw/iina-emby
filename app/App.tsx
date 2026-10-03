@@ -1,5 +1,6 @@
 import { HashRouter, Navigate, Route, Routes } from "react-router";
 import { IINABridgeProvider } from "./hooks/useIINABridge";
+import ContinueWatchingRoute from "./routes/continue-watching";
 import HomeRoute from "./routes/home";
 import ItemDetailRoute from "./routes/item";
 import SectionRoute from "./routes/section";
@@ -11,6 +12,7 @@ export function App() {
       <HashRouter>
         <Routes>
           <Route path="/" element={<HomeRoute />} />
+          <Route path="/continue-watching" element={<ContinueWatchingRoute />} />
           <Route path="/section/:id" element={<SectionRoute />} />
           <Route path="/item/:id" element={<ItemDetailRoute />} />
           <Route path="/servers" element={<ServersRoute />} />

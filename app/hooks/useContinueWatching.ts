@@ -22,7 +22,7 @@ export function useContinueWatching(activeServer: EmbyServer | null) {
       try {
         const result = await fetchResumeItems(activeServer, 12, signal);
         if (signal?.aborted) return;
-        setItems(result);
+        setItems(result.items);
       } catch (err: unknown) {
         if (signal?.aborted || (err instanceof DOMException && err.name === "AbortError")) {
           return;

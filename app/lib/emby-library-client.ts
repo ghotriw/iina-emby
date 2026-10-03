@@ -26,13 +26,25 @@ async function getOrFetchCached<T>(key: string, ttlMs: number, bypassCache: bool
   return result;
 }
 
+export interface FetchResumeItemsResult {
+  items: EmbyItemMetadata[];
+  totalRecordCount: number;
+}
+
 /**
  * Fetch Continue Watching (Resume) items for the active user from Emby server.
  */
-export async function fetchResumeItems(server: EmbyServer, limit = 12, signal?: AbortSignal): Promise<EmbyItemMetadata[]> {
+export async function fetchResumeItems(
+  server: EmbyServer,
+  options?: number | { limit?: number; startIndex?: number },
+  signal?: AbortSignal,
+): Promise<FetchResumeItemsResult> {
   const base = server.serverUrl.replace(/\/+$/, "");
+  const limit = typeof options === "number" ? options : options?.limit ?? 12;
+  const startIndex = typeof options === "object" ? options?.startIndex ?? 0 : 0;
+
   const query = new URLSearchParams({
-    Limit: String(limit),
+    StartIndex: String(startIndex),
     Recursive: "true",
     MediaTypes: "Video",
     Fields:
@@ -40,6 +52,10 @@ export async function fetchResumeItems(server: EmbyServer, limit = 12, signal?: 
     EnableImageTypes: "Primary,Backdrop,Thumb",
     ImageTypeLimit: "1",
   });
+
+  if (limit > 0) {
+    query.set("Limit", String(limit));
+  }
 
   const url = `${base}/Users/${encodeURIComponent(server.userId)}/Items/Resume?${query.toString()}`;
   const response = await fetch(url, {
@@ -54,7 +70,10 @@ export async function fetchResumeItems(server: EmbyServer, limit = 12, signal?: 
   }
 
   const data = (await response.json()) as EmbyItemsResponse<EmbyItemMetadata>;
-  return data.Items || [];
+  return {
+    items: data.Items || [],
+    totalRecordCount: data.TotalRecordCount ?? (data.Items?.length || 0),
+  };
 }
 
 /**
