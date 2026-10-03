@@ -3,7 +3,7 @@
 // shared/constants.ts
 var CLIENT_NAME = "IINA Emby Plugin";
 var DEVICE_NAME = "IINA";
-var CLIENT_VERSION = true ? "0.3.1" : "0.1.0";
+var CLIENT_VERSION = true ? "0.3.2" : "0.1.0";
 var WINDOW_DIMENSIONS = {
   DEFAULT_WIDTH: 960,
   DEFAULT_HEIGHT: 680,
@@ -350,17 +350,37 @@ function serializeArg(arg) {
 }
 function formatMessage(prefix, parts) {
   const text = redactSecrets(parts.map(serializeArg).join(" | "));
-  return `${prefix}: ${text}`;
+  return `[iina-emby] ${prefix}: ${text}`;
 }
-function createDebugLogger(preferences2, loggerConsole) {
+var LOG_FILE_PATH = "/tmp/iina-emby.log";
+function appendToFile(fileApi, text) {
+  if (!fileApi) return;
+  try {
+    const timestamp = (/* @__PURE__ */ new Date()).toISOString().split("T")[1].slice(0, 8);
+    const line = `[${timestamp}] ${text}
+`;
+    if (typeof fileApi.handle === "function") {
+      const h = fileApi.handle(LOG_FILE_PATH, "write");
+      h.seekToEnd();
+      h.write(line);
+    }
+  } catch {
+  }
+}
+function createDebugLogger(preferences2, loggerConsole, fileApi) {
   const isDebugEnabled = () => Boolean(preferences2?.get?.("debug_logging"));
   const debug = (...parts) => {
     if (isDebugEnabled()) {
-      loggerConsole.log(formatMessage("DEBUG", parts));
+      const msg = formatMessage("DEBUG", parts);
+      appendToFile(fileApi, msg);
+      loggerConsole.log(msg);
     }
   };
   const error = (...parts) => {
     const msg = formatMessage("ERROR", parts);
+    if (isDebugEnabled()) {
+      appendToFile(fileApi, msg);
+    }
     if (typeof loggerConsole.error === "function") {
       loggerConsole.error(msg);
     } else {
@@ -369,6 +389,9 @@ function createDebugLogger(preferences2, loggerConsole) {
   };
   const warn = (...parts) => {
     const msg = formatMessage("WARN", parts);
+    if (isDebugEnabled()) {
+      appendToFile(fileApi, msg);
+    }
     if (typeof loggerConsole.warn === "function") {
       loggerConsole.warn(msg);
     } else {
@@ -740,8 +763,8 @@ function createServerSessionStore({ preferences: preferences2, sidebar, standalo
 }
 
 // plugin/src/global.ts
-var { global, console, preferences, standaloneWindow, utils, http, menu } = iina;
-var debugLog = createDebugLogger(preferences, console);
+var { global, console, preferences, standaloneWindow, utils, http, menu, file } = iina;
+var debugLog = createDebugLogger(preferences, console, file);
 debugLog("Emby Plugin Global Entry loaded");
 console.log("[iina-emby] Global Entry initialized");
 var { getClientIdentity } = createEmbyApi({
@@ -797,6 +820,8 @@ function handleGlobalPlayMedia(data) {
   debugLog("Global entry handleGlobalPlayMedia:", {
     title: data.title,
     streamUrl: data.streamUrl,
+    startPositionTicks: data.startPositionTicks,
+    startPositionSeconds: data.startPositionSeconds,
     activePlayerTarget,
     openInNewWindow
   });

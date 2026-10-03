@@ -14,7 +14,7 @@ import type { PlayMediaListMessage, PlayMediaMessage } from "./lib/webview-bridg
 
 const { core, console: iinaConsole, menu, event, http, utils, preferences, mpv, global: iinaGlobal, file } = iina;
 
-const debugLog = createDebugLogger(preferences, iinaConsole);
+const debugLog = createDebugLogger(preferences, iinaConsole, file);
 
 const {
   getClientIdentity,
@@ -92,6 +92,7 @@ const {
   clearLaunchedFromBrowser,
   consumeLaunchedFromBrowser,
   getPendingMediaTitle,
+  getPendingStartPosition,
 } = createPlaybackCoordinator({
   core,
   mpv,
@@ -228,8 +229,11 @@ function onFileLoaded(fileUrl?: string): void {
 
     // Start playback tracking for progress sync
     if (preferences.get("sync_playback_progress")) {
-      debugLog(`Starting playback tracking for: ${embyInfo.itemId}, userId: ${reportUserId || "none"}`);
-      startPlaybackTracking(reportServerBase, embyInfo.itemId, reportApiKey, reportUserId);
+      const pendingStart = getPendingStartPosition(embyInfo.itemId);
+      debugLog(
+        `Starting playback tracking for: ${embyInfo.itemId}, userId: ${reportUserId || "none"}, pendingStart: ${pendingStart ?? "none"}`,
+      );
+      startPlaybackTracking(reportServerBase, embyInfo.itemId, reportApiKey, reportUserId, pendingStart);
     }
 
     // Set video title from metadata if enabled

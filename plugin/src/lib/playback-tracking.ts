@@ -22,6 +22,7 @@ export interface PlaybackSession {
   mediaSourceId: string | null;
   startTime: number;
   resumePosition: number | null;
+  hasPerformedInitialSeek?: boolean;
   duration: number | null;
   hasReportedWatched: boolean;
 }
@@ -67,84 +68,43 @@ export function createPlaybackTrackingManager({
   async function fetchResumePosition(serverBase: string, itemId: string, apiKey: string, userId?: string): Promise<number | null> {
     try {
       if (!preferences.get("sync_playback_progress")) {
-        log("Playback progress sync disabled, skipping resume position fetch");
+        log("[resume] Playback progress sync disabled, skipping resume position fetch");
         return null;
       }
 
+      log(`[resume] Requesting metadata for itemId=${itemId}, userId=${userId || "none"}`);
       const metadata = await fetchItemMetadata(serverBase, itemId, apiKey, userId);
 
       if (!metadata?.UserData) {
-        log("No UserData found in metadata");
+        log(`[resume] No UserData found in metadata for itemId=${itemId} (userId=${userId || "none"})`);
         return null;
       }
 
       const playbackPositionTicks = metadata.UserData.PlaybackPositionTicks;
       const played = metadata.UserData.Played;
+      log(
+        `[resume] Item ${itemId} (${metadata.Name || "Unknown"}): PlaybackPositionTicks=${playbackPositionTicks}, Played=${played}, RunTimeTicks=${metadata.RunTimeTicks}`,
+      );
 
-      if (played) {
-        log("Item already marked as played, not resuming");
+      if (!playbackPositionTicks || playbackPositionTicks === 0) {
+        log(`[resume] No resume position available for itemId=${itemId}`);
         return null;
       }
 
-      if (!playbackPositionTicks || playbackPositionTicks === 0) {
-        log("No resume position available");
+      // If near the end (>= 95%), don't resume to credits
+      if (metadata.RunTimeTicks && playbackPositionTicks / metadata.RunTimeTicks >= WATCHED_THRESHOLD) {
+        log(`[resume] Resume position is near the end (>= 95%), starting from beginning for itemId=${itemId}`);
         return null;
       }
 
       const positionSeconds = ticksToSeconds(playbackPositionTicks);
-      log(`Found resume position: ${positionSeconds.toFixed(1)}s (${playbackPositionTicks} ticks)`);
+      log(`[resume] Found valid resume position: ${positionSeconds.toFixed(1)}s (${playbackPositionTicks} ticks) for itemId=${itemId}`);
 
       return positionSeconds;
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      log(`Error fetching resume position: ${errorMsg}`);
+      log(`[resume] Error fetching resume position for itemId=${itemId}: ${errorMsg}`);
       return null;
-    }
-  }
-
-  async function resumeFromEmby(serverBase: string, itemId: string, apiKey: string, userId?: string) {
-    const session = currentPlaybackSession;
-
-    try {
-      const resumePosition = await fetchResumePosition(serverBase, itemId, apiKey, userId);
-
-      if (session) {
-        session.resumePosition = resumePosition ?? 0;
-      }
-
-      if (resumePosition === null || resumePosition < 15) {
-        log("No significant resume position, starting from beginning");
-        return;
-      }
-
-      if (currentPlaybackSession !== session) {
-        log(`Playback session changed while fetching resume position for ${itemId}, not seeking`);
-        return;
-      }
-
-      setTimeout(() => {
-        try {
-          if (currentPlaybackSession !== session) {
-            log(`Playback session changed before resume seek for ${itemId}, not seeking`);
-            return;
-          }
-
-          log(`Resuming playback at ${resumePosition.toFixed(1)}s`);
-          core.seekTo(resumePosition);
-
-          if (preferences.get("show_notifications")) {
-            const minutes = Math.floor(resumePosition / 60);
-            const seconds = Math.floor(resumePosition % 60);
-            core.osd(`Resuming at ${minutes}:${seconds.toString().padStart(2, "0")}`);
-          }
-        } catch (error: unknown) {
-          const errorMsg = error instanceof Error ? error.message : String(error);
-          log(`Error seeking to resume position: ${errorMsg}`);
-        }
-      }, 1000);
-    } catch (error: unknown) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      log(`Error resuming from Emby: ${errorMsg}`);
     }
   }
 
@@ -154,6 +114,7 @@ export function createPlaybackTrackingManager({
     apiKey: string,
     playSessionId: string | null,
     mediaSourceId: string | null,
+    startPositionSeconds: number = 0,
   ): Promise<boolean> {
     try {
       if (!preferences.get("sync_playback_progress")) {
@@ -161,8 +122,9 @@ export function createPlaybackTrackingManager({
         return false;
       }
 
+      const positionTicks = secondsToTicks(startPositionSeconds);
       const url = `${serverBase}/Sessions/Playing?api_key=${apiKey}`;
-      log(`Reporting playback start for item: ${itemId}`);
+      log(`Reporting playback start for item: ${itemId} at ${startPositionSeconds}s (${positionTicks} ticks)`);
 
       const response = await http.post(url, {
         headers: buildEmbyHeaders(apiKey, {
@@ -175,7 +137,7 @@ export function createPlaybackTrackingManager({
           PlaySessionId: playSessionId,
           CanSeek: true,
           PlayMethod: "DirectPlay",
-          PositionTicks: 0,
+          PositionTicks: positionTicks,
         },
       });
 
@@ -190,6 +152,53 @@ export function createPlaybackTrackingManager({
       const errorMsg = error instanceof Error ? error.message : JSON.stringify(error);
       log(`Error reporting playback start: ${errorMsg}`);
       return false;
+    }
+  }
+
+  async function resumeAndReportStart(
+    serverBase: string,
+    itemId: string,
+    apiKey: string,
+    playSessionId: string | null,
+    mediaSourceId: string | null,
+    userId?: string,
+    knownStartPositionSeconds?: number | null,
+  ) {
+    const session = currentPlaybackSession;
+
+    try {
+      let resumePosition: number | null = null;
+      if (typeof knownStartPositionSeconds === "number" && knownStartPositionSeconds > 0) {
+        resumePosition = knownStartPositionSeconds;
+        log(`[resume] Using known initial start position from browser: ${resumePosition.toFixed(1)}s for itemId=${itemId}`);
+      } else {
+        resumePosition = await fetchResumePosition(serverBase, itemId, apiKey, userId);
+      }
+
+      if (currentPlaybackSession !== session) {
+        log(`Playback session changed while fetching resume position for ${itemId}, aborting start report`);
+        return;
+      }
+
+      const effectiveStart = resumePosition !== null && resumePosition >= 15 ? resumePosition : 0;
+      if (session) {
+        session.resumePosition = effectiveStart;
+      }
+      lastKnownPosition = effectiveStart;
+
+      // Report playback start with the actual resume position (not 0!)
+      log(`[start] Starting playback for itemId=${itemId}, effectiveStart=${effectiveStart}s (${secondsToTicks(effectiveStart)} ticks), reporting to Emby...`);
+      reportPlaybackStart(serverBase, itemId, apiKey, playSessionId, mediaSourceId, effectiveStart);
+
+      if (effectiveStart >= 15) {
+        log(`[seek] Scheduled resume seek to ${effectiveStart.toFixed(1)}s for itemId=${itemId} once playback starts`);
+      } else {
+        log(`[start] No significant resume position (<15s) for itemId=${itemId}, starting from beginning`);
+      }
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`[start] Error resuming and reporting playback start: ${errorMsg}`);
+      reportPlaybackStart(serverBase, itemId, apiKey, playSessionId, mediaSourceId, 0);
     }
   }
 
@@ -321,7 +330,13 @@ export function createPlaybackTrackingManager({
     }
   }
 
-  async function startPlaybackTracking(serverBase: string, itemId: string, apiKey: string, userId?: string) {
+  async function startPlaybackTracking(
+    serverBase: string,
+    itemId: string,
+    apiKey: string,
+    userId?: string,
+    knownStartPositionSeconds?: number | null,
+  ) {
     stopPlaybackTracking();
 
     if (!preferences.get("sync_playback_progress")) {
@@ -362,13 +377,12 @@ export function createPlaybackTrackingManager({
       playSessionId,
       mediaSourceId,
       startTime: Date.now(),
-      resumePosition: null,
+      resumePosition: typeof knownStartPositionSeconds === "number" && knownStartPositionSeconds >= 15 ? knownStartPositionSeconds : null,
       duration: null,
       hasReportedWatched: false,
     };
 
-    reportPlaybackStart(serverBase, itemId, apiKey, playSessionId, mediaSourceId);
-    resumeFromEmby(serverBase, itemId, apiKey, userId);
+    resumeAndReportStart(serverBase, itemId, apiKey, playSessionId, mediaSourceId, userId, knownStartPositionSeconds);
 
     try {
       const duration = core.status.duration;
@@ -406,6 +420,30 @@ export function createPlaybackTrackingManager({
           const duration = core.status.duration;
           if (duration) {
             currentPlaybackSession.duration = duration;
+          }
+        }
+
+        // Perform deferred resume seek once mpv has actively loaded the stream (duration and position exist)
+        const resumePos = currentPlaybackSession.resumePosition;
+        if (
+          !currentPlaybackSession.hasPerformedInitialSeek &&
+          typeof resumePos === "number" &&
+          resumePos >= 15 &&
+          position !== null &&
+          (currentPlaybackSession.duration || 0) > 0
+        ) {
+          currentPlaybackSession.hasPerformedInitialSeek = true;
+          log(`[seek] Performing safe resume seek to ${resumePos.toFixed(1)}s (current mpv position=${position}s)`);
+          try {
+            core.seekTo(resumePos);
+            if (preferences.get("show_notifications")) {
+              const minutes = Math.floor(resumePos / 60);
+              const seconds = Math.floor(resumePos % 60);
+              core.osd(`Resuming at ${minutes}:${seconds.toString().padStart(2, "0")}`);
+            }
+          } catch (seekErr: unknown) {
+            const errorMsg = seekErr instanceof Error ? seekErr.message : String(seekErr);
+            log(`[seek] Error during safe resume seek: ${errorMsg}`);
           }
         }
 
@@ -473,6 +511,17 @@ export function createPlaybackTrackingManager({
       }
 
       const isPaused = core.status.paused || false;
+      const expectedResume = currentPlaybackSession.resumePosition;
+
+      // If we expect to resume at e.g. 489s, but mpv just fired an initial unpause at 0.04s,
+      // do NOT report 0.04s to Emby because that wipes out progress on the server!
+      if (typeof expectedResume === "number" && expectedResume >= 15 && lastKnownPosition < 5) {
+        log(
+          `Pause state changed: isPaused=${isPaused}, position=${lastKnownPosition} (ignoring premature position <5s while resume at ${expectedResume}s is pending)`,
+        );
+        return;
+      }
+
       log(`Pause state changed: isPaused=${isPaused}, position=${lastKnownPosition}`);
 
       const { serverBase, itemId, apiKey, playSessionId, mediaSourceId } = currentPlaybackSession;

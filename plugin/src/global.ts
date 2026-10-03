@@ -10,9 +10,9 @@ import { createEmbyApi } from "./lib/emby-api";
 import { createServerSessionStore } from "./lib/server-session-store";
 import { createBridgeDeps, type PlayMediaListMessage, type PlayMediaMessage } from "./lib/webview-bridge";
 
-const { global, console, preferences, standaloneWindow, utils, http, menu } = iina;
+const { global, console, preferences, standaloneWindow, utils, http, menu, file } = iina;
 
-const debugLog = createDebugLogger(preferences, console);
+const debugLog = createDebugLogger(preferences, console, file);
 
 debugLog("Emby Plugin Global Entry loaded");
 console.log("[iina-emby] Global Entry initialized");
@@ -85,6 +85,8 @@ function handleGlobalPlayMedia(data?: PlayMediaMessage): void {
   debugLog("Global entry handleGlobalPlayMedia:", {
     title: data.title,
     streamUrl: data.streamUrl,
+    startPositionTicks: data.startPositionTicks,
+    startPositionSeconds: data.startPositionSeconds,
     activePlayerTarget,
     openInNewWindow,
   });

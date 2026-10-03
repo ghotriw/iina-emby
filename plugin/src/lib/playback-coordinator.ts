@@ -57,10 +57,10 @@ export function createPlaybackCoordinator({
   // stop report of the next file that really does finish.
   let replacingPlaybackAt = 0;
 
-  // Track the most recent title requested from the UI so it can be applied
-  // immediately upon file load without waiting for network metadata.
+  // Track the most recent title and start position requested from the UI
   let currentPlaybackTitle: string | null = null;
   let currentPlaybackItemId: string | null = null;
+  let currentPlaybackStartPositionSeconds: number | null = null;
 
   function getPendingMediaTitle(itemId?: string): string | null {
     if (!currentPlaybackTitle) return null;
@@ -68,6 +68,14 @@ export function createPlaybackCoordinator({
       return null;
     }
     return currentPlaybackTitle;
+  }
+
+  function getPendingStartPosition(itemId?: string): number | null {
+    if (typeof currentPlaybackStartPositionSeconds !== "number") return null;
+    if (itemId && currentPlaybackItemId && currentPlaybackItemId !== itemId) {
+      return null;
+    }
+    return currentPlaybackStartPositionSeconds;
   }
 
   function markReplacingPlayback(): void {
@@ -130,6 +138,7 @@ export function createPlaybackCoordinator({
 
     currentPlaybackTitle = title || null;
     currentPlaybackItemId = (String(streamUrl).match(/\/(?:Items|Videos|Audio)\/([^/?]+)/) || [])[1] || null;
+    currentPlaybackStartPositionSeconds = typeof startPositionSeconds === "number" ? startPositionSeconds : null;
 
     // Set replacement guard so end-file handler doesn't send spurious stop
     if (getCurrentPlaybackSession()) {
@@ -364,5 +373,6 @@ export function createPlaybackCoordinator({
     handlePlayMediaList,
     handlePlayMedia,
     getPendingMediaTitle,
+    getPendingStartPosition,
   };
 }

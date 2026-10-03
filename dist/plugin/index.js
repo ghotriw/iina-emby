@@ -3,7 +3,7 @@
 // shared/constants.ts
 var CLIENT_NAME = "IINA Emby Plugin";
 var DEVICE_NAME = "IINA";
-var CLIENT_VERSION = true ? "0.3.1" : "0.1.0";
+var CLIENT_VERSION = true ? "0.3.2" : "0.1.0";
 
 // shared/utils/auth.ts
 function buildAuthorizationHeader(identity, token) {
@@ -442,17 +442,37 @@ function serializeArg(arg) {
 }
 function formatMessage(prefix, parts) {
   const text = redactSecrets(parts.map(serializeArg).join(" | "));
-  return `${prefix}: ${text}`;
+  return `[iina-emby] ${prefix}: ${text}`;
 }
-function createDebugLogger(preferences2, loggerConsole) {
+var LOG_FILE_PATH = "/tmp/iina-emby.log";
+function appendToFile(fileApi, text) {
+  if (!fileApi) return;
+  try {
+    const timestamp = (/* @__PURE__ */ new Date()).toISOString().split("T")[1].slice(0, 8);
+    const line = `[${timestamp}] ${text}
+`;
+    if (typeof fileApi.handle === "function") {
+      const h = fileApi.handle(LOG_FILE_PATH, "write");
+      h.seekToEnd();
+      h.write(line);
+    }
+  } catch {
+  }
+}
+function createDebugLogger(preferences2, loggerConsole, fileApi) {
   const isDebugEnabled = () => Boolean(preferences2?.get?.("debug_logging"));
   const debug = (...parts) => {
     if (isDebugEnabled()) {
-      loggerConsole.log(formatMessage("DEBUG", parts));
+      const msg = formatMessage("DEBUG", parts);
+      appendToFile(fileApi, msg);
+      loggerConsole.log(msg);
     }
   };
   const error = (...parts) => {
     const msg = formatMessage("ERROR", parts);
+    if (isDebugEnabled()) {
+      appendToFile(fileApi, msg);
+    }
     if (typeof loggerConsole.error === "function") {
       loggerConsole.error(msg);
     } else {
@@ -461,6 +481,9 @@ function createDebugLogger(preferences2, loggerConsole) {
   };
   const warn = (...parts) => {
     const msg = formatMessage("WARN", parts);
+    if (isDebugEnabled()) {
+      appendToFile(fileApi, msg);
+    }
     if (typeof loggerConsole.warn === "function") {
       loggerConsole.warn(msg);
     } else {
@@ -964,12 +987,20 @@ function createPlaybackCoordinator({
   let replacingPlaybackAt = 0;
   let currentPlaybackTitle = null;
   let currentPlaybackItemId = null;
+  let currentPlaybackStartPositionSeconds = null;
   function getPendingMediaTitle2(itemId) {
     if (!currentPlaybackTitle) return null;
     if (itemId && currentPlaybackItemId && currentPlaybackItemId !== itemId) {
       return null;
     }
     return currentPlaybackTitle;
+  }
+  function getPendingStartPosition2(itemId) {
+    if (typeof currentPlaybackStartPositionSeconds !== "number") return null;
+    if (itemId && currentPlaybackItemId && currentPlaybackItemId !== itemId) {
+      return null;
+    }
+    return currentPlaybackStartPositionSeconds;
   }
   function markReplacingPlayback() {
     replacingPlaybackAt = Date.now();
@@ -1012,6 +1043,7 @@ function createPlaybackCoordinator({
     markLaunchedFromBrowser2();
     currentPlaybackTitle = title || null;
     currentPlaybackItemId = (String(streamUrl).match(/\/(?:Items|Videos|Audio)\/([^/?]+)/) || [])[1] || null;
+    currentPlaybackStartPositionSeconds = typeof startPositionSeconds === "number" ? startPositionSeconds : null;
     if (getCurrentPlaybackSession2()) {
       markReplacingPlayback();
     }
@@ -1185,7 +1217,8 @@ ${item.streamUrl}
     flushPendingPlaylistQueue: flushPendingPlaylistQueue2,
     handlePlayMediaList: handlePlayMediaList2,
     handlePlayMedia: handlePlayMedia2,
-    getPendingMediaTitle: getPendingMediaTitle2
+    getPendingMediaTitle: getPendingMediaTitle2,
+    getPendingStartPosition: getPendingStartPosition2
   };
 }
 
@@ -1225,79 +1258,46 @@ function createPlaybackTrackingManager({
   async function fetchResumePosition(serverBase, itemId, apiKey, userId) {
     try {
       if (!preferences2.get("sync_playback_progress")) {
-        log("Playback progress sync disabled, skipping resume position fetch");
+        log("[resume] Playback progress sync disabled, skipping resume position fetch");
         return null;
       }
+      log(`[resume] Requesting metadata for itemId=${itemId}, userId=${userId || "none"}`);
       const metadata = await fetchItemMetadata2(serverBase, itemId, apiKey, userId);
       if (!metadata?.UserData) {
-        log("No UserData found in metadata");
+        log(`[resume] No UserData found in metadata for itemId=${itemId} (userId=${userId || "none"})`);
         return null;
       }
       const playbackPositionTicks = metadata.UserData.PlaybackPositionTicks;
       const played = metadata.UserData.Played;
-      if (played) {
-        log("Item already marked as played, not resuming");
+      log(
+        `[resume] Item ${itemId} (${metadata.Name || "Unknown"}): PlaybackPositionTicks=${playbackPositionTicks}, Played=${played}, RunTimeTicks=${metadata.RunTimeTicks}`
+      );
+      if (!playbackPositionTicks || playbackPositionTicks === 0) {
+        log(`[resume] No resume position available for itemId=${itemId}`);
         return null;
       }
-      if (!playbackPositionTicks || playbackPositionTicks === 0) {
-        log("No resume position available");
+      if (metadata.RunTimeTicks && playbackPositionTicks / metadata.RunTimeTicks >= WATCHED_THRESHOLD) {
+        log(`[resume] Resume position is near the end (>= 95%), starting from beginning for itemId=${itemId}`);
         return null;
       }
       const positionSeconds = ticksToSeconds3(playbackPositionTicks);
-      log(`Found resume position: ${positionSeconds.toFixed(1)}s (${playbackPositionTicks} ticks)`);
+      log(`[resume] Found valid resume position: ${positionSeconds.toFixed(1)}s (${playbackPositionTicks} ticks) for itemId=${itemId}`);
       return positionSeconds;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      log(`Error fetching resume position: ${errorMsg}`);
+      log(`[resume] Error fetching resume position for itemId=${itemId}: ${errorMsg}`);
       return null;
     }
   }
-  async function resumeFromEmby(serverBase, itemId, apiKey, userId) {
-    const session = currentPlaybackSession;
-    try {
-      const resumePosition = await fetchResumePosition(serverBase, itemId, apiKey, userId);
-      if (session) {
-        session.resumePosition = resumePosition ?? 0;
-      }
-      if (resumePosition === null || resumePosition < 15) {
-        log("No significant resume position, starting from beginning");
-        return;
-      }
-      if (currentPlaybackSession !== session) {
-        log(`Playback session changed while fetching resume position for ${itemId}, not seeking`);
-        return;
-      }
-      setTimeout(() => {
-        try {
-          if (currentPlaybackSession !== session) {
-            log(`Playback session changed before resume seek for ${itemId}, not seeking`);
-            return;
-          }
-          log(`Resuming playback at ${resumePosition.toFixed(1)}s`);
-          core2.seekTo(resumePosition);
-          if (preferences2.get("show_notifications")) {
-            const minutes = Math.floor(resumePosition / 60);
-            const seconds = Math.floor(resumePosition % 60);
-            core2.osd(`Resuming at ${minutes}:${seconds.toString().padStart(2, "0")}`);
-          }
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : String(error);
-          log(`Error seeking to resume position: ${errorMsg}`);
-        }
-      }, 1e3);
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      log(`Error resuming from Emby: ${errorMsg}`);
-    }
-  }
-  async function reportPlaybackStart(serverBase, itemId, apiKey, playSessionId, mediaSourceId) {
+  async function reportPlaybackStart(serverBase, itemId, apiKey, playSessionId, mediaSourceId, startPositionSeconds = 0) {
     try {
       if (!preferences2.get("sync_playback_progress")) {
         log("Playback progress sync disabled, skipping playback start report");
         return false;
       }
+      const positionTicks = secondsToTicks3(startPositionSeconds);
       const url = `${serverBase}/Sessions/Playing?api_key=${apiKey}`;
-      log(`Reporting playback start for item: ${itemId}`);
+      log(`Reporting playback start for item: ${itemId} at ${startPositionSeconds}s (${positionTicks} ticks)`);
       const response = await http2.post(url, {
         headers: buildEmbyHeaders3(apiKey, {
           "Content-Type": "application/json",
@@ -1309,7 +1309,7 @@ function createPlaybackTrackingManager({
           PlaySessionId: playSessionId,
           CanSeek: true,
           PlayMethod: "DirectPlay",
-          PositionTicks: 0
+          PositionTicks: positionTicks
         }
       });
       if (response.statusCode >= 400) {
@@ -1322,6 +1322,38 @@ function createPlaybackTrackingManager({
       const errorMsg = error instanceof Error ? error.message : JSON.stringify(error);
       log(`Error reporting playback start: ${errorMsg}`);
       return false;
+    }
+  }
+  async function resumeAndReportStart(serverBase, itemId, apiKey, playSessionId, mediaSourceId, userId, knownStartPositionSeconds) {
+    const session = currentPlaybackSession;
+    try {
+      let resumePosition = null;
+      if (typeof knownStartPositionSeconds === "number" && knownStartPositionSeconds > 0) {
+        resumePosition = knownStartPositionSeconds;
+        log(`[resume] Using known initial start position from browser: ${resumePosition.toFixed(1)}s for itemId=${itemId}`);
+      } else {
+        resumePosition = await fetchResumePosition(serverBase, itemId, apiKey, userId);
+      }
+      if (currentPlaybackSession !== session) {
+        log(`Playback session changed while fetching resume position for ${itemId}, aborting start report`);
+        return;
+      }
+      const effectiveStart = resumePosition !== null && resumePosition >= 15 ? resumePosition : 0;
+      if (session) {
+        session.resumePosition = effectiveStart;
+      }
+      lastKnownPosition = effectiveStart;
+      log(`[start] Starting playback for itemId=${itemId}, effectiveStart=${effectiveStart}s (${secondsToTicks3(effectiveStart)} ticks), reporting to Emby...`);
+      reportPlaybackStart(serverBase, itemId, apiKey, playSessionId, mediaSourceId, effectiveStart);
+      if (effectiveStart >= 15) {
+        log(`[seek] Scheduled resume seek to ${effectiveStart.toFixed(1)}s for itemId=${itemId} once playback starts`);
+      } else {
+        log(`[start] No significant resume position (<15s) for itemId=${itemId}, starting from beginning`);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`[start] Error resuming and reporting playback start: ${errorMsg}`);
+      reportPlaybackStart(serverBase, itemId, apiKey, playSessionId, mediaSourceId, 0);
     }
   }
   async function reportPlaybackProgress(serverBase, itemId, apiKey, positionSeconds, playSessionId, mediaSourceId, isPaused = false) {
@@ -1419,7 +1451,7 @@ function createPlaybackTrackingManager({
       return false;
     }
   }
-  async function startPlaybackTracking2(serverBase, itemId, apiKey, userId) {
+  async function startPlaybackTracking2(serverBase, itemId, apiKey, userId, knownStartPositionSeconds) {
     stopPlaybackTracking2();
     if (!preferences2.get("sync_playback_progress")) {
       log("Playback progress sync disabled");
@@ -1454,12 +1486,11 @@ function createPlaybackTrackingManager({
       playSessionId,
       mediaSourceId,
       startTime: Date.now(),
-      resumePosition: null,
+      resumePosition: typeof knownStartPositionSeconds === "number" && knownStartPositionSeconds >= 15 ? knownStartPositionSeconds : null,
       duration: null,
       hasReportedWatched: false
     };
-    reportPlaybackStart(serverBase, itemId, apiKey, playSessionId, mediaSourceId);
-    resumeFromEmby(serverBase, itemId, apiKey, userId);
+    resumeAndReportStart(serverBase, itemId, apiKey, playSessionId, mediaSourceId, userId, knownStartPositionSeconds);
     try {
       const duration = core2.status.duration;
       if (duration) {
@@ -1490,6 +1521,22 @@ function createPlaybackTrackingManager({
           const duration2 = core2.status.duration;
           if (duration2) {
             currentPlaybackSession.duration = duration2;
+          }
+        }
+        const resumePos = currentPlaybackSession.resumePosition;
+        if (!currentPlaybackSession.hasPerformedInitialSeek && typeof resumePos === "number" && resumePos >= 15 && position !== null && (currentPlaybackSession.duration || 0) > 0) {
+          currentPlaybackSession.hasPerformedInitialSeek = true;
+          log(`[seek] Performing safe resume seek to ${resumePos.toFixed(1)}s (current mpv position=${position}s)`);
+          try {
+            core2.seekTo(resumePos);
+            if (preferences2.get("show_notifications")) {
+              const minutes = Math.floor(resumePos / 60);
+              const seconds = Math.floor(resumePos % 60);
+              core2.osd(`Resuming at ${minutes}:${seconds.toString().padStart(2, "0")}`);
+            }
+          } catch (seekErr) {
+            const errorMsg = seekErr instanceof Error ? seekErr.message : String(seekErr);
+            log(`[seek] Error during safe resume seek: ${errorMsg}`);
           }
         }
         playbackTickCount++;
@@ -1544,6 +1591,13 @@ function createPlaybackTrackingManager({
         lastKnownPosition = position;
       }
       const isPaused = core2.status.paused || false;
+      const expectedResume = currentPlaybackSession.resumePosition;
+      if (typeof expectedResume === "number" && expectedResume >= 15 && lastKnownPosition < 5) {
+        log(
+          `Pause state changed: isPaused=${isPaused}, position=${lastKnownPosition} (ignoring premature position <5s while resume at ${expectedResume}s is pending)`
+        );
+        return;
+      }
       log(`Pause state changed: isPaused=${isPaused}, position=${lastKnownPosition}`);
       const { serverBase, itemId, apiKey, playSessionId, mediaSourceId } = currentPlaybackSession;
       reportPlaybackProgress(serverBase, itemId, apiKey, lastKnownPosition, playSessionId, mediaSourceId, isPaused);
@@ -1800,7 +1854,7 @@ function createServerSessionStore({ preferences: preferences2, sidebar, standalo
 
 // plugin/src/index.ts
 var { core, console: iinaConsole, menu, event, http, utils, preferences, mpv, global: iinaGlobal, file } = iina;
-var debugLog = createDebugLogger(preferences, iinaConsole);
+var debugLog = createDebugLogger(preferences, iinaConsole, file);
 var {
   getClientIdentity,
   buildEmbyHeaders: buildEmbyHeaders2,
@@ -1867,7 +1921,8 @@ var {
   markLaunchedFromBrowser,
   clearLaunchedFromBrowser,
   consumeLaunchedFromBrowser,
-  getPendingMediaTitle
+  getPendingMediaTitle,
+  getPendingStartPosition
 } = createPlaybackCoordinator({
   core,
   mpv,
@@ -1970,8 +2025,11 @@ function onFileLoaded(fileUrl) {
     } catch {
     }
     if (preferences.get("sync_playback_progress")) {
-      debugLog(`Starting playback tracking for: ${embyInfo.itemId}, userId: ${reportUserId || "none"}`);
-      startPlaybackTracking(reportServerBase, embyInfo.itemId, reportApiKey, reportUserId);
+      const pendingStart = getPendingStartPosition(embyInfo.itemId);
+      debugLog(
+        `Starting playback tracking for: ${embyInfo.itemId}, userId: ${reportUserId || "none"}, pendingStart: ${pendingStart ?? "none"}`
+      );
+      startPlaybackTracking(reportServerBase, embyInfo.itemId, reportApiKey, reportUserId, pendingStart);
     }
     if (preferences.get("set_video_title")) {
       const knownTitle = getPendingMediaTitle(embyInfo.itemId);

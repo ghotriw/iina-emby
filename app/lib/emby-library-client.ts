@@ -207,13 +207,17 @@ export async function fetchSectionItems(
 
         // Movies, Videos, Episodes
         if (resumeItemIds.has(item.Id)) return true;
-        return Boolean(!item.UserData?.Played && item.UserData?.PlaybackPositionTicks && item.UserData.PlaybackPositionTicks > 0);
+        return Boolean(item.UserData?.PlaybackPositionTicks && item.UserData.PlaybackPositionTicks > 0);
       };
 
       const filteredItems = sectionData.items.filter((item) => {
-        if (item.UserData?.Played) return false;
         const inProgress = isProgress(item);
-        return filter === "inprogress" ? inProgress : !inProgress;
+        if (filter === "inprogress") {
+          return inProgress;
+        }
+        // filter === "unplayed": must not be marked as played and must not be in progress
+        if (item.UserData?.Played) return false;
+        return !inProgress;
       });
 
       return {

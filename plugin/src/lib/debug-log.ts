@@ -74,13 +74,21 @@ function serializeArg(arg: unknown): string {
 
 function formatMessage(prefix: string, parts: unknown[]): string {
   const text = redactSecrets(parts.map(serializeArg).join(" | "));
-  return `${prefix}: ${text}`;
+  return `[iina-emby] ${prefix}: ${text}`;
 }
 
 export interface LoggerConsole {
   log: (msg: string) => void;
   error?: (msg: string) => void;
   warn?: (msg: string) => void;
+}
+
+export interface LoggerFileApi {
+  handle?: (path: string, mode: string) => {
+    seekToEnd: () => void;
+    write: (data: string) => void;
+  };
+  write?: (path: string, content: string) => void;
 }
 
 export interface DebugLogger {
@@ -90,17 +98,43 @@ export interface DebugLogger {
   warn: (...parts: unknown[]) => void;
 }
 
-export function createDebugLogger(preferences: { get?: (key: string) => unknown }, loggerConsole: LoggerConsole): DebugLogger {
+const LOG_FILE_PATH = "/tmp/iina-emby.log";
+
+function appendToFile(fileApi: LoggerFileApi | undefined, text: string) {
+  if (!fileApi) return;
+  try {
+    const timestamp = new Date().toISOString().split("T")[1].slice(0, 8);
+    const line = `[${timestamp}] ${text}\n`;
+    if (typeof fileApi.handle === "function") {
+      const h = fileApi.handle(LOG_FILE_PATH, "write");
+      h.seekToEnd();
+      h.write(line);
+    }
+  } catch {
+    // Ignore file write errors
+  }
+}
+
+export function createDebugLogger(
+  preferences: { get?: (key: string) => unknown },
+  loggerConsole: LoggerConsole,
+  fileApi?: LoggerFileApi,
+): DebugLogger {
   const isDebugEnabled = () => Boolean(preferences?.get?.("debug_logging"));
 
   const debug = (...parts: unknown[]) => {
     if (isDebugEnabled()) {
-      loggerConsole.log(formatMessage("DEBUG", parts));
+      const msg = formatMessage("DEBUG", parts);
+      appendToFile(fileApi, msg);
+      loggerConsole.log(msg);
     }
   };
 
   const error = (...parts: unknown[]) => {
     const msg = formatMessage("ERROR", parts);
+    if (isDebugEnabled()) {
+      appendToFile(fileApi, msg);
+    }
     if (typeof loggerConsole.error === "function") {
       loggerConsole.error(msg);
     } else {
@@ -110,6 +144,9 @@ export function createDebugLogger(preferences: { get?: (key: string) => unknown 
 
   const warn = (...parts: unknown[]) => {
     const msg = formatMessage("WARN", parts);
+    if (isDebugEnabled()) {
+      appendToFile(fileApi, msg);
+    }
     if (typeof loggerConsole.warn === "function") {
       loggerConsole.warn(msg);
     } else {
@@ -127,3 +164,4 @@ export function createDebugLogger(preferences: { get?: (key: string) => unknown 
 
   return logger as DebugLogger;
 }
+
