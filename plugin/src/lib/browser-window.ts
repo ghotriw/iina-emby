@@ -1,6 +1,7 @@
+import { WINDOW_DIMENSIONS, WINDOW_PREF_KEYS } from "@shared";
 import type { DebugLogger } from "./debug-log";
 import type { WebviewBridgeDeps } from "./webview-bridge";
-import { registerBridgeHandlers, sendInitialBridgeState } from "./webview-bridge";
+import { registerBridgeHandlers } from "./webview-bridge";
 
 export interface BrowserWindowDeps {
   core?: typeof iina.core;
@@ -24,11 +25,17 @@ export function createBrowserWindowManager({ core, sidebar, standaloneWindow, pr
         // Load the React SPA HTML in standalone window
         standaloneWindow.loadFile("dist/client/index.html");
 
-        // Restore previously saved window dimensions or use default 520x720
-        const savedWidth = preferences.get("standalone_window_width") as number | undefined;
-        const savedHeight = preferences.get("standalone_window_height") as number | undefined;
-        const width = typeof savedWidth === "number" && savedWidth >= 320 ? savedWidth : 520;
-        const height = typeof savedHeight === "number" && savedHeight >= 400 ? savedHeight : 720;
+        // Restore previously saved window dimensions or use default dimensions
+        const savedWidth = preferences.get(WINDOW_PREF_KEYS.WIDTH) as number | undefined;
+        const savedHeight = preferences.get(WINDOW_PREF_KEYS.HEIGHT) as number | undefined;
+        const width =
+          typeof savedWidth === "number" && savedWidth >= WINDOW_DIMENSIONS.MIN_WIDTH
+            ? savedWidth
+            : WINDOW_DIMENSIONS.DEFAULT_WIDTH;
+        const height =
+          typeof savedHeight === "number" && savedHeight >= WINDOW_DIMENSIONS.MIN_HEIGHT
+            ? savedHeight
+            : WINDOW_DIMENSIONS.DEFAULT_HEIGHT;
 
         // setFrame takes (w, h, x, y). Passing null for x and y preserves position
         standaloneWindow.setFrame(width, height, null, null);
@@ -46,11 +53,16 @@ export function createBrowserWindowManager({ core, sidebar, standaloneWindow, pr
 
         // Listen for window resize events from the webview to persist size
         standaloneWindow.onMessage("save-window-size", (data?: { width?: number; height?: number }) => {
-          if (data?.width && data?.height && data.width >= 320 && data.height >= 400) {
+          if (
+            data?.width &&
+            data?.height &&
+            data.width >= WINDOW_DIMENSIONS.MIN_WIDTH &&
+            data.height >= WINDOW_DIMENSIONS.MIN_HEIGHT
+          ) {
             const w = Math.round(data.width);
             const h = Math.round(data.height);
-            preferences.set("standalone_window_width", w);
-            preferences.set("standalone_window_height", h);
+            preferences.set(WINDOW_PREF_KEYS.WIDTH, w);
+            preferences.set(WINDOW_PREF_KEYS.HEIGHT, h);
             preferences.sync();
             log(`Saved standalone window size: ${w}x${h}`);
           }

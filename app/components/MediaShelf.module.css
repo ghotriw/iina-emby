@@ -25,8 +25,8 @@
   justify-content: center;
   width: 1.75rem;
   height: 1.75rem;
-  border-radius: var(--radius-m, 0.375rem);
-  background: transparent;
+  border-radius: var(--radius-sm);
+  background: var(--bg-control);
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
@@ -35,7 +35,7 @@
 }
 
 .arrowBtn:hover:not(:disabled) {
-  background: var(--bg-control);
+  background: var(--bg-control-hover);
   color: var(--text-primary);
 }
 

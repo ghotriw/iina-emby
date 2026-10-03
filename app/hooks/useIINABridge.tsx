@@ -1,4 +1,4 @@
-import type { EmbyServer, PlayMediaPayload, TypedIinaBridge } from "@shared";
+import { type EmbyServer, type PlayMediaPayload, type TypedIinaBridge, WINDOW_DIMENSIONS } from "@shared";
 import type React from "react";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { setClientIdentity } from "../lib/emby-auth-client";
@@ -157,9 +157,13 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
     const handleResize = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        const width = window.innerWidth;
-        const height = window.innerHeight;
-        if (width >= 320 && height >= 400 && window.iina?.postMessage) {
+        const width = window.outerWidth || window.innerWidth;
+        const height = window.outerHeight || window.innerHeight;
+        if (
+          width >= WINDOW_DIMENSIONS.MIN_WIDTH &&
+          height >= WINDOW_DIMENSIONS.MIN_HEIGHT &&
+          window.iina?.postMessage
+        ) {
           window.iina.postMessage("save-window-size", { width, height });
         }
       }, 500);

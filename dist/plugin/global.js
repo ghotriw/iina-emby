@@ -1,5 +1,88 @@
 "use strict";
 
+// shared/constants.ts
+var CLIENT_NAME = "IINA Emby Plugin";
+var DEVICE_NAME = "IINA";
+var CLIENT_VERSION = true ? "0.3.0" : "0.1.0";
+var WINDOW_DIMENSIONS = {
+  DEFAULT_WIDTH: 960,
+  DEFAULT_HEIGHT: 680,
+  MIN_WIDTH: 320,
+  MIN_HEIGHT: 400
+};
+var WINDOW_PREF_KEYS = {
+  WIDTH: "standalone_window_width",
+  HEIGHT: "standalone_window_height"
+};
+
+// shared/utils/auth.ts
+function buildAuthorizationHeader(identity, token) {
+  const parts = [
+    `Client="${identity?.clientName || CLIENT_NAME}"`,
+    `Device="${identity?.deviceName || DEVICE_NAME}"`,
+    `DeviceId="${identity?.deviceId || "iina-emby"}"`,
+    `Version="${identity?.version || CLIENT_VERSION}"`
+  ];
+  if (token) {
+    parts.push(`Token="${token}"`);
+  }
+  return `MediaBrowser ${parts.join(", ")}`;
+}
+function buildEmbyHeaders(identity, token, extraHeaders) {
+  const auth = buildAuthorizationHeader(identity, token);
+  const clientName = identity?.clientName || CLIENT_NAME;
+  const deviceName = identity?.deviceName || DEVICE_NAME;
+  const deviceId = identity?.deviceId || "iina-emby";
+  const version = identity?.version || CLIENT_VERSION;
+  const headers = {
+    Authorization: auth,
+    "X-Emby-Authorization": auth,
+    "X-Emby-Client": clientName,
+    "X-Emby-Device-Name": deviceName,
+    "X-Emby-Device-Id": deviceId,
+    "X-Emby-Client-Version": version,
+    Accept: "application/json",
+    ...extraHeaders || {}
+  };
+  if (token) {
+    headers["X-Emby-Token"] = token;
+  }
+  return headers;
+}
+
+// shared/utils/time.ts
+var TICKS_PER_SECOND = 1e7;
+function ticksToSeconds(ticks) {
+  if (!ticks || typeof ticks !== "number" || ticks < 0) {
+    return 0;
+  }
+  return Math.floor(ticks / TICKS_PER_SECOND);
+}
+function secondsToTicks(seconds) {
+  if (!seconds || typeof seconds !== "number" || seconds < 0) {
+    return 0;
+  }
+  return Math.floor(seconds * TICKS_PER_SECOND);
+}
+
+// shared/utils/url.ts
+function cleanServerUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== "string") return "";
+  let cleaned = rawUrl.trim();
+  if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://")) {
+    cleaned = `http://${cleaned}`;
+  }
+  try {
+    const parsed = new URL(cleaned);
+    parsed.username = "";
+    parsed.password = "";
+    cleaned = parsed.origin + (parsed.pathname === "/" ? "" : parsed.pathname);
+  } catch {
+    cleaned = cleaned.replace(/^(https?:\/\/)[^/@]+@/i, "$1");
+  }
+  return cleaned.replace(/\/web(?:\/.*)?$/i, "").replace(/\/$/, "");
+}
+
 // plugin/src/lib/webview-bridge.ts
 function createBridgeDeps({
   utils: utils2,
@@ -121,10 +204,10 @@ function createBrowserWindowManager({ core, sidebar, standaloneWindow: standalon
       if (!standaloneInitialized) {
         standaloneInitialized = true;
         standaloneWindow2.loadFile("dist/client/index.html");
-        const savedWidth = preferences2.get("standalone_window_width");
-        const savedHeight = preferences2.get("standalone_window_height");
-        const width = typeof savedWidth === "number" && savedWidth >= 320 ? savedWidth : 520;
-        const height = typeof savedHeight === "number" && savedHeight >= 400 ? savedHeight : 720;
+        const savedWidth = preferences2.get(WINDOW_PREF_KEYS.WIDTH);
+        const savedHeight = preferences2.get(WINDOW_PREF_KEYS.HEIGHT);
+        const width = typeof savedWidth === "number" && savedWidth >= WINDOW_DIMENSIONS.MIN_WIDTH ? savedWidth : WINDOW_DIMENSIONS.DEFAULT_WIDTH;
+        const height = typeof savedHeight === "number" && savedHeight >= WINDOW_DIMENSIONS.MIN_HEIGHT ? savedHeight : WINDOW_DIMENSIONS.DEFAULT_HEIGHT;
         standaloneWindow2.setFrame(width, height, null, null);
         const saWithProps = standaloneWindow2;
         if (typeof saWithProps.setProperty === "function") {
@@ -135,11 +218,11 @@ function createBrowserWindowManager({ core, sidebar, standaloneWindow: standalon
           });
         }
         standaloneWindow2.onMessage("save-window-size", (data) => {
-          if (data?.width && data?.height && data.width >= 320 && data.height >= 400) {
+          if (data?.width && data?.height && data.width >= WINDOW_DIMENSIONS.MIN_WIDTH && data.height >= WINDOW_DIMENSIONS.MIN_HEIGHT) {
             const w = Math.round(data.width);
             const h = Math.round(data.height);
-            preferences2.set("standalone_window_width", w);
-            preferences2.set("standalone_window_height", h);
+            preferences2.set(WINDOW_PREF_KEYS.WIDTH, w);
+            preferences2.set(WINDOW_PREF_KEYS.HEIGHT, h);
             preferences2.sync();
             log(`Saved standalone window size: ${w}x${h}`);
           }
@@ -299,79 +382,6 @@ function createDebugLogger(preferences2, loggerConsole) {
   logger.error = error;
   logger.warn = warn;
   return logger;
-}
-
-// shared/constants.ts
-var CLIENT_NAME = "IINA Emby Plugin";
-var DEVICE_NAME = "IINA";
-var CLIENT_VERSION = true ? "0.2.0" : "0.1.0";
-
-// shared/utils/auth.ts
-function buildAuthorizationHeader(identity, token) {
-  const parts = [
-    `Client="${identity?.clientName || CLIENT_NAME}"`,
-    `Device="${identity?.deviceName || DEVICE_NAME}"`,
-    `DeviceId="${identity?.deviceId || "iina-emby"}"`,
-    `Version="${identity?.version || CLIENT_VERSION}"`
-  ];
-  if (token) {
-    parts.push(`Token="${token}"`);
-  }
-  return `MediaBrowser ${parts.join(", ")}`;
-}
-function buildEmbyHeaders(identity, token, extraHeaders) {
-  const auth = buildAuthorizationHeader(identity, token);
-  const clientName = identity?.clientName || CLIENT_NAME;
-  const deviceName = identity?.deviceName || DEVICE_NAME;
-  const deviceId = identity?.deviceId || "iina-emby";
-  const version = identity?.version || CLIENT_VERSION;
-  const headers = {
-    Authorization: auth,
-    "X-Emby-Authorization": auth,
-    "X-Emby-Client": clientName,
-    "X-Emby-Device-Name": deviceName,
-    "X-Emby-Device-Id": deviceId,
-    "X-Emby-Client-Version": version,
-    Accept: "application/json",
-    ...extraHeaders || {}
-  };
-  if (token) {
-    headers["X-Emby-Token"] = token;
-  }
-  return headers;
-}
-
-// shared/utils/time.ts
-var TICKS_PER_SECOND = 1e7;
-function ticksToSeconds(ticks) {
-  if (!ticks || typeof ticks !== "number" || ticks < 0) {
-    return 0;
-  }
-  return Math.floor(ticks / TICKS_PER_SECOND);
-}
-function secondsToTicks(seconds) {
-  if (!seconds || typeof seconds !== "number" || seconds < 0) {
-    return 0;
-  }
-  return Math.floor(seconds * TICKS_PER_SECOND);
-}
-
-// shared/utils/url.ts
-function cleanServerUrl(rawUrl) {
-  if (!rawUrl || typeof rawUrl !== "string") return "";
-  let cleaned = rawUrl.trim();
-  if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://")) {
-    cleaned = `http://${cleaned}`;
-  }
-  try {
-    const parsed = new URL(cleaned);
-    parsed.username = "";
-    parsed.password = "";
-    cleaned = parsed.origin + (parsed.pathname === "/" ? "" : parsed.pathname);
-  } catch {
-    cleaned = cleaned.replace(/^(https?:\/\/)[^/@]+@/i, "$1");
-  }
-  return cleaned.replace(/\/web(?:\/.*)?$/i, "").replace(/\/$/, "");
 }
 
 // plugin/src/lib/emby-api.ts

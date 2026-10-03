@@ -5,8 +5,14 @@ import { Navigate, useLocation, useNavigate, useParams } from "react-router";
 import { Alert } from "../components/Alert";
 import { MediaPoster, MediaPosterSkeleton } from "../components/MediaPoster";
 import { PageHeader } from "../components/PageHeader";
+import { WatchStatusTabs } from "../components/WatchStatusTabs";
 import { useIINABridge, useOnWindowReopen } from "../hooks/useIINABridge";
-import { clearLibraryCache, fetchSectionItems, fetchUserViews } from "../lib/emby-library-client";
+import {
+  clearLibraryCache,
+  fetchSectionItems,
+  fetchUserViews,
+  type SectionFilter,
+} from "../lib/emby-library-client";
 import styles from "./section.module.css";
 
 export function meta() {
@@ -21,6 +27,7 @@ export default function SectionRoute() {
 
   const stateName = location.state?.name as string | undefined;
   const [sectionTitle, setSectionTitle] = useState<string>(stateName || "Library");
+  const [filter, setFilter] = useState<SectionFilter>("all");
   const [items, setItems] = useState<EmbyItemMetadata[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -44,12 +51,18 @@ export default function SectionRoute() {
   }, [activeServer, id, stateName]);
 
   const loadItems = useCallback(
-    async (bypassCache = false, signal?: AbortSignal) => {
+    async (currentFilter: SectionFilter, bypassCache = false, signal?: AbortSignal) => {
       if (!activeServer || !id) return;
 
       try {
         setError(null);
-        const result = await fetchSectionItems(activeServer, id, { limit: 1000 }, signal, bypassCache);
+        const result = await fetchSectionItems(
+          activeServer,
+          id,
+          { limit: 1000, filter: currentFilter },
+          signal,
+          bypassCache,
+        );
         if (signal?.aborted) return;
         setItems(result.items);
         setTotalCount(result.totalRecordCount);
@@ -72,17 +85,22 @@ export default function SectionRoute() {
   useEffect(() => {
     setIsLoading(true);
     const controller = new AbortController();
-    loadItems(false, controller.signal);
+    loadItems(filter, false, controller.signal);
     return () => {
       controller.abort();
     };
-  }, [loadItems]);
+  }, [loadItems, filter]);
+
+  const handleFilterChange = (newFilter: SectionFilter) => {
+    if (newFilter === filter) return;
+    setFilter(newFilter);
+  };
 
   const handleRefresh = async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
     clearLibraryCache();
-    await loadItems(true);
+    await loadItems(filter, true);
   };
 
   useOnWindowReopen(() => {
@@ -108,6 +126,19 @@ export default function SectionRoute() {
     </span>
   );
 
+  const getEmptyMessage = () => {
+    switch (filter) {
+      case "unplayed":
+        return "No unplayed media in this collection.";
+      case "inprogress":
+        return "No in-progress media in this collection.";
+      case "played":
+        return "No played media in this collection.";
+      default:
+        return "No media found in this collection.";
+    }
+  };
+
   return (
     <div className={styles.container}>
       <PageHeader
@@ -119,6 +150,8 @@ export default function SectionRoute() {
       />
 
       <main className={styles.content}>
+        <WatchStatusTabs value={filter} onChange={handleFilterChange} />
+
         {error && (
           <Alert icon={<IconAlertCircle size={18} />}>
             {error}
@@ -133,7 +166,7 @@ export default function SectionRoute() {
           </div>
         ) : items.length === 0 && !error ? (
           <div className={styles.emptyState}>
-            <p>No media found in this collection.</p>
+            <p>{getEmptyMessage()}</p>
           </div>
         ) : (
           <div className={styles.grid}>

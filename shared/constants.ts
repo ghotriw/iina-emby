@@ -12,3 +12,15 @@ export const DEFAULT_CLIENT_IDENTITY: ClientIdentity = {
   deviceId: "iina-emby",
   version: CLIENT_VERSION,
 };
+
+export const WINDOW_DIMENSIONS = {
+  DEFAULT_WIDTH: 960,
+  DEFAULT_HEIGHT: 680,
+  MIN_WIDTH: 320,
+  MIN_HEIGHT: 400,
+} as const;
+
+export const WINDOW_PREF_KEYS = {
+  WIDTH: "standalone_window_width",
+  HEIGHT: "standalone_window_height",
+} as const;

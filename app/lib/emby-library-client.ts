@@ -141,6 +141,8 @@ export async function fetchLatestItems(
   });
 }
 
+export type SectionFilter = "all" | "unplayed" | "inprogress" | "played";
+
 export interface FetchSectionItemsResult {
   items: EmbyItemMetadata[];
   totalRecordCount: number;
@@ -158,6 +160,7 @@ export async function fetchSectionItems(
     limit?: number;
     startIndex?: number;
     includeItemTypes?: string;
+    filter?: SectionFilter;
   },
   signal?: AbortSignal,
   bypassCache = false,
@@ -168,10 +171,57 @@ export async function fetchSectionItems(
   const limit = options?.limit ?? 500;
   const startIndex = options?.startIndex ?? 0;
   const includeItemTypes = options?.includeItemTypes || "Movie,Series,BoxSet,Video";
+  const filter = options?.filter || "all";
 
-  const cacheKey = `${base}:${server.userId}:section:${parentId}:${sortBy}:${sortOrder}:${startIndex}:${limit}:${includeItemTypes}`;
+  const cacheKey = `${base}:${server.userId}:section:${parentId}:${sortBy}:${sortOrder}:${startIndex}:${limit}:${includeItemTypes}:${filter}`;
 
   return getOrFetchCached(cacheKey, DEFAULT_CACHE_TTL_MS, bypassCache, async () => {
+    if (filter === "inprogress" || filter === "unplayed") {
+      // Emby's native IsUnplayed filter considers anything where Played == false as "unplayed",
+      // which wrongly includes items already in progress.
+      // We partition them cleanly so Unplayed only shows completely untouched media.
+      const [sectionData, resumeResult] = await Promise.all([
+        fetchSectionItems(server, parentId, { ...options, filter: "all" }, signal, bypassCache),
+        fetchResumeItems(server, 100, signal).catch(() => ({ items: [], totalRecordCount: 0 })),
+      ]);
+
+      const resumeSeriesIds = new Set(
+        resumeResult.items.map((r) => r.SeriesId).filter((id): id is string => Boolean(id)),
+      );
+      const resumeItemIds = new Set(resumeResult.items.map((r) => r.Id));
+
+      const isProgress = (item: EmbyItemMetadata) => {
+        if (item.Type === "Series") {
+          if (resumeSeriesIds.has(item.Id)) return true;
+          if (item.UserData?.Played) return false;
+          if (typeof item.UserData?.PlayedPercentage === "number" && item.UserData.PlayedPercentage > 0) {
+            return true;
+          }
+          const unplayed = item.UserData?.UnplayedItemCount;
+          const total = (item as unknown as { RecursiveItemCount?: number }).RecursiveItemCount;
+          if (typeof unplayed === "number" && typeof total === "number" && total > 0 && unplayed < total) {
+            return true;
+          }
+          return false;
+        }
+
+        // Movies, Videos, Episodes
+        if (resumeItemIds.has(item.Id)) return true;
+        return Boolean(!item.UserData?.Played && item.UserData?.PlaybackPositionTicks && item.UserData.PlaybackPositionTicks > 0);
+      };
+
+      const filteredItems = sectionData.items.filter((item) => {
+        if (item.UserData?.Played) return false;
+        const inProgress = isProgress(item);
+        return filter === "inprogress" ? inProgress : !inProgress;
+      });
+
+      return {
+        items: filteredItems,
+        totalRecordCount: filteredItems.length,
+      };
+    }
+
     const query = new URLSearchParams({
       ParentId: parentId,
       Recursive: "true",
@@ -180,10 +230,15 @@ export async function fetchSectionItems(
       StartIndex: String(startIndex),
       Limit: String(limit),
       IncludeItemTypes: includeItemTypes,
-      Fields: "CommunityRating,ProductionYear,ImageTags,BackdropImageTags,UserData,PrimaryImageAspectRatio,SeriesName,RunTimeTicks,Overview",
+      Fields:
+        "CommunityRating,ProductionYear,ImageTags,BackdropImageTags,UserData,PrimaryImageAspectRatio,SeriesName,RunTimeTicks,Overview,RecursiveItemCount,ItemCounts",
       EnableImageTypes: "Primary,Backdrop,Thumb",
       ImageTypeLimit: "1",
     });
+
+    if (filter === "played") {
+      query.set("Filters", "IsPlayed");
+    }
 
     const url = `${base}/Users/${encodeURIComponent(server.userId)}/Items?${query.toString()}`;
     const response = await fetch(url, {
