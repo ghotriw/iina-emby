@@ -6,6 +6,7 @@ import ItemDetailRoute from "./routes/item";
 import SectionRoute from "./routes/section";
 import ServersRoute from "./routes/servers";
 import SettingsRoute from "./routes/settings";
+import SystemInfoRoute from "./routes/system-info";
 
 export function App() {
   return (
@@ -18,6 +19,7 @@ export function App() {
           <Route path="/item/:id" element={<ItemDetailRoute />} />
           <Route path="/servers" element={<ServersRoute />} />
           <Route path="/settings" element={<SettingsRoute />} />
+          <Route path="/system-info" element={<SystemInfoRoute />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </HashRouter>

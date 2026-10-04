@@ -1,10 +1,12 @@
-import type { EmbyItemMetadata, EmbyServer } from "@shared";
+import type { EmbyItemMetadata, EmbyServer, EmbyUserData } from "@shared";
 import { getItemImageUrl } from "@shared";
-import { IconCheck, IconMovie } from "@tabler/icons-react";
+import { IconCheck, IconDots, IconInfoCircle, IconMovie } from "@tabler/icons-react";
 import type React from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import { useItemPlayedStatus } from "../hooks/useItemPlayedStatus";
 import classes from "./MediaPoster.module.css";
+import { DropdownMenu } from "./ui/DropdownMenu";
 import { Skeleton } from "./ui/Skeleton";
 
 export function MediaPosterSkeleton({ className }: { className?: string }) {
@@ -33,12 +35,18 @@ export interface MediaPosterProps {
   item: EmbyItemMetadata;
   server: EmbyServer;
   onClick?: (item: EmbyItemMetadata) => void;
+  onUserDataChange?: (item: EmbyItemMetadata, userData: EmbyUserData) => void;
   className?: string;
 }
 
-export function MediaPoster({ item, server, onClick, className }: MediaPosterProps) {
+export function MediaPoster({ item, server, onClick, onUserDataChange, className }: MediaPosterProps) {
   const navigate = useNavigate();
   const [imgError, setImgError] = useState(false);
+  const { isPlayed, unplayedCount, isUpdating, togglePlayed } = useItemPlayedStatus({
+    item,
+    server,
+    onUserDataChange,
+  });
 
   const imageUrl = !imgError
     ? getItemImageUrl(server.serverUrl, item, {
@@ -52,9 +60,6 @@ export function MediaPoster({ item, server, onClick, className }: MediaPosterPro
 
   const rating = typeof item.CommunityRating === "number" && item.CommunityRating > 0 ? item.CommunityRating.toFixed(1) : null;
 
-  const unplayedCount = item.UserData?.UnplayedItemCount && item.UserData.UnplayedItemCount > 0 ? item.UserData.UnplayedItemCount : null;
-  const isPlayed = Boolean(item.UserData?.Played);
-
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onClick) {
@@ -65,12 +70,8 @@ export function MediaPoster({ item, server, onClick, className }: MediaPosterPro
   };
 
   return (
-    <button
-      type="button"
-      className={`${classes.card} ${className || ""}`}
-      onClick={handleClick}
-      aria-label={`View ${item.Name || "Media"}`}
-    >
+    <div className={`${classes.card} ${className || ""}`}>
+      <button type="button" className={classes.cardButton} onClick={handleClick} aria-label={`View ${item.Name || "Media"}`}></button>
       <div className={classes.posterWrapper}>
         {imageUrl ? (
           <img src={imageUrl} alt={item.Name || "Media"} className={classes.image} loading="lazy" onError={() => setImgError(true)} />
@@ -97,6 +98,22 @@ export function MediaPoster({ item, server, onClick, className }: MediaPosterPro
             {rating}
           </div>
         )}
+
+        <DropdownMenu
+          trigger={(props) => (
+            <button type="button" className={classes.menuBtn} aria-label="More actions" {...props}>
+              <IconDots size={14} stroke={2.5} />
+            </button>
+          )}
+        >
+          <DropdownMenu.Item icon={<IconInfoCircle size={16} />} onSelect={() => navigate(`/item/${item.Id}`, { state: { item } })}>
+            Details
+          </DropdownMenu.Item>
+          <DropdownMenu.Divider />
+          <DropdownMenu.Item icon={<IconCheck size={16} />} disabled={isUpdating} onSelect={togglePlayed}>
+            {isPlayed ? "Mark as unplayed" : "Mark as played"}
+          </DropdownMenu.Item>
+        </DropdownMenu>
       </div>
 
       <div className={classes.meta}>
@@ -105,6 +122,6 @@ export function MediaPoster({ item, server, onClick, className }: MediaPosterPro
         </span>
         {item.ProductionYear ? <span className={classes.year}>{item.ProductionYear}</span> : null}
       </div>
-    </button>
+    </div>
   );
 }

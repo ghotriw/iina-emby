@@ -2,7 +2,7 @@ import styles from "./Button.module.css";
 
 interface Props {
   children: React.ReactNode;
-  onClick: () => void;
+  onClick?: () => void;
   glyph?: string;
   disabled?: boolean;
 }

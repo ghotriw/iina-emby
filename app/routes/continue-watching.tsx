@@ -157,7 +157,13 @@ export default function ContinueWatchingRoute() {
           <>
             <div className={styles.grid}>
               {items.map((item) => (
-                <MediaThumb key={item.Id} item={item} server={activeServer} onPlay={playMedia} />
+                <MediaThumb
+                  key={item.Id}
+                  item={item}
+                  server={activeServer}
+                  onPlay={playMedia}
+                  onUserDataChange={() => handleRefresh()}
+                />
               ))}
               {isLoadingMore && Array.from({ length: 4 }).map((_, index) => <MediaThumbSkeleton key={`more-skeleton-${index}`} />)}
             </div>

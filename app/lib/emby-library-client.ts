@@ -1,4 +1,4 @@
-import type { EmbyItemMetadata, EmbyItemsResponse, EmbyServer, EmbySystemInfo, EmbyView } from "@shared";
+import type { EmbyItemMetadata, EmbyItemsResponse, EmbyServer, EmbySystemInfo, EmbyUserData, EmbyView } from "@shared";
 import { buildAuthHeaders } from "./emby-auth-client";
 
 interface CacheEntry<T> {
@@ -40,8 +40,8 @@ export async function fetchResumeItems(
   signal?: AbortSignal,
 ): Promise<FetchResumeItemsResult> {
   const base = server.serverUrl.replace(/\/+$/, "");
-  const limit = typeof options === "number" ? options : options?.limit ?? 12;
-  const startIndex = typeof options === "object" ? options?.startIndex ?? 0 : 0;
+  const limit = typeof options === "number" ? options : (options?.limit ?? 12);
+  const startIndex = typeof options === "object" ? (options?.startIndex ?? 0) : 0;
 
   const query = new URLSearchParams({
     StartIndex: String(startIndex),
@@ -185,9 +185,7 @@ export async function fetchSectionItems(
         fetchResumeItems(server, 100, signal).catch(() => ({ items: [], totalRecordCount: 0 })),
       ]);
 
-      const resumeSeriesIds = new Set(
-        resumeResult.items.map((r) => r.SeriesId).filter((id): id is string => Boolean(id)),
-      );
+      const resumeSeriesIds = new Set(resumeResult.items.map((r) => r.SeriesId).filter((id): id is string => Boolean(id)));
       const resumeItemIds = new Set(resumeResult.items.map((r) => r.Id));
 
       const isProgress = (item: EmbyItemMetadata) => {
@@ -447,11 +445,7 @@ export async function fetchEpisodes(
 /**
  * Fetch authenticated server system information (version, updates, OS).
  */
-export async function fetchServerSystemInfo(
-  server: EmbyServer,
-  signal?: AbortSignal,
-  bypassCache = false,
-): Promise<EmbySystemInfo> {
+export async function fetchServerSystemInfo(server: EmbyServer, signal?: AbortSignal, bypassCache = false): Promise<EmbySystemInfo> {
   const base = server.serverUrl.replace(/\/+$/, "");
   const cacheKey = `${base}:system_info`;
 
@@ -472,3 +466,30 @@ export async function fetchServerSystemInfo(
   });
 }
 
+/**
+ * Mark an item as played (POST) or unplayed (DELETE) in Emby.
+ */
+export async function setItemPlayedStatus(server: EmbyServer, itemId: string, played: boolean): Promise<EmbyUserData> {
+  const base = server.serverUrl.replace(/\/+$/, "");
+  const url = `${base}/Users/${encodeURIComponent(server.userId)}/PlayedItems/${encodeURIComponent(itemId)}`;
+
+  const response = await fetch(url, {
+    method: played ? "POST" : "DELETE",
+    headers: buildAuthHeaders(server.accessToken, {
+      Accept: "application/json",
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to update played status: ${response.status} ${response.statusText}`);
+  }
+
+  clearLibraryCache();
+
+  const text = await response.text();
+  try {
+    return text ? (JSON.parse(text) as EmbyUserData) : { Played: played };
+  } catch {
+    return { Played: played };
+  }
+}

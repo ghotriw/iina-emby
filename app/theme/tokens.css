@@ -58,7 +58,7 @@
   /* Surfaces & Component Backgrounds */
   --bg-media-poster: rgb(20 20 26 / 80%);
   --bg-media-placeholder: linear-gradient(145deg, #1f232b 0%, #14161a 100%);
-  --bg-badge: rgb(from var(--scrim-base) r g b / 78%);
+  --bg-badge: rgb(from var(--scrim-base) r g b / 50%);
   --bg-tooltip: rgb(30 30 36 / 95%);
   --shimmer-gradient: linear-gradient(
     90deg,

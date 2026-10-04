@@ -39,6 +39,21 @@
   box-shadow: var(--shadow-thumb-hover);
 }
 
+.previewBtn {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  outline: none;
+  border-radius: inherit;
+  font-family: inherit;
+  text-align: left;
+}
+
 .image {
   width: 100%;
   height: 100%;
@@ -240,4 +255,29 @@
   justify-content: center;
   box-shadow: var(--shadow-badge);
   pointer-events: none;
+}
+
+.menuBtn {
+  position: absolute;
+  bottom: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+  background: var(--bg-badge);
+  color: var(--text-secondary);
+  font-size: 0.6875rem;
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 0.6875rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  box-shadow: var(--shadow-badge);
+  border: none;
+  opacity: 0;
+  transition: opacity 0.15s linear;
+}
+
+.card:hover .menuBtn {
+  opacity: 1;
 }

@@ -5,8 +5,7 @@ body,
 #root {
   margin: 0;
   padding: 0;
-  background: var(--bg-window) !important;
-  background-color: var(--bg-window) !important;
+  background: var(--bg-window);
   color: var(--text-secondary);
   font-family: var(--font-system);
   overflow-x: hidden;

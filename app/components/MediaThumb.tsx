@@ -1,6 +1,7 @@
 import {
   type EmbyItemMetadata,
   type EmbyServer,
+  type EmbyUserData,
   formatDuration,
   formatEpisodeSubtitle,
   formatTimeProgress,
@@ -8,12 +9,14 @@ import {
   type PlayMediaPayload,
   ticksToSeconds,
 } from "@shared";
-import { IconCheck, IconMovie, IconPlayerPlay } from "@tabler/icons-react";
+import { IconCheck, IconDots, IconInfoCircle, IconMovie, IconPlayerPlay } from "@tabler/icons-react";
 import type React from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import { useItemPlayedStatus } from "../hooks/useItemPlayedStatus";
 import { buildStreamUrl } from "../lib/emby-library-client";
 import classes from "./MediaThumb.module.css";
+import { DropdownMenu } from "./ui";
 import glassStyles from "./ui/GlassElement.module.css";
 import { Skeleton } from "./ui/Skeleton";
 
@@ -44,6 +47,7 @@ export interface MediaThumbProps {
   server: EmbyServer;
   onPlay?: (payload: PlayMediaPayload) => void;
   onClick?: (item: EmbyItemMetadata) => void;
+  onUserDataChange?: (item: EmbyItemMetadata, userData: EmbyUserData) => void;
   aspectRatio?: number;
   width?: number | string;
   className?: string;
@@ -57,6 +61,7 @@ export function MediaThumb({
   server,
   onPlay,
   onClick,
+  onUserDataChange,
   aspectRatio = 16 / 9,
   width,
   className,
@@ -66,6 +71,11 @@ export function MediaThumb({
 }: MediaThumbProps) {
   const navigate = useNavigate();
   const [imageError, setImageError] = useState(false);
+  const { isPlayed, unplayedCount, playbackPositionTicks, isUpdating, togglePlayed } = useItemPlayedStatus({
+    item,
+    server,
+    onUserDataChange,
+  });
 
   const isEpisode = item.Type === "Episode";
   const defaultTitle = isEpisode ? item.SeriesName || item.Name || "Episode" : item.Name || "Movie";
@@ -88,11 +98,8 @@ export function MediaThumb({
       })
     : undefined;
 
-  const currentSec = ticksToSeconds(item.UserData?.PlaybackPositionTicks);
+  const currentSec = ticksToSeconds(playbackPositionTicks);
   const totalSec = ticksToSeconds(item.RunTimeTicks);
-
-  const isPlayed = Boolean(item.UserData?.Played);
-  const unplayedCount = item.UserData?.UnplayedItemCount && item.UserData.UnplayedItemCount > 0 ? item.UserData.UnplayedItemCount : null;
 
   const hasProgress = totalSec > 0 && currentSec > 0;
   const progressPercent = hasProgress ? Math.min(100, Math.max(0, (currentSec / totalSec) * 100)) : 0;
@@ -111,7 +118,7 @@ export function MediaThumb({
       onPlay({
         streamUrl: buildStreamUrl(server, item.Id),
         title: fullPlayTitle,
-        startPositionTicks: item.UserData?.PlaybackPositionTicks,
+        startPositionTicks: playbackPositionTicks,
       });
     }
   };
@@ -130,14 +137,14 @@ export function MediaThumb({
 
   return (
     <div className={`${classes.card} ${className || ""}`} style={{ width: width || "100%" }}>
-      <button
-        type="button"
-        className={classes.preview}
-        style={{ aspectRatio }}
-        onClick={handlePlayClick}
-        aria-label={`Play ${fullPlayTitle}`}
-        title={`Play ${fullPlayTitle}`}
-      >
+      <div className={classes.preview}>
+        <button
+          type="button"
+          className={classes.previewBtn}
+          style={{ aspectRatio }}
+          onClick={handlePlayClick}
+          aria-label={`Play ${fullPlayTitle}`}
+        ></button>
         {imageUrl ? (
           <img src={imageUrl} alt={title} className={classes.image} loading="lazy" onError={() => setImageError(true)} />
         ) : (
@@ -183,7 +190,23 @@ export function MediaThumb({
             <div className={classes.progressBarFill} style={{ width: `${progressPercent}%` }} />
           </div>
         )}
-      </button>
+
+        <DropdownMenu
+          trigger={(props) => (
+            <button type="button" className={classes.menuBtn} aria-label="More actions" {...props}>
+              <IconDots size={14} stroke={2.5} />
+            </button>
+          )}
+        >
+          <DropdownMenu.Item icon={<IconInfoCircle size={16} />} onSelect={() => navigate(`/item/${item.Id}`, { state: { item } })}>
+            Details
+          </DropdownMenu.Item>
+          <DropdownMenu.Divider />
+          <DropdownMenu.Item icon={<IconCheck size={16} />} disabled={isUpdating} onSelect={togglePlayed}>
+            {isPlayed ? "Mark as unplayed" : "Mark as played"}
+          </DropdownMenu.Item>
+        </DropdownMenu>
+      </div>
 
       {/* Title & subtitle below preview */}
       <button
