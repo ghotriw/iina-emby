@@ -2,6 +2,67 @@
  * Shared Emby Types & Data Models
  */
 
+export interface EmbyUserConfiguration {
+  PlayDefaultAudioTrack?: boolean;
+  DisplayMissingEpisodes?: boolean;
+  SubtitleMode?: "Smart" | "Default" | "Always" | "None" | string;
+  OrderedViews?: string[];
+  LatestItemsExcludes?: string[];
+  MyMediaExcludes?: string[];
+  HidePlayedInLatest?: boolean;
+  HidePlayedInMoreLikeThis?: boolean;
+  HidePlayedInSuggestions?: boolean;
+  RememberAudioSelections?: boolean;
+  RememberSubtitleSelections?: boolean;
+  EnableNextEpisodeAutoPlay?: boolean;
+  ResumeRewindSeconds?: number;
+  IntroSkipMode?: "ShowButton" | "None" | string;
+  EnableLocalPassword?: boolean;
+  [key: string]: unknown;
+}
+
+export interface EmbyUserPolicy {
+  IsAdministrator?: boolean;
+  IsHidden?: boolean;
+  IsHiddenRemotely?: boolean;
+  IsHiddenFromUnusedDevices?: boolean;
+  IsDisabled?: boolean;
+  EnableContentDeletion?: boolean;
+  EnableContentDownloading?: boolean;
+  EnableMediaPlayback?: boolean;
+  EnableAudioPlaybackTranscoding?: boolean;
+  EnableVideoPlaybackTranscoding?: boolean;
+  EnablePlaybackRemuxing?: boolean;
+  EnableAllFolders?: boolean;
+  EnableAllDevices?: boolean;
+  EnableAllChannels?: boolean;
+  EnableRemoteAccess?: boolean;
+  EnableLiveTvManagement?: boolean;
+  EnableLiveTvAccess?: boolean;
+  EnableSubtitleDownloading?: boolean;
+  EnableSubtitleManagement?: boolean;
+  EnableSyncTranscoding?: boolean;
+  EnableMediaConversion?: boolean;
+  EnablePublicSharing?: boolean;
+  EnableUserPreferenceAccess?: boolean;
+  [key: string]: unknown;
+}
+
+export interface EmbyUser {
+  Id: string;
+  Name: string;
+  ServerId?: string;
+  Prefix?: string;
+  DateCreated?: string;
+  HasPassword?: boolean;
+  HasConfiguredPassword?: boolean;
+  LastLoginDate?: string;
+  LastActivityDate?: string;
+  Configuration?: EmbyUserConfiguration;
+  Policy?: EmbyUserPolicy;
+  [key: string]: unknown;
+}
+
 export interface EmbyServer {
   id: string;
   serverUrl: string;
@@ -9,15 +70,9 @@ export interface EmbyServer {
   accessToken: string;
   userId: string;
   username: string;
+  user?: EmbyUser;
   addedAt?: number;
   updatedAt?: number;
-}
-
-export interface EmbyUser {
-  Id: string;
-  Name: string;
-  ServerId?: string;
-  HasPassword?: boolean;
 }
 
 export interface EmbySystemInfo {
@@ -25,12 +80,27 @@ export interface EmbySystemInfo {
   Version?: string;
   Id?: string;
   OperatingSystem?: string;
+  OperatingSystemDisplayName?: string;
   HasUpdateAvailable?: boolean;
   CanSelfUpdate?: boolean;
+  CanSelfRestart?: boolean;
   SystemUpdateLevel?: string;
   PackageName?: string;
+  ProgramDataPath?: string;
+  ItemsByNamePath?: string;
+  CachePath?: string;
+  LogPath?: string;
+  InternalMetadataPath?: string;
+  TranscodingTempPath?: string;
+  HttpServerPortNumber?: number;
+  WebSocketPortNumber?: number;
+  HttpsPortNumber?: number;
+  SupportsHttps?: boolean;
+  SupportsLibraryMonitor?: boolean;
   LocalAddress?: string;
+  LocalAddresses?: string[];
   WanAddress?: string;
+  RemoteAddresses?: string[];
 }
 
 export interface ClientIdentity {

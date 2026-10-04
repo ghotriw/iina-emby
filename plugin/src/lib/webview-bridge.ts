@@ -109,11 +109,13 @@ export function registerBridgeHandlers(view: WebviewTarget, deps: WebviewBridgeD
   view.onMessage("store-session", (data?: StoreSessionMessage) => {
     if (data?.serverUrl && data?.accessToken) {
       const server = deps.addOrUpdateServer({
+        id: data.id,
         serverUrl: data.serverUrl,
         accessToken: data.accessToken,
         serverName: data.serverName || "",
         userId: data.userId || "",
         username: data.username || "",
+        user: data.user,
       });
       if (server) {
         deps.setActiveServerId(server.id);

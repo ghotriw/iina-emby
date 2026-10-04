@@ -165,11 +165,7 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
       timer = setTimeout(() => {
         const width = window.outerWidth || window.innerWidth;
         const height = window.outerHeight || window.innerHeight;
-        if (
-          width >= WINDOW_DIMENSIONS.MIN_WIDTH &&
-          height >= WINDOW_DIMENSIONS.MIN_HEIGHT &&
-          window.iina?.postMessage
-        ) {
+        if (width >= WINDOW_DIMENSIONS.MIN_WIDTH && height >= WINDOW_DIMENSIONS.MIN_HEIGHT && window.iina?.postMessage) {
           window.iina.postMessage("save-window-size", { width, height });
         }
       }, 500);
@@ -184,18 +180,26 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
 
   const saveServer = useCallback((server: EmbyServer) => {
     setServers((prev) => {
-      const idx = prev.findIndex((s) => s.id === server.id || s.serverUrl === server.serverUrl);
+      const idx = prev.findIndex((s) => {
+        if (s.id === server.id) return true;
+        if (server.userId && s.userId) {
+          return s.serverUrl.replace(/\/$/, "") === server.serverUrl.replace(/\/$/, "") && s.userId === server.userId;
+        }
+        return false;
+      });
       return idx >= 0 ? [...prev.slice(0, idx), server, ...prev.slice(idx + 1)] : [...prev, server];
     });
     setActiveServerId(server.id);
 
     if (window?.iina?.postMessage) {
       window.iina.postMessage("store-session", {
+        id: server.id,
         serverUrl: server.serverUrl,
         accessToken: server.accessToken,
         serverName: server.serverName,
         userId: server.userId,
         username: server.username,
+        user: server.user,
       });
     }
   }, []);

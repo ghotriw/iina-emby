@@ -118,6 +118,7 @@ export async function authenticateByName(
       accessToken: data.AccessToken,
       userId: data.User.Id,
       username: data.User.Name,
+      user: data.User as EmbyUser,
       addedAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -126,6 +127,22 @@ export async function authenticateByName(
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Connection failed";
     return { success: false, error: message };
+  }
+}
+
+export async function fetchCurrentUser(server: EmbyServer): Promise<EmbyUser | null> {
+  try {
+    if (!server.userId) return null;
+    const apiBase = await resolveServerApiBase(server.serverUrl);
+    const userRes = await fetch(`${apiBase}/Users/${encodeURIComponent(server.userId)}`, {
+      headers: buildAuthHeaders(server.accessToken),
+    });
+    if (userRes.ok) {
+      return (await userRes.json()) as EmbyUser;
+    }
+    return null;
+  } catch {
+    return null;
   }
 }
 
@@ -139,17 +156,8 @@ export async function verifyServerSession(server: EmbyServer): Promise<{ valid: 
     if (!res.ok) return { valid: false };
 
     // Get user details
-    if (server.userId) {
-      const userRes = await fetch(`${apiBase}/Users/${server.userId}`, {
-        headers: buildAuthHeaders(server.accessToken),
-      });
-      if (userRes.ok) {
-        const user = await userRes.json();
-        return { valid: true, user };
-      }
-    }
-
-    return { valid: true };
+    const user = await fetchCurrentUser(server);
+    return { valid: true, user: user || undefined };
   } catch {
     return { valid: false };
   }

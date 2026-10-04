@@ -126,11 +126,13 @@ function registerBridgeHandlers(view, deps, options) {
   view.onMessage("store-session", (data) => {
     if (data?.serverUrl && data?.accessToken) {
       const server = deps.addOrUpdateServer({
+        id: data.id,
         serverUrl: data.serverUrl,
         accessToken: data.accessToken,
         serverName: data.serverName || "",
         userId: data.userId || "",
-        username: data.username || ""
+        username: data.username || "",
+        user: data.user
       });
       if (server) {
         deps.setActiveServerId(server.id);
@@ -613,19 +615,23 @@ function createServerSessionStore({ preferences: preferences2, sidebar, standalo
       const normalizedUrl = cleanServerUrl(serverData.serverUrl);
       const isSameUrl = (server) => server.serverUrl.replace(/\/$/, "") === normalizedUrl;
       let existingIndex = -1;
-      if (serverData.userId) {
+      if (serverData.id) {
+        existingIndex = servers.findIndex((server) => server.id === serverData.id);
+      }
+      if (existingIndex < 0 && serverData.userId) {
         existingIndex = servers.findIndex((server) => isSameUrl(server) && server.userId === serverData.userId);
       }
       if (existingIndex < 0) {
         existingIndex = servers.findIndex((server) => isSameUrl(server) && !server.userId);
       }
       const serverEntry = {
-        id: existingIndex >= 0 ? servers[existingIndex].id : `srv-${Date.now()}`,
+        id: existingIndex >= 0 ? servers[existingIndex].id : serverData.id || `srv-${Date.now()}`,
         serverUrl: normalizedUrl,
         serverName: serverData.serverName || normalizedUrl,
         accessToken: serverData.accessToken,
         userId: serverData.userId || "",
         username: serverData.username || "",
+        user: serverData.user || (existingIndex >= 0 ? servers[existingIndex].user : void 0),
         addedAt: existingIndex >= 0 ? servers[existingIndex].addedAt : Date.now(),
         updatedAt: Date.now()
       };

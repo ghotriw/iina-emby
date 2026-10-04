@@ -28,11 +28,13 @@ export interface PlayMediaListPayload {
 }
 
 export interface StoreSessionPayload {
+  id?: string;
   serverUrl: string;
   accessToken: string;
   serverName?: string;
   userId?: string;
   username?: string;
+  user?: EmbyServer["user"];
   [key: string]: unknown;
 }
 

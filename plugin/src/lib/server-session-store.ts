@@ -83,20 +83,30 @@ export function createServerSessionStore({ preferences, sidebar, standaloneWindo
       const isSameUrl = (server: EmbyServer) => server.serverUrl.replace(/\/$/, "") === normalizedUrl;
 
       let existingIndex = -1;
-      if (serverData.userId) {
+
+      // Match by explicit id (e.g. when updating an existing entry)
+      if (serverData.id) {
+        existingIndex = servers.findIndex((server) => server.id === serverData.id);
+      }
+
+      // Match by URL + userId (same user re-logging into same server)
+      if (existingIndex < 0 && serverData.userId) {
         existingIndex = servers.findIndex((server) => isSameUrl(server) && server.userId === serverData.userId);
       }
+
+      // Match anonymous entry on same URL (upgrade to signed-in)
       if (existingIndex < 0) {
         existingIndex = servers.findIndex((server) => isSameUrl(server) && !server.userId);
       }
 
       const serverEntry: EmbyServer = {
-        id: existingIndex >= 0 ? servers[existingIndex].id : `srv-${Date.now()}`,
+        id: existingIndex >= 0 ? servers[existingIndex].id : serverData.id || `srv-${Date.now()}`,
         serverUrl: normalizedUrl,
         serverName: serverData.serverName || normalizedUrl,
         accessToken: serverData.accessToken,
         userId: serverData.userId || "",
         username: serverData.username || "",
+        user: serverData.user || (existingIndex >= 0 ? servers[existingIndex].user : undefined),
         addedAt: existingIndex >= 0 ? servers[existingIndex].addedAt : Date.now(),
         updatedAt: Date.now(),
       };
