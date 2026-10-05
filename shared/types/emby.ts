@@ -174,6 +174,7 @@ export interface EmbyItemMetadata {
   DateCreated?: string;
   Overview?: string;
   RecursiveItemCount?: number;
+  ChildCount?: number;
   OfficialRating?: string;
   Genres?: string[];
   GenreItems?: Array<{ Name: string; Id?: string | number }>;
