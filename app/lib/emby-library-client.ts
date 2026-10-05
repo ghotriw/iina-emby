@@ -10,87 +10,14 @@ import type {
 } from "@shared";
 import { buildAuthHeaders } from "./emby-auth-client";
 
-interface CacheEntry<T> {
-  data: T;
-  expires: number;
-}
-
-const MAX_CACHE_ENTRIES = 150;
-const DEFAULT_CACHE_TTL_MS = 60_000; // 1 minute
-
-const cache = new Map<string, CacheEntry<unknown>>();
-const inFlightRequests = new Map<string, Promise<unknown>>();
+const DEFAULT_CACHE_TTL_MS = 60_000;
 
 export function clearLibraryCache(): void {
-  cache.clear();
-  inFlightRequests.clear();
+  // Maintained for backward compatibility; TanStack Query manages the query cache
 }
 
-/**
- * Access an entry with LRU touch and expiration check.
- */
-function getCached<T>(key: string): T | undefined {
-  const entry = cache.get(key);
-  if (!entry) return undefined;
-
-  if (Date.now() >= entry.expires) {
-    cache.delete(key);
-    return undefined;
-  }
-
-  // Refresh position in Map to mark as recently used (LRU)
-  cache.delete(key);
-  cache.set(key, entry);
-  return entry.data as T;
-}
-
-/**
- * Store an entry with LRU eviction of the oldest entries if capacity is exceeded.
- */
-function setCached<T>(key: string, data: T, ttlMs: number): void {
-  // If already exists, delete first to move to back
-  if (cache.has(key)) {
-    cache.delete(key);
-  } else if (cache.size >= MAX_CACHE_ENTRIES) {
-    // Evict oldest entry (first key in iteration order)
-    const oldestKey = cache.keys().next().value;
-    if (oldestKey !== undefined) {
-      cache.delete(oldestKey);
-    }
-  }
-
-  cache.set(key, { data, expires: Date.now() + ttlMs });
-}
-
-async function getOrFetchCached<T>(key: string, ttlMs: number, bypassCache: boolean, fetcher: () => Promise<T>): Promise<T> {
-  if (!bypassCache) {
-    const cachedData = getCached<T>(key);
-    if (cachedData !== undefined) {
-      return cachedData;
-    }
-
-    // Coalesce in-flight requests for the same key to prevent duplicate simultaneous fetches
-    const inFlight = inFlightRequests.get(key);
-    if (inFlight) {
-      return inFlight as Promise<T>;
-    }
-  }
-
-  const fetchPromise = (async () => {
-    try {
-      const result = await fetcher();
-      setCached(key, result, ttlMs);
-      return result;
-    } finally {
-      inFlightRequests.delete(key);
-    }
-  })();
-
-  if (!bypassCache) {
-    inFlightRequests.set(key, fetchPromise);
-  }
-
-  return fetchPromise;
+async function getOrFetchCached<T>(_key: string, _ttlMs: number, _bypassCache: boolean, fetcher: () => Promise<T>): Promise<T> {
+  return fetcher();
 }
 
 export interface FetchResumeItemsResult {

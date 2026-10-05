@@ -3,6 +3,8 @@ import { IconFingerprint, IconPlayerPlayFilled } from "@tabler/icons-react";
 import { useState } from "react";
 import { isIdentifySupported } from "../lib/emby-library-client";
 import { formatResumeTime, getMediaBadges } from "../lib/media-formatters";
+import { queryClient } from "../lib/query-client";
+import { embyKeys } from "../lib/query-keys";
 import { IdentifyModal } from "./IdentifyModal";
 import styles from "./ItemHero.module.css";
 import { PageHeader } from "./PageHeader";
@@ -38,19 +40,24 @@ export function ItemHero({
   // The active playable target (episode if Series has NextUp, or the movie item itself)
   const targetItem = isSeries ? nextUpEpisode : item;
 
-  // Backdrop image (high-res fanart backdrop priority)
-  const backdropUrl = item
-    ? getItemImageUrl(activeServer.serverUrl, item, {
-        prefer: "backdrop",
-        maxWidth: 2560,
-        accessToken: activeServer.accessToken,
-      })
-    : undefined;
+  const isSyncing = Boolean(item?.isIdentifying);
+  const pendingImg = item?.pendingImageUrl as string | undefined;
 
-  // Logo: check item's ImageTags.Logo
+  // Backdrop image (high-res fanart backdrop priority or TMDb pending image)
+  const backdropUrl =
+    pendingImg ||
+    (item
+      ? getItemImageUrl(activeServer.serverUrl, item, {
+          prefer: "backdrop",
+          maxWidth: 2560,
+          accessToken: activeServer.accessToken,
+        })
+      : undefined);
+
+  // Logo: check item's ImageTags.Logo (hide if pending image is active to avoid showing old logo over new movie)
   const logoTag = item?.ImageTags?.Logo;
   const logoUrl =
-    !logoError && logoTag && item
+    !logoError && !pendingImg && logoTag && item
       ? getEmbyImageUrl(activeServer.serverUrl, item.Id, {
           imageType: "Logo",
           maxWidth: 600,
@@ -180,6 +187,13 @@ export function ItemHero({
               {officialRating ? <span className={styles.officialRatingBadge}>{officialRating}</span> : null}
 
               {genresText ? <span className={styles.genres}>{genresText}</span> : null}
+
+              {isSyncing && (
+                <span className={styles.syncingBadge} title="Metadata is syncing with server...">
+                  <span className={styles.syncDot} />
+                  <span>Syncing with server</span>
+                </span>
+              )}
             </div>
 
             {/* Row 2: Duration, Release Date, Specs */}
@@ -209,8 +223,24 @@ export function ItemHero({
           onClose={() => setIsIdentifyOpen(false)}
           item={item}
           server={activeServer}
-          onSuccess={() => {
-            onRefresh?.();
+          onSuccess={(result) => {
+            console.log(`[ItemHero:Identify] Identify completed for "${item.Name}" (${item.Id}) with:`, result);
+            if (result && activeServer) {
+              const pendingImage = result.ImageUrl || result.ThumbnailUrl;
+              queryClient.setQueryData<EmbyItemMetadata>(embyKeys.item(activeServer.id, item.Id), (old) => {
+                if (!old) return old;
+                return {
+                  ...old,
+                  Name: result.Name || old.Name,
+                  ProductionYear: result.ProductionYear ?? old.ProductionYear,
+                  PremiereDate: result.PremiereDate ?? old.PremiereDate,
+                  Overview: result.Overview ?? old.Overview,
+                  ProviderIds: { ...(old.ProviderIds || {}), ...(result.ProviderIds || {}) },
+                  pendingImageUrl: pendingImage,
+                  isIdentifying: true,
+                };
+              });
+            }
           }}
         />
       )}

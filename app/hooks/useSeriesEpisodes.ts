@@ -1,6 +1,8 @@
 import type { EmbyItemMetadata, EmbyServer } from "@shared";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { fetchEpisodes, fetchNextUp, fetchSeasons } from "../lib/emby-library-client";
+import { embyKeys } from "../lib/query-keys";
 
 export interface UseSeriesEpisodesResult {
   isSeries: boolean;
@@ -14,130 +16,68 @@ export interface UseSeriesEpisodesResult {
 
 export function useSeriesEpisodes(activeServer: EmbyServer | null, item?: EmbyItemMetadata): UseSeriesEpisodesResult {
   const isSeries = item?.Type === "Series";
-
-  const [nextUpEpisode, setNextUpEpisode] = useState<EmbyItemMetadata | null>(null);
-  const [seasons, setSeasons] = useState<EmbyItemMetadata[]>([]);
-  const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
-  const [episodes, setEpisodes] = useState<EmbyItemMetadata[]>([]);
-  const [isEpisodesLoading, setIsEpisodesLoading] = useState(false);
+  const [selectedSeasonIdState, setSelectedSeasonId] = useState<string | null>(null);
 
   // 1. Fetch next-up episode if item is a series
-  useEffect(() => {
-    if (!activeServer || !item || item.Type !== "Series") {
-      setNextUpEpisode(null);
-      return;
-    }
-
-    const controller = new AbortController();
-
-    fetchNextUp(activeServer, item.Id, controller.signal)
-      .then(async (ep) => {
-        if (controller.signal.aborted) return;
-        if (ep) {
-          setNextUpEpisode(ep);
-        } else {
-          // If no watch history exists or series is finished, fall back to first episode (S01E01)
-          try {
-            const [firstEp] = await fetchEpisodes(activeServer, item.Id, undefined, controller.signal, false, 1);
-            if (!controller.signal.aborted && firstEp) {
-              setNextUpEpisode(firstEp);
-            }
-          } catch {
-            // Ignore error
-          }
-        }
-      })
-      .catch((err: unknown) => {
-        if (controller.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
-          return;
-        }
-        console.error("Failed to load next-up episode:", err);
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [activeServer?.id, activeServer?.serverUrl, activeServer?.accessToken, activeServer?.userId, item?.Id, item?.Type]);
+  const nextUpQuery = useQuery({
+    queryKey: activeServer && item?.Id ? embyKeys.nextUp(activeServer.id, item.Id) : ["emby", "noop"],
+    enabled: Boolean(activeServer && isSeries && item?.Id),
+    queryFn: async ({ signal }) => {
+      if (!activeServer || !item?.Id) return null;
+      const ep = await fetchNextUp(activeServer, item.Id, signal);
+      if (ep) return ep;
+      try {
+        const [firstEp] = await fetchEpisodes(activeServer, item.Id, undefined, signal, false, 1);
+        return firstEp ?? null;
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   // 2. Fetch seasons for series
-  useEffect(() => {
-    if (!activeServer || !item || item.Type !== "Series") {
-      setSeasons([]);
-      setSelectedSeasonId(null);
-      return;
+  const seasonsQuery = useQuery({
+    queryKey: activeServer && item?.Id ? embyKeys.seasons(activeServer.id, item.Id) : ["emby", "noop"],
+    enabled: Boolean(activeServer && isSeries && item?.Id),
+    queryFn: ({ signal }) => {
+      if (!activeServer || !item?.Id) return [];
+      return fetchSeasons(activeServer, item.Id, signal);
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const seasons = isSeries ? (seasonsQuery.data ?? []) : [];
+  const nextUpEpisode = isSeries ? (nextUpQuery.data ?? null) : null;
+
+  // Determine active season ID
+  const selectedSeasonId = useMemo(() => {
+    if (!isSeries || seasons.length === 0) return null;
+    if (selectedSeasonIdState && seasons.some((s) => s.Id === selectedSeasonIdState)) {
+      return selectedSeasonIdState;
     }
-
-    const controller = new AbortController();
-
-    fetchSeasons(activeServer, item.Id, controller.signal)
-      .then((seasonList) => {
-        if (controller.signal.aborted) return;
-        setSeasons(seasonList);
-
-        if (seasonList.length > 0) {
-          setSelectedSeasonId((current) => {
-            if (current && seasonList.some((s) => s.Id === current)) return current;
-            if (nextUpEpisode?.SeasonId && seasonList.some((s) => s.Id === nextUpEpisode.SeasonId)) {
-              return nextUpEpisode.SeasonId;
-            }
-            // Prefer Season 1 (IndexNumber === 1) over Specials (IndexNumber === 0)
-            const season1 = seasonList.find((s) => s.IndexNumber === 1);
-            return (season1 || seasonList[0]).Id;
-          });
-        }
-      })
-      .catch((err: unknown) => {
-        if (controller.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
-          return;
-        }
-        console.error("Failed to load seasons:", err);
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [
-    activeServer?.id,
-    activeServer?.serverUrl,
-    activeServer?.accessToken,
-    activeServer?.userId,
-    item?.Id,
-    item?.Type,
-    nextUpEpisode?.SeasonId,
-  ]);
+    if (nextUpEpisode?.SeasonId && seasons.some((s) => s.Id === nextUpEpisode.SeasonId)) {
+      return nextUpEpisode.SeasonId;
+    }
+    // Prefer Season 1 (IndexNumber === 1) over Specials (IndexNumber === 0)
+    const season1 = seasons.find((s) => s.IndexNumber === 1);
+    return (season1 || seasons[0]).Id;
+  }, [isSeries, seasons, selectedSeasonIdState, nextUpEpisode?.SeasonId]);
 
   // 3. Fetch episodes when selected season changes
-  useEffect(() => {
-    if (!activeServer || !item || item.Type !== "Series" || !selectedSeasonId) {
-      setEpisodes([]);
-      setIsEpisodesLoading(false);
-      return;
-    }
+  const episodesQuery = useQuery({
+    queryKey:
+      activeServer && item?.Id && selectedSeasonId ? embyKeys.seriesEpisodes(activeServer.id, item.Id, selectedSeasonId) : ["emby", "noop"],
+    enabled: Boolean(activeServer && isSeries && item?.Id && selectedSeasonId),
+    queryFn: ({ signal }) => {
+      if (!activeServer || !item?.Id || !selectedSeasonId) return [];
+      return fetchEpisodes(activeServer, item.Id, selectedSeasonId, signal);
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-    const controller = new AbortController();
-    setIsEpisodesLoading(true);
-
-    fetchEpisodes(activeServer, item.Id, selectedSeasonId, controller.signal)
-      .then((epList) => {
-        if (controller.signal.aborted) return;
-        setEpisodes(epList);
-      })
-      .catch((err: unknown) => {
-        if (controller.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
-          return;
-        }
-        console.error("Failed to load episodes for season:", err);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setIsEpisodesLoading(false);
-        }
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [activeServer?.id, activeServer?.serverUrl, activeServer?.accessToken, activeServer?.userId, item?.Id, item?.Type, selectedSeasonId]);
+  const episodes = isSeries && selectedSeasonId ? (episodesQuery.data ?? []) : [];
+  const isEpisodesLoading = isSeries && (episodesQuery.isLoading || (seasonsQuery.isLoading && seasons.length === 0));
 
   // If nextUpEpisode is not resolved yet, fall back to first unplayed episode from loaded episodes
   const effectiveNextUp =

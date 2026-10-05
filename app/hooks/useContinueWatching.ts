@@ -1,55 +1,27 @@
-import type { EmbyItemMetadata, EmbyServer } from "@shared";
-import { useCallback, useEffect, useState } from "react";
+import type { EmbyServer } from "@shared";
+import { useQuery } from "@tanstack/react-query";
 import { fetchResumeItems } from "../lib/emby-library-client";
+import { embyKeys } from "../lib/query-keys";
 
 export function useContinueWatching(activeServer: EmbyServer | null) {
-  const [items, setItems] = useState<EmbyItemMetadata[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const isEnabled = Boolean(activeServer?.serverUrl && activeServer.accessToken && activeServer.userId);
 
-  const loadResumeItems = useCallback(
-    async (signal?: AbortSignal) => {
-      if (!activeServer?.serverUrl || !activeServer.accessToken || !activeServer.userId) {
-        setItems([]);
-        setLoading(false);
-        setError(null);
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-
-      try {
-        const result = await fetchResumeItems(activeServer, 12, signal);
-        if (signal?.aborted) return;
-        setItems(result.items);
-      } catch (err: unknown) {
-        if (signal?.aborted || (err instanceof DOMException && err.name === "AbortError")) {
-          return;
-        }
-        const msg = err instanceof Error ? err.message : String(err);
-        setError(msg);
-      } finally {
-        if (!signal?.aborted) {
-          setLoading(false);
-        }
-      }
+  const query = useQuery({
+    queryKey: activeServer?.id ? embyKeys.continueWatching(activeServer.id) : ["empty-resume"],
+    queryFn: async ({ signal }) => {
+      if (!activeServer) return [];
+      const result = await fetchResumeItems(activeServer, 12, signal);
+      return result.items;
     },
-    [activeServer?.id, activeServer?.serverUrl, activeServer?.accessToken, activeServer?.userId],
-  );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    loadResumeItems(controller.signal);
-    return () => {
-      controller.abort();
-    };
-  }, [loadResumeItems]);
+    enabled: isEnabled,
+  });
 
   return {
-    items,
-    loading,
-    error,
-    refresh: loadResumeItems,
+    items: query.data ?? [],
+    loading: query.isLoading,
+    error: query.error ? (query.error instanceof Error ? query.error.message : String(query.error)) : null,
+    refresh: async () => {
+      await query.refetch();
+    },
   };
 }

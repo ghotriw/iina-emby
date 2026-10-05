@@ -1,13 +1,14 @@
 import { IconAlertCircle } from "@tabler/icons-react";
-import { useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { Navigate, useNavigate } from "react-router";
-import { ContinueWatching, type ContinueWatchingHandle } from "../components/ContinueWatching";
+import { ContinueWatching } from "../components/ContinueWatching";
 import { LibraryShelf, LibraryShelfSkeleton } from "../components/LibraryShelf";
 import { PageHeader } from "../components/PageHeader";
 import { Alert } from "../components/ui";
 import { useIINABridge, useOnPlaybackProgressUpdated, useOnWindowReopen } from "../hooks/useIINABridge";
 import { useLibrarySections } from "../hooks/useLibrarySections";
-import { clearLibraryCache } from "../lib/emby-library-client";
+import { queryClient } from "../lib/query-client";
+import { embyKeys } from "../lib/query-keys";
 import styles from "./home.module.css";
 
 export function meta() {
@@ -17,29 +18,37 @@ export function meta() {
 export default function HomeRoute() {
   const navigate = useNavigate();
   const { activeServer, servers, isLoading, playMedia } = useIINABridge();
-  const { sections, isLoading: isSectionsLoading, error: sectionsError, reload } = useLibrarySections(activeServer);
+  const { sections, isLoading: isSectionsLoading, error: sectionsError } = useLibrarySections(activeServer);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const continueWatchingRef = useRef<ContinueWatchingHandle | null>(null);
 
-  const handleRefresh = async () => {
-    if (isRefreshing) return;
+  const handleRefresh = useCallback(async () => {
+    if (!activeServer || isRefreshing) return;
     setIsRefreshing(true);
-    clearLibraryCache();
     try {
-      await Promise.allSettled([reload(), continueWatchingRef.current?.refresh()]);
+      await queryClient.invalidateQueries({ queryKey: embyKeys.server(activeServer.id) });
     } finally {
       setIsRefreshing(false);
     }
-  };
+  }, [activeServer, isRefreshing]);
 
   useOnWindowReopen(() => {
-    handleRefresh();
+    if (activeServer) {
+      queryClient.invalidateQueries({ queryKey: embyKeys.server(activeServer.id) });
+    }
   });
 
   // Automatically refresh continue watching when player updates progress to Emby
   useOnPlaybackProgressUpdated(() => {
-    continueWatchingRef.current?.refresh();
+    if (activeServer) {
+      queryClient.invalidateQueries({ queryKey: embyKeys.continueWatching(activeServer.id) });
+    }
   });
+
+  const handleIdentifySuccess = useCallback(() => {
+    if (activeServer) {
+      queryClient.invalidateQueries({ queryKey: embyKeys.server(activeServer.id) });
+    }
+  }, [activeServer]);
 
   // Wait for IINA bridge to report servers list before redirecting
   if (isLoading) {
@@ -69,7 +78,7 @@ export default function HomeRoute() {
       {/* Main shelves content */}
       <main className={styles.content}>
         {/* Continue Watching shelf */}
-        <ContinueWatching ref={continueWatchingRef} server={activeServer} onPlayMedia={playMedia} />
+        <ContinueWatching server={activeServer} onPlayMedia={playMedia} />
 
         {sectionsError && (
           <Alert icon={<IconAlertCircle size={16} />} title="Error loading libraries" mb="md" mx="1.5rem">
@@ -91,7 +100,7 @@ export default function HomeRoute() {
               items={items}
               server={activeServer}
               isLoading={isShelfLoading}
-              onIdentifySuccess={() => reload()}
+              onIdentifySuccess={handleIdentifySuccess}
             />
           ))
         )}

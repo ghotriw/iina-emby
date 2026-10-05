@@ -1,5 +1,7 @@
+import type { EmbyItemMetadata, RemoteSearchResult } from "@shared";
 import { IconAlertCircle } from "@tabler/icons-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams } from "react-router";
 import { MediaPoster, MediaPosterSkeleton } from "../components/MediaPoster";
 import { PageHeader } from "../components/PageHeader";
@@ -7,7 +9,9 @@ import { SectionToolbar } from "../components/SectionToolbar";
 import { Alert } from "../components/ui";
 import { useIINABridge, useOnWindowReopen } from "../hooks/useIINABridge";
 import { useProgressiveScroll } from "../hooks/useProgressiveScroll";
-import { clearLibraryCache, fetchAllSectionData, fetchUserViews, type SectionAllData } from "../lib/emby-library-client";
+import { fetchAllSectionData, fetchUserViews, type SectionAllData } from "../lib/emby-library-client";
+import { queryClient } from "../lib/query-client";
+import { embyKeys } from "../lib/query-keys";
 import { filterAndSortSectionItems, type SectionFilter, type SectionSortBy, type SectionSortOrder } from "../lib/section-items";
 import { startViewTransitionSafe } from "../lib/view-transitions";
 import styles from "./section.module.css";
@@ -25,96 +29,93 @@ export default function SectionRoute() {
   const { activeServer, servers, isLoading: isBridgeLoading } = useIINABridge();
 
   const stateName = location.state?.name as string | undefined;
-  const [sectionTitle, setSectionTitle] = useState<string>(stateName || "Library");
   const [filter, setFilter] = useState<SectionFilter>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [sortBy, setSortBy] = useState<SectionSortBy>("name");
   const [sortOrder, setSortOrder] = useState<SectionSortOrder>("asc");
 
-  const [rawData, setRawData] = useState<SectionAllData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Fetch section title if not provided in route state
-  useEffect(() => {
-    if (stateName || !activeServer || !id) return;
-    const controller = new AbortController();
-
-    fetchUserViews(activeServer, controller.signal)
-      .then((views) => {
-        if (controller.signal.aborted) return;
-        const found = views.find((v) => v.Id === id);
-        if (found?.Name) {
-          setSectionTitle(found.Name);
-        }
-      })
-      .catch(() => {
-        // Non-critical, fallback remains "Library"
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [activeServer?.id, activeServer?.serverUrl, activeServer?.accessToken, activeServer?.userId, id, stateName]);
-
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  const loadData = useCallback(
-    async (bypassCache = false) => {
-      if (!activeServer || !id) {
-        setIsLoading(false);
-        setIsRefreshing(false);
-        return;
-      }
-
-      abortControllerRef.current?.abort();
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-      const { signal } = controller;
-
-      try {
-        if (bypassCache) {
-          setIsRefreshing(true);
-        } else {
-          setIsLoading(true);
-        }
-        setError(null);
-
-        const data = await fetchAllSectionData(activeServer, id, signal, bypassCache);
-        if (signal.aborted) return;
-        setRawData(data);
-      } catch (err: unknown) {
-        if (signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
-          return;
-        }
-        const msg = err instanceof Error ? err.message : String(err);
-        setError(msg);
-      } finally {
-        if (!signal.aborted) {
-          setIsLoading(false);
-          setIsRefreshing(false);
-        }
-      }
+  // Fetch view title if not provided in location state
+  const viewsQuery = useQuery({
+    queryKey: activeServer?.id ? embyKeys.userViews(activeServer.id) : ["empty-views"],
+    queryFn: async ({ signal }) => {
+      if (!activeServer) return [];
+      return fetchUserViews(activeServer, signal);
     },
-    [activeServer?.id, activeServer?.serverUrl, activeServer?.accessToken, activeServer?.userId, id],
-  );
+    enabled: Boolean(activeServer?.id && !stateName),
+  });
 
-  useEffect(() => {
-    loadData(false);
-    return () => {
-      abortControllerRef.current?.abort();
-    };
-  }, [loadData]);
+  const sectionTitle = stateName || viewsQuery.data?.find((v) => v.Id === id)?.Name || "Library";
 
-  const handleRefresh = async () => {
-    clearLibraryCache();
-    await loadData(true);
-  };
+  // Fetch section data via TanStack Query (bypassCache: true ensures fresh network data on refetch)
+  const sectionQuery = useQuery({
+    queryKey: activeServer?.id && id ? embyKeys.section(activeServer.id, id) : ["empty-section"],
+    queryFn: async ({ signal }) => {
+      if (!activeServer || !id) return null;
+      return fetchAllSectionData(activeServer, id, signal, true);
+    },
+    enabled: Boolean(activeServer?.id && id),
+  });
+
+  const rawData = sectionQuery.data ?? null;
+  const isLoading = sectionQuery.isLoading;
+  const isRefreshing = sectionQuery.isRefetching;
+  const error = sectionQuery.error ? (sectionQuery.error instanceof Error ? sectionQuery.error.message : String(sectionQuery.error)) : null;
+
+  const handleRefresh = useCallback(() => {
+    return sectionQuery.refetch();
+  }, [sectionQuery]);
 
   useOnWindowReopen(() => {
     handleRefresh();
   });
+
+  // When user identifies an item, immediately update item in section cache
+  const handleIdentifySuccess = useCallback(
+    (identifiedItem: EmbyItemMetadata, result?: RemoteSearchResult) => {
+      console.log(`[Section:Identify] Identify completed for item ${identifiedItem.Id} with:`, result);
+      if (!activeServer || !id) return;
+
+      const pendingImage = result?.ImageUrl || result?.ThumbnailUrl;
+
+      // Optimistic update of item in section cache
+      queryClient.setQueryData<SectionAllData>(embyKeys.section(activeServer.id, id), (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          items: old.items.map((it) =>
+            it.Id === identifiedItem.Id
+              ? {
+                  ...it,
+                  Name: result?.Name || identifiedItem.Name,
+                  ProductionYear: result?.ProductionYear ?? identifiedItem.ProductionYear,
+                  PremiereDate: result?.PremiereDate ?? identifiedItem.PremiereDate,
+                  Overview: result?.Overview ?? identifiedItem.Overview,
+                  pendingImageUrl: pendingImage,
+                  isIdentifying: true,
+                }
+              : it,
+          ),
+        };
+      });
+
+      // Also update single item query cache if it exists
+      if (result) {
+        queryClient.setQueryData<EmbyItemMetadata>(embyKeys.item(activeServer.id, identifiedItem.Id), (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            Name: result.Name || old.Name,
+            ProductionYear: result.ProductionYear ?? old.ProductionYear,
+            PremiereDate: result.PremiereDate ?? old.PremiereDate,
+            Overview: result.Overview ?? old.Overview,
+            pendingImageUrl: pendingImage,
+            isIdentifying: true,
+          };
+        });
+      }
+    },
+    [activeServer, id],
+  );
 
   const handleFilterChange = (newFilter: SectionFilter) => {
     startViewTransitionSafe(() => {
@@ -236,7 +237,7 @@ export default function SectionRoute() {
           <>
             <div className={styles.grid}>
               {visibleItems.map((item) => (
-                <MediaPoster key={item.Id} item={item} server={activeServer} onIdentifySuccess={() => handleRefresh()} />
+                <MediaPoster key={item.Id} item={item} server={activeServer} onIdentifySuccess={handleIdentifySuccess} />
               ))}
             </div>
 

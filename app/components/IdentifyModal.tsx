@@ -11,7 +11,7 @@ export interface IdentifyModalProps {
   onClose: () => void;
   item: EmbyItemMetadata | null;
   server: EmbyServer;
-  onSuccess?: () => void;
+  onSuccess?: (result?: RemoteSearchResult) => void;
 }
 
 export function IdentifyModal({ opened, onClose, item, server, onSuccess }: IdentifyModalProps) {
@@ -28,14 +28,15 @@ export function IdentifyModal({ opened, onClose, item, server, onSuccess }: Iden
   const [results, setResults] = useState<RemoteSearchResult[] | null>(null);
   const [selectedResult, setSelectedResult] = useState<RemoteSearchResult | null>(null);
 
-  // Synchronize initial values when modal opens or item changes
+  // Synchronize initial values when modal opens or item changes.
+  // Pre-fill only the title; provider IDs and year are left blank so search is not locked to the wrong item.
   useEffect(() => {
     if (opened && item) {
       setTitle(item.Name || item.OriginalTitle || "");
-      setYear(item.ProductionYear ? String(item.ProductionYear) : "");
-      setImdbId(item.ProviderIds?.Imdb || "");
-      setTmdbId(item.ProviderIds?.Tmdb || "");
-      setTvdbId(item.ProviderIds?.Tvdb || "");
+      setYear("");
+      setImdbId("");
+      setTmdbId("");
+      setTvdbId("");
       setResults(null);
       setSelectedResult(null);
       setError(null);
@@ -95,10 +96,13 @@ export function IdentifyModal({ opened, onClose, item, server, onSuccess }: Iden
     setError(null);
 
     try {
+      console.log(`[Identify] Applying remote search result for item ${item.Id}:`, selectedResult);
       await applyRemoteSearchResult(server, item.Id, selectedResult, replaceAllImages);
-      onSuccess?.();
+      console.log(`[Identify] Remote search applied successfully for item ${item.Id}. Invoking onSuccess callback with result.`);
+      onSuccess?.(selectedResult);
       onClose();
     } catch (err: unknown) {
+      console.error(`[Identify] Failed to apply remote search for item ${item.Id}:`, err);
       setError(err instanceof Error ? err.message : "Failed to apply identification.");
     } finally {
       setIsApplying(false);

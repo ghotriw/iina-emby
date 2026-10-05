@@ -3,6 +3,7 @@ import type React from "react";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { setClientIdentity } from "../lib/emby-auth-client";
 import { clearLibraryCache } from "../lib/emby-library-client";
+import { embyWebSocket } from "../lib/emby-websocket-client";
 
 declare global {
   interface Window {
@@ -251,6 +252,21 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const activeServer = servers.find((s) => s.id === activeServerId) || servers[0] || null;
+
+  useEffect(() => {
+    embyWebSocket.connect(activeServer);
+  }, [activeServer?.id, activeServer?.serverUrl, activeServer?.accessToken]);
+
+  const isFirstMountRef = useRef(true);
+  useEffect(() => {
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      return;
+    }
+    if (activeServer && !embyWebSocket.isConnected()) {
+      embyWebSocket.connect(activeServer);
+    }
+  }, [reopenCount, activeServer]);
 
   const value: IINABridgeContextType = {
     servers,

@@ -1,12 +1,14 @@
 import { type EmbyItemMetadata, formatFullEpisodeTitle } from "@shared";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { EpisodeDetailModal } from "../components/EpisodeDetailModal";
 import { ItemHero } from "../components/ItemHero";
 import { SeriesEpisodesShelf } from "../components/SeriesEpisodesShelf";
 import { useIINABridge, useOnPlaybackProgressUpdated, useOnWindowReopen } from "../hooks/useIINABridge";
 import { useSeriesEpisodes } from "../hooks/useSeriesEpisodes";
-import { buildStreamUrl, clearLibraryCache, fetchItemDetails } from "../lib/emby-library-client";
+import { buildStreamUrl, fetchItemDetails } from "../lib/emby-library-client";
+import { embyKeys } from "../lib/query-keys";
 import styles from "./item.module.css";
 
 export function meta() {
@@ -20,22 +22,26 @@ export default function ItemDetailRoute() {
   const { activeServer, playMedia } = useIINABridge();
 
   const stateItem = location.state?.item as EmbyItemMetadata | undefined;
-  const [item, setItem] = useState<EmbyItemMetadata | undefined>(stateItem);
   const [isPlaying, setIsPlaying] = useState(false);
   const [detailEpisode, setDetailEpisode] = useState<EmbyItemMetadata | null>(null);
-  const [reloadNonce, setReloadNonce] = useState(0);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const handleRefresh = async () => {
-    if (isRefreshing) return;
-    setIsRefreshing(true);
-    clearLibraryCache();
-    setReloadNonce((prev) => prev + 1);
-    // Short visual indicator for refresh button
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 600);
-  };
+  // TanStack Query for item details with instant initialData from route transition
+  const itemQuery = useQuery({
+    queryKey: activeServer?.id && id ? embyKeys.item(activeServer.id, id) : ["empty-item"],
+    queryFn: async ({ signal }) => {
+      if (!activeServer || !id) return null;
+      return fetchItemDetails(activeServer, id, signal, true);
+    },
+    initialData: stateItem,
+    enabled: Boolean(activeServer?.id && id),
+  });
+
+  const item = itemQuery.data ?? stateItem;
+  const isRefreshing = itemQuery.isRefetching;
+
+  const handleRefresh = useCallback(() => {
+    return itemQuery.refetch();
+  }, [itemQuery]);
 
   useOnWindowReopen(() => {
     handleRefresh();
@@ -43,33 +49,8 @@ export default function ItemDetailRoute() {
 
   // Automatically refresh when player reports progress back to Emby
   useOnPlaybackProgressUpdated(() => {
-    clearLibraryCache();
-    setReloadNonce((prev) => prev + 1);
+    handleRefresh();
   });
-
-  // Fetch full item details
-  useEffect(() => {
-    if (!activeServer || !id) return;
-
-    const controller = new AbortController();
-
-    fetchItemDetails(activeServer, id, controller.signal)
-      .then((details) => {
-        if (!controller.signal.aborted) {
-          setItem(details);
-        }
-      })
-      .catch((err: unknown) => {
-        if (controller.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
-          return;
-        }
-        console.error("Failed to load full item details:", err);
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [activeServer?.id, activeServer?.serverUrl, activeServer?.accessToken, activeServer?.userId, id, reloadNonce]);
 
   // Series next-up, seasons, and episodes management
   const { isSeries, nextUpEpisode, seasons, selectedSeasonId, setSelectedSeasonId, episodes, isEpisodesLoading } = useSeriesEpisodes(

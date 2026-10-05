@@ -1,4 +1,4 @@
-import type { EmbyItemMetadata, EmbyServer, EmbyUserData } from "@shared";
+import type { EmbyItemMetadata, EmbyServer, EmbyUserData, RemoteSearchResult } from "@shared";
 import { getItemImageUrl } from "@shared";
 import { IconCheck, IconDots, IconFingerprint, IconInfoCircle, IconMovie } from "@tabler/icons-react";
 import type React from "react";
@@ -39,7 +39,7 @@ export interface MediaPosterProps {
   server: EmbyServer;
   onClick?: (item: EmbyItemMetadata) => void;
   onUserDataChange?: (item: EmbyItemMetadata, userData: EmbyUserData) => void;
-  onIdentifySuccess?: (item: EmbyItemMetadata) => void;
+  onIdentifySuccess?: (item: EmbyItemMetadata, result?: RemoteSearchResult) => void;
   className?: string;
 }
 
@@ -56,8 +56,12 @@ export function MediaPoster({ item, server, onClick, onUserDataChange, onIdentif
       onUserDataChange,
     });
 
+  const isSyncing = Boolean(item.isIdentifying);
+  const pendingImg = item.pendingImageUrl as string | undefined;
+
   const imageUrl = !imgError
-    ? getItemImageUrl(server.serverUrl, item, {
+    ? pendingImg ||
+      getItemImageUrl(server.serverUrl, item, {
         prefer: "primary",
         maxWidth: 280,
         maxHeight: 420,
@@ -86,6 +90,14 @@ export function MediaPoster({ item, server, onClick, onUserDataChange, onIdentif
         ) : (
           <div className={classes.placeholder}>
             <IconMovie size={36} />
+          </div>
+        )}
+
+        {/* Top-Left: Syncing badge when background metadata identification is pending */}
+        {isSyncing && (
+          <div className={classes.syncingBadge} title="Metadata is syncing with server...">
+            <span className={classes.syncDot} />
+            <span>Syncing</span>
           </div>
         )}
 
@@ -151,9 +163,10 @@ export function MediaPoster({ item, server, onClick, onUserDataChange, onIdentif
           onClose={() => setIsIdentifyOpen(false)}
           item={item}
           server={server}
-          onSuccess={() => {
+          onSuccess={(result) => {
+            console.log(`[MediaPoster] IdentifyModal completed for item: "${item.Name}" (${item.Id}) with:`, result);
             if (onIdentifySuccess) {
-              onIdentifySuccess(item);
+              onIdentifySuccess(item, result);
             } else if (onUserDataChange) {
               onUserDataChange(item, item.UserData || {});
             }
