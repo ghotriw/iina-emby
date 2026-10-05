@@ -33,6 +33,12 @@ jobs:
       - name: Typecheck
         run: pnpm run typecheck
 
+      - name: Lint check
+        run: pnpm run lint
+
+      - name: Run tests
+        run: pnpm run test
+
       - name: Build UI and Plugin
         run: pnpm run build
 
