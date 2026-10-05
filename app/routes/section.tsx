@@ -236,7 +236,7 @@ export default function SectionRoute() {
           <>
             <div className={styles.grid}>
               {visibleItems.map((item) => (
-                <MediaPoster key={item.Id} item={item} server={activeServer} />
+                <MediaPoster key={item.Id} item={item} server={activeServer} onIdentifySuccess={() => handleRefresh()} />
               ))}
             </div>
 

@@ -1,11 +1,14 @@
 import type { EmbyItemMetadata, EmbyServer, EmbyUserData } from "@shared";
 import { getItemImageUrl } from "@shared";
-import { IconCheck, IconDots, IconInfoCircle, IconMovie } from "@tabler/icons-react";
+import { IconCheck, IconDots, IconFingerprint, IconInfoCircle, IconMovie } from "@tabler/icons-react";
 import type React from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { useItemPlayedStatus } from "../hooks/useItemPlayedStatus";
+import { isIdentifySupported } from "../lib/emby-library-client";
+import { IdentifyModal } from "./IdentifyModal";
 import classes from "./MediaPoster.module.css";
+import { PlayedConfirmModal, TogglePlayedMenuItem } from "./PlayedConfirmModal";
 import { DropdownMenu } from "./ui/DropdownMenu";
 import { Skeleton } from "./ui/Skeleton";
 
@@ -36,17 +39,22 @@ export interface MediaPosterProps {
   server: EmbyServer;
   onClick?: (item: EmbyItemMetadata) => void;
   onUserDataChange?: (item: EmbyItemMetadata, userData: EmbyUserData) => void;
+  onIdentifySuccess?: (item: EmbyItemMetadata) => void;
   className?: string;
 }
 
-export function MediaPoster({ item, server, onClick, onUserDataChange, className }: MediaPosterProps) {
+export function MediaPoster({ item, server, onClick, onUserDataChange, onIdentifySuccess, className }: MediaPosterProps) {
   const navigate = useNavigate();
   const [imgError, setImgError] = useState(false);
-  const { isPlayed, unplayedCount, isUpdating, togglePlayed } = useItemPlayedStatus({
-    item,
-    server,
-    onUserDataChange,
-  });
+  const [isIdentifyOpen, setIsIdentifyOpen] = useState(false);
+  const canIdentify = Boolean(server.user?.Policy?.IsAdministrator) && isIdentifySupported(item.Type);
+
+  const { isPlayed, unplayedCount, isUpdating, isConfirmOpen, requestTogglePlayed, cancelTogglePlayed, confirmTogglePlayed } =
+    useItemPlayedStatus({
+      item,
+      server,
+      onUserDataChange,
+    });
 
   const imageUrl = !imgError
     ? getItemImageUrl(server.serverUrl, item, {
@@ -109,10 +117,13 @@ export function MediaPoster({ item, server, onClick, onUserDataChange, className
           <DropdownMenu.Item icon={<IconInfoCircle size={16} />} onSelect={() => navigate(`/item/${item.Id}`, { state: { item } })}>
             Details
           </DropdownMenu.Item>
+          {canIdentify && (
+            <DropdownMenu.Item icon={<IconFingerprint size={16} />} onSelect={() => setIsIdentifyOpen(true)}>
+              Identify
+            </DropdownMenu.Item>
+          )}
           <DropdownMenu.Divider />
-          <DropdownMenu.Item icon={<IconCheck size={16} />} disabled={isUpdating} onSelect={togglePlayed}>
-            {isPlayed ? "Mark as unplayed" : "Mark as played"}
-          </DropdownMenu.Item>
+          <TogglePlayedMenuItem isPlayed={isPlayed} isUpdating={isUpdating} onSelect={requestTogglePlayed} />
         </DropdownMenu>
       </div>
 
@@ -122,6 +133,33 @@ export function MediaPoster({ item, server, onClick, onUserDataChange, className
         </span>
         {item.ProductionYear ? <span className={classes.year}>{item.ProductionYear}</span> : null}
       </div>
+
+      {isConfirmOpen && (
+        <PlayedConfirmModal
+          opened={isConfirmOpen}
+          onClose={cancelTogglePlayed}
+          onConfirm={confirmTogglePlayed}
+          item={item}
+          isPlayed={isPlayed}
+          isLoading={isUpdating}
+        />
+      )}
+
+      {canIdentify && isIdentifyOpen && (
+        <IdentifyModal
+          opened={isIdentifyOpen}
+          onClose={() => setIsIdentifyOpen(false)}
+          item={item}
+          server={server}
+          onSuccess={() => {
+            if (onIdentifySuccess) {
+              onIdentifySuccess(item);
+            } else if (onUserDataChange) {
+              onUserDataChange(item, item.UserData || {});
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -187,7 +187,40 @@ export interface EmbyItemMetadata {
   ParentBackdropItemId?: string;
   ParentBackdropImageTags?: string[];
   SeriesPrimaryImageTag?: string;
+  ProviderIds?: Record<string, string>;
   [key: string]: unknown;
+}
+
+export interface RemoteSearchResult {
+  Name?: string;
+  ProviderIds?: Record<string, string>;
+  ProductionYear?: number;
+  IndexNumber?: number;
+  IndexNumberEnd?: number;
+  ParentIndexNumber?: number;
+  PremiereDate?: string;
+  ImageUrl?: string;
+  SearchProviderName?: string;
+  Overview?: string;
+  AlbumArtist?: unknown;
+  Artists?: unknown[];
+  [key: string]: unknown;
+}
+
+export interface RemoteSearchQuery {
+  SearchInfo: {
+    Name?: string;
+    OriginalTitle?: string;
+    Year?: number;
+    IndexNumber?: number;
+    ParentIndexNumber?: number;
+    PremiereDate?: string;
+    ProviderIds?: Record<string, string>;
+    [key: string]: unknown;
+  };
+  ItemId?: string;
+  SearchProviderName?: string;
+  IncludeDisabledProviders?: boolean;
 }
 
 export interface EmbyView {

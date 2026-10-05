@@ -85,7 +85,14 @@ export default function HomeRoute() {
           </>
         ) : (
           sections.map(({ view, items, isLoading: isShelfLoading }) => (
-            <LibraryShelf key={view.Id} view={view} items={items} server={activeServer} isLoading={isShelfLoading} />
+            <LibraryShelf
+              key={view.Id}
+              view={view}
+              items={items}
+              server={activeServer}
+              isLoading={isShelfLoading}
+              onIdentifySuccess={() => reload()}
+            />
           ))
         )}
       </main>

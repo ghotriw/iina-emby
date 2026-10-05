@@ -4,7 +4,7 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import { authenticateByName } from "../lib/emby-auth-client";
 import styles from "./ServerConnectForm.module.css";
-import { Alert } from "./ui";
+import { Alert, Button, Input } from "./ui";
 
 export interface ServerConnectFormProps {
   isFirstServer?: boolean;
@@ -97,10 +97,9 @@ export function ServerConnectForm({ isFirstServer = false, initialServer, onSucc
             <label className={styles.fieldLabel} htmlFor="serverUrl">
               Server Address
             </label>
-            <input
+            <Input
               id="serverUrl"
               type="url"
-              className={styles.nativeInput}
               placeholder="http://192.168.1.100:8096"
               required
               value={serverUrl}
@@ -113,10 +112,9 @@ export function ServerConnectForm({ isFirstServer = false, initialServer, onSucc
             <label className={styles.fieldLabel} htmlFor="serverUsername">
               Username
             </label>
-            <input
+            <Input
               id="serverUsername"
               type="text"
-              className={styles.nativeInput}
               placeholder="Username"
               required
               value={username}
@@ -129,10 +127,9 @@ export function ServerConnectForm({ isFirstServer = false, initialServer, onSucc
             <label className={styles.fieldLabel} htmlFor="serverPassword">
               Password
             </label>
-            <input
+            <Input
               id="serverPassword"
               type="password"
-              className={styles.nativeInput}
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -142,14 +139,14 @@ export function ServerConnectForm({ isFirstServer = false, initialServer, onSucc
 
           <div className={styles.formActions}>
             {onCancel && (
-              <button type="button" className={styles.macCancelBtn} onClick={onCancel} disabled={isLoading}>
+              <Button type="button" size="sm" onClick={onCancel} disabled={isLoading}>
                 Cancel
-              </button>
+              </Button>
             )}
-            <button type="submit" className={styles.macPrimaryBtn} disabled={isLoading}>
+            <Button type="submit" variant="primary" size="sm" disabled={isLoading}>
               {!isLoading && <IconCheck size={14} />}
               {submitLabel}
-            </button>
+            </Button>
           </div>
         </div>
       </form>

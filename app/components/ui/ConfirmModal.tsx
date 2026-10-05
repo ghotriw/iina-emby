@@ -1,4 +1,5 @@
 import type React from "react";
+import { Button } from "./Button";
 import styles from "./ConfirmModal.module.css";
 import { Modal } from "./Modal";
 
@@ -10,6 +11,7 @@ export interface ConfirmModalProps {
   message?: React.ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
+  confirmVariant?: "primary" | "danger";
   isLoading?: boolean;
 }
 
@@ -19,8 +21,9 @@ export function ConfirmModal({
   onConfirm,
   title = "Confirm Action",
   message = "Are you sure you want to proceed?",
-  confirmLabel = "Remove",
+  confirmLabel = "Confirm",
   cancelLabel = "Cancel",
+  confirmVariant = "danger",
   isLoading = false,
 }: ConfirmModalProps) {
   return (
@@ -39,12 +42,12 @@ export function ConfirmModal({
         {message && <div className={styles.message}>{message}</div>}
 
         <div className={styles.actions}>
-          <button type="button" className={styles.cancelBtn} onClick={onClose} disabled={isLoading}>
+          <Button size="sm" onClick={onClose} disabled={isLoading}>
             {cancelLabel}
-          </button>
-          <button type="button" className={styles.destructiveBtn} onClick={onConfirm} disabled={isLoading}>
-            {isLoading ? "Removing..." : confirmLabel}
-          </button>
+          </Button>
+          <Button size="sm" variant={confirmVariant} onClick={onConfirm} disabled={isLoading}>
+            {isLoading ? "Please wait..." : confirmLabel}
+          </Button>
         </div>
       </div>
     </Modal>

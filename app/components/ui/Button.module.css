@@ -1,7 +1,8 @@
 .button {
   display: inline-flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 0.375rem;
   padding: 0 0.75rem;
   height: var(--height-action);
   border-radius: var(--radius-m);
@@ -9,14 +10,16 @@
   border: none;
   color: var(--text-primary);
   font-family: inherit;
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-sub);
   font-weight: 500;
   cursor: pointer;
   outline: none;
   box-sizing: border-box;
   user-select: none;
   -webkit-user-select: none;
-  transition: background 0.12s ease;
+  transition:
+    background 0.12s ease,
+    opacity 0.12s ease;
   -webkit-app-region: no-drag;
 }
 
@@ -26,6 +29,28 @@
 
 .button:active:not(:disabled) {
   background: var(--bg-control-active);
+}
+
+.hasGlyph {
+  justify-content: space-between;
+}
+
+.buttonPrimary {
+  background: var(--accent-blue);
+  color: var(--text-primary);
+}
+
+.buttonPrimary:hover:not(:disabled) {
+  background: var(--accent-blue-hover);
+}
+
+.buttonDanger {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.buttonDanger:hover:not(:disabled) {
+  background: var(--danger-bg-hover);
 }
 
 .button:disabled {

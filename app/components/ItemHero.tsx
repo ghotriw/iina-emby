@@ -1,7 +1,9 @@
 import { type EmbyItemMetadata, type EmbyServer, getEmbyImageUrl, getItemImageUrl } from "@shared";
-import { IconPlayerPlayFilled } from "@tabler/icons-react";
+import { IconFingerprint, IconPlayerPlayFilled } from "@tabler/icons-react";
 import { useState } from "react";
+import { isIdentifySupported } from "../lib/emby-library-client";
 import { formatResumeTime, getMediaBadges } from "../lib/media-formatters";
+import { IdentifyModal } from "./IdentifyModal";
 import styles from "./ItemHero.module.css";
 import { PageHeader } from "./PageHeader";
 import { GlassElement } from "./ui/GlassElement";
@@ -28,7 +30,9 @@ export function ItemHero({
   isRefreshing = false,
 }: ItemHeroProps) {
   const [logoError, setLogoError] = useState(false);
+  const [isIdentifyOpen, setIsIdentifyOpen] = useState(false);
 
+  const canIdentify = Boolean(activeServer.user?.Policy?.IsAdministrator) && isIdentifySupported(item?.Type);
   const isSeries = item?.Type === "Series";
 
   // The active playable target (episode if Series has NextUp, or the movie item itself)
@@ -108,7 +112,28 @@ export function ItemHero({
 
       {/* Top Floating Navigation Bar with Back & Refresh */}
       <div className={styles.headerSpacer}>
-        <PageHeader onBack={onBack} backTitle="Back" onRefresh={onRefresh} isRefreshing={isRefreshing} className={styles.pageHeader} />
+        <PageHeader
+          onBack={onBack}
+          backTitle="Back"
+          onRefresh={onRefresh}
+          isRefreshing={isRefreshing}
+          className={styles.pageHeader}
+          rightSection={
+            canIdentify ? (
+              <GlassElement
+                variant="glass"
+                shape="rounded"
+                size="sm"
+                isIconOnly
+                onClick={() => setIsIdentifyOpen(true)}
+                title="Identify"
+                aria-label="Identify metadata"
+              >
+                <IconFingerprint size={16} />
+              </GlassElement>
+            ) : undefined
+          }
+        />
       </div>
 
       {/* Hero Bottom Layout */}
@@ -177,6 +202,18 @@ export function ItemHero({
           </div>
         </div>
       </main>
+
+      {canIdentify && item && isIdentifyOpen && (
+        <IdentifyModal
+          opened={isIdentifyOpen}
+          onClose={() => setIsIdentifyOpen(false)}
+          item={item}
+          server={activeServer}
+          onSuccess={() => {
+            onRefresh?.();
+          }}
+        />
+      )}
     </>
   );
 }

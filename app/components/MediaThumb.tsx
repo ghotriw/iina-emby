@@ -16,6 +16,7 @@ import { useNavigate } from "react-router";
 import { useItemPlayedStatus } from "../hooks/useItemPlayedStatus";
 import { buildStreamUrl } from "../lib/emby-library-client";
 import classes from "./MediaThumb.module.css";
+import { PlayedConfirmModal, TogglePlayedMenuItem } from "./PlayedConfirmModal";
 import { DropdownMenu } from "./ui";
 import glassStyles from "./ui/GlassElement.module.css";
 import { Skeleton } from "./ui/Skeleton";
@@ -71,7 +72,16 @@ export function MediaThumb({
 }: MediaThumbProps) {
   const navigate = useNavigate();
   const [imageError, setImageError] = useState(false);
-  const { isPlayed, unplayedCount, playbackPositionTicks, isUpdating, togglePlayed } = useItemPlayedStatus({
+  const {
+    isPlayed,
+    unplayedCount,
+    playbackPositionTicks,
+    isUpdating,
+    isConfirmOpen,
+    requestTogglePlayed,
+    cancelTogglePlayed,
+    confirmTogglePlayed,
+  } = useItemPlayedStatus({
     item,
     server,
     onUserDataChange,
@@ -202,9 +212,7 @@ export function MediaThumb({
             Details
           </DropdownMenu.Item>
           <DropdownMenu.Divider />
-          <DropdownMenu.Item icon={<IconCheck size={16} />} disabled={isUpdating} onSelect={togglePlayed}>
-            {isPlayed ? "Mark as unplayed" : "Mark as played"}
-          </DropdownMenu.Item>
+          <TogglePlayedMenuItem isPlayed={isPlayed} isUpdating={isUpdating} onSelect={requestTogglePlayed} />
         </DropdownMenu>
       </div>
 
@@ -226,6 +234,17 @@ export function MediaThumb({
           </div>
         )}
       </button>
+
+      {isConfirmOpen && (
+        <PlayedConfirmModal
+          opened={isConfirmOpen}
+          onClose={cancelTogglePlayed}
+          onConfirm={confirmTogglePlayed}
+          item={item}
+          isPlayed={isPlayed}
+          isLoading={isUpdating}
+        />
+      )}
     </div>
   );
 }

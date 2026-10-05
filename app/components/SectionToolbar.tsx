@@ -2,6 +2,7 @@ import { IconSearch, IconSortAscending, IconSortDescending, IconX } from "@table
 import type { SectionFilter, SectionSortBy, SectionSortOrder } from "../lib/section-items";
 import styles from "./SectionToolbar.module.css";
 import { Button } from "./ui/Button";
+import { Input } from "./ui/Input";
 import { Select, type SelectOption } from "./ui/Select";
 
 export const WATCH_STATUS_OPTIONS: SelectOption[] = [
@@ -73,33 +74,32 @@ export function SectionToolbar({
       {/* Center: Search by Title */}
       {onSearchQueryChange && (
         <div className={styles.centerGroup}>
-          <div className={styles.searchWrapper}>
-            <IconSearch size={14} className={styles.searchIcon} aria-hidden="true" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => onSearchQueryChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  onSearchQueryChange("");
-                }
-              }}
-              placeholder="Search by title..."
-              className={styles.searchInput}
-              aria-label="Filter media by title"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                className={styles.clearBtn}
-                onClick={() => onSearchQueryChange("")}
-                aria-label="Clear search"
-                title="Clear"
-              >
-                <IconX size={12} />
-              </button>
-            )}
-          </div>
+          <Input
+            size="sm"
+            value={searchQuery}
+            onChange={(e) => onSearchQueryChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                onSearchQueryChange("");
+              }
+            }}
+            placeholder="Search by title..."
+            aria-label="Filter media by title"
+            leftSection={<IconSearch size={14} className={styles.searchIcon} aria-hidden="true" />}
+            rightSection={
+              searchQuery ? (
+                <button
+                  type="button"
+                  className={styles.clearBtn}
+                  onClick={() => onSearchQueryChange("")}
+                  aria-label="Clear search"
+                  title="Clear"
+                >
+                  <IconX size={12} />
+                </button>
+              ) : null
+            }
+          />
         </div>
       )}
 

@@ -7,6 +7,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   glyph?: string;
   iconOnly?: boolean;
   size?: "sm" | "md";
+  variant?: "default" | "primary" | "danger";
   disabled?: boolean;
   className?: string;
 }
@@ -17,15 +18,26 @@ export function Button({
   glyph,
   iconOnly = false,
   size = "md",
+  variant = "default",
   disabled,
   className = "",
   type = "button",
   ...props
 }: ButtonProps) {
+  const variantClass = variant === "primary" ? styles.buttonPrimary : variant === "danger" ? styles.buttonDanger : "";
+  const glyphClass = glyph ? styles.hasGlyph : "";
+
   return (
     <button
       type={type}
-      className={`${styles.button} ${size === "sm" ? styles.buttonSm : ""} ${iconOnly ? styles.iconButton : ""} ${className}`.trim()}
+      className={`
+        ${styles.button}
+        ${size === "sm" ? styles.buttonSm : ""}
+        ${iconOnly ? styles.iconButton : ""}
+        ${variantClass}
+        ${glyphClass}
+        ${className}
+      `.trim()}
       onClick={onClick}
       disabled={disabled}
       {...props}

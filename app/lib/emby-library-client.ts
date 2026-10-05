@@ -1,4 +1,13 @@
-import type { EmbyItemMetadata, EmbyItemsResponse, EmbyServer, EmbySystemInfo, EmbyUserData, EmbyView } from "@shared";
+import type {
+  EmbyItemMetadata,
+  EmbyItemsResponse,
+  EmbyServer,
+  EmbySystemInfo,
+  EmbyUserData,
+  EmbyView,
+  RemoteSearchQuery,
+  RemoteSearchResult,
+} from "@shared";
 import { buildAuthHeaders } from "./emby-auth-client";
 
 interface CacheEntry<T> {
@@ -177,7 +186,7 @@ export async function fetchLatestItems(
     const query = new URLSearchParams({
       ParentId: parentId,
       Limit: String(limit),
-      Fields: "CommunityRating,ProductionYear,ImageTags,BackdropImageTags,UserData,PrimaryImageAspectRatio,SeriesName",
+      Fields: "CommunityRating,ProductionYear,ImageTags,BackdropImageTags,UserData,PrimaryImageAspectRatio,SeriesName,ProviderIds",
       EnableImageTypes: "Primary,Backdrop,Thumb",
       ImageTypeLimit: "1",
     });
@@ -241,7 +250,7 @@ export async function fetchSectionItems(
       Limit: String(limit),
       IncludeItemTypes: includeItemTypes,
       Fields:
-        "CommunityRating,ProductionYear,ImageTags,BackdropImageTags,UserData,PrimaryImageAspectRatio,SeriesName,RunTimeTicks,Overview,RecursiveItemCount,ItemCounts,DateCreated,PremiereDate,OriginalTitle",
+        "CommunityRating,ProductionYear,ImageTags,BackdropImageTags,UserData,PrimaryImageAspectRatio,SeriesName,RunTimeTicks,Overview,RecursiveItemCount,ItemCounts,DateCreated,PremiereDate,OriginalTitle,ProviderIds",
       EnableImageTypes: "Primary,Backdrop,Thumb",
       ImageTypeLimit: "1",
     });
@@ -595,4 +604,95 @@ export async function fetchLibraryScanStatus(server: EmbyServer, signal?: AbortS
     lastEndTime: task.LastExecutionResult?.EndTimeUtc,
     lastStatus: task.LastExecutionResult?.Status,
   };
+}
+
+/**
+ * Normalizes item type to Emby RemoteSearch endpoint type.
+ */
+export function getIdentifyItemType(itemType?: string): string | null {
+  if (!itemType) return null;
+  switch (itemType) {
+    case "Movie":
+      return "Movie";
+    case "Series":
+      return "Series";
+    case "Episode":
+      return "Episode";
+    case "BoxSet":
+      return "BoxSet";
+    case "MusicAlbum":
+      return "MusicAlbum";
+    case "MusicArtist":
+      return "MusicArtist";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Checks whether an item type supports the RemoteSearch / Identify feature.
+ */
+export function isIdentifySupported(itemType?: string): boolean {
+  return getIdentifyItemType(itemType) !== null;
+}
+
+/**
+ * Searches external metadata providers (TMDb, TVDb, IMDb) via Emby RemoteSearch.
+ */
+export async function searchRemoteItem(
+  server: EmbyServer,
+  itemType: string,
+  query: RemoteSearchQuery,
+  signal?: AbortSignal,
+): Promise<RemoteSearchResult[]> {
+  const base = server.serverUrl.replace(/\/+$/, "");
+  const targetType = getIdentifyItemType(itemType) || itemType;
+  const url = `${base}/Items/RemoteSearch/${encodeURIComponent(targetType)}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    signal,
+    headers: buildAuthHeaders(server.accessToken, {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    }),
+    body: JSON.stringify(query),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(errorText || `Failed to search remote items: ${response.status} ${response.statusText}`);
+  }
+
+  const results = (await response.json()) as RemoteSearchResult[];
+  return Array.isArray(results) ? results : [];
+}
+
+/**
+ * Applies a selected RemoteSearchResult to the specified item and refreshes metadata.
+ */
+export async function applyRemoteSearchResult(
+  server: EmbyServer,
+  itemId: string,
+  result: RemoteSearchResult,
+  replaceAllImages = true,
+): Promise<void> {
+  const base = server.serverUrl.replace(/\/+$/, "");
+  const url = `${base}/Items/RemoteSearch/Apply/${encodeURIComponent(itemId)}?replaceAllImages=${replaceAllImages}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: buildAuthHeaders(server.accessToken, {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    }),
+    body: JSON.stringify(result),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(errorText || `Failed to apply remote search result: ${response.status} ${response.statusText}`);
+  }
+
+  clearLibraryCache();
 }

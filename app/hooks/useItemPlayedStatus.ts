@@ -11,6 +11,7 @@ export interface UseItemPlayedStatusOptions {
 export function useItemPlayedStatus({ item, server, onUserDataChange }: UseItemPlayedStatusOptions) {
   const [userData, setUserData] = useState<EmbyUserData | undefined>(item.UserData);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
   useEffect(() => {
     setUserData(item.UserData);
@@ -44,7 +45,23 @@ export function useItemPlayedStatus({ item, server, onUserDataChange }: UseItemP
     } finally {
       setIsUpdating(false);
     }
-  }, [isUpdating, userData, isPlayed, server.id, server.serverUrl, server.accessToken, server.userId, item.Id, onUserDataChange]);
+  }, [isUpdating, userData, isPlayed, server, item, onUserDataChange]);
+
+  const requestTogglePlayed = useCallback(() => {
+    setIsConfirmOpen(true);
+  }, []);
+
+  const cancelTogglePlayed = useCallback(() => {
+    setIsConfirmOpen(false);
+  }, []);
+
+  const confirmTogglePlayed = useCallback(async () => {
+    try {
+      await togglePlayed();
+    } finally {
+      setIsConfirmOpen(false);
+    }
+  }, [togglePlayed]);
 
   return {
     userData,
@@ -53,5 +70,9 @@ export function useItemPlayedStatus({ item, server, onUserDataChange }: UseItemP
     playbackPositionTicks,
     isUpdating,
     togglePlayed,
+    isConfirmOpen,
+    requestTogglePlayed,
+    cancelTogglePlayed,
+    confirmTogglePlayed,
   };
 }
