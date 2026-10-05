@@ -1,0 +1,57 @@
+/* ==========================================================================
+   View Transitions API styles (global: pseudo-elements live on the document root)
+   Elements opt in from their own CSS modules with
+   `view-transition-name: match-element` + `view-transition-class: <name>`,
+   scoped to `html[data-view-transition]` (see app/lib/view-transitions.ts).
+   ========================================================================== */
+
+/* Disable root page crossfade so only explicitly named elements transition */
+:root {
+  view-transition-name: none;
+}
+
+/* Allow clicks through the transition overlay to non-transitioned elements */
+::view-transition {
+  pointer-events: none;
+}
+
+/* Media poster cards (view-transition-class: media-poster) */
+
+/* Smooth motion for cards moving to new positions */
+::view-transition-group(.media-poster) {
+  animation-duration: 0.28s;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Subtle fade + scale for newly appearing cards */
+::view-transition-new(.media-poster):only-child {
+  animation: vt-poster-enter 0.22s cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Subtle fade + scale for disappearing cards.
+   `forwards` keeps them hidden until the longer group animations finish. */
+::view-transition-old(.media-poster):only-child {
+  animation: vt-poster-exit 0.18s ease-in forwards;
+}
+
+@keyframes vt-poster-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes vt-poster-exit {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}

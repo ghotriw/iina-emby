@@ -1,10 +1,10 @@
 {
   "name": "Emby",
   "identifier": "com.ghotriw.iina-emby",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Emby plugin for IINA.",
   "ghRepo": "ghotriw/iina-emby",
-  "ghVersion": 11,
+  "ghVersion": 12,
   "author": {
     "name": "Andrii Honcharov"
   },

@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./app.css";
+import "./view-transitions.css";
 import { App } from "./App";
 
 const rootElement = document.getElementById("root");

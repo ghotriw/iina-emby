@@ -9,6 +9,7 @@ import { useIINABridge, useOnWindowReopen } from "../hooks/useIINABridge";
 import { useProgressiveScroll } from "../hooks/useProgressiveScroll";
 import { clearLibraryCache, fetchAllSectionData, fetchUserViews, type SectionAllData } from "../lib/emby-library-client";
 import { filterAndSortSectionItems, type SectionFilter, type SectionSortBy, type SectionSortOrder } from "../lib/section-items";
+import { startViewTransitionSafe } from "../lib/view-transitions";
 import styles from "./section.module.css";
 
 const PAGE_SIZE = 36;
@@ -115,9 +116,33 @@ export default function SectionRoute() {
     handleRefresh();
   });
 
+  const handleFilterChange = (newFilter: SectionFilter) => {
+    startViewTransitionSafe(() => {
+      setFilter(newFilter);
+    });
+  };
+
   const handleSortByChange = (newSortBy: SectionSortBy) => {
-    setSortBy(newSortBy);
-    setSortOrder(newSortBy === "name" ? "asc" : "desc");
+    startViewTransitionSafe(() => {
+      setSortBy(newSortBy);
+      setSortOrder(newSortBy === "name" ? "asc" : "desc");
+    });
+  };
+
+  const handleSortOrderChange = (newOrder: SectionSortOrder) => {
+    startViewTransitionSafe(() => {
+      setSortOrder(newOrder);
+    });
+  };
+
+  const handleSearchQueryChange = (query: string) => {
+    if (!query && searchQuery) {
+      startViewTransitionSafe(() => {
+        setSearchQuery("");
+      });
+    } else {
+      setSearchQuery(query);
+    }
   };
 
   // Client-side filtering and sorting
@@ -186,13 +211,13 @@ export default function SectionRoute() {
       <main className={styles.content}>
         <SectionToolbar
           filter={filter}
-          onFilterChange={setFilter}
+          onFilterChange={handleFilterChange}
           searchQuery={searchQuery}
-          onSearchQueryChange={setSearchQuery}
+          onSearchQueryChange={handleSearchQueryChange}
           sortBy={sortBy}
           onSortByChange={handleSortByChange}
           sortOrder={sortOrder}
-          onSortOrderChange={setSortOrder}
+          onSortOrderChange={handleSortOrderChange}
         />
 
         {error && <Alert icon={<IconAlertCircle size={18} />}>{error}</Alert>}
