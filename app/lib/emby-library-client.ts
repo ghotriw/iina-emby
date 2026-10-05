@@ -402,7 +402,7 @@ export async function fetchSeasons(
 }
 
 /**
- * Fetch episodes for a series, optionally filtered by seasonId.
+ * Fetch episodes for a series, optionally filtered by seasonId and limit.
  */
 export async function fetchEpisodes(
   server: EmbyServer,
@@ -410,9 +410,10 @@ export async function fetchEpisodes(
   seasonId?: string,
   signal?: AbortSignal,
   bypassCache = false,
+  limit?: number,
 ): Promise<EmbyItemMetadata[]> {
   const base = server.serverUrl.replace(/\/+$/, "");
-  const cacheKey = `${base}:${server.userId}:episodes:${seriesId}:${seasonId || "all"}`;
+  const cacheKey = `${base}:${server.userId}:episodes:${seriesId}:${seasonId || "all"}${limit ? `:${limit}` : ""}`;
 
   return getOrFetchCached(cacheKey, DEFAULT_CACHE_TTL_MS, bypassCache, async () => {
     const query = new URLSearchParams({
@@ -423,6 +424,9 @@ export async function fetchEpisodes(
 
     if (seasonId) {
       query.set("seasonId", seasonId);
+    }
+    if (limit) {
+      query.set("Limit", String(limit));
     }
 
     const url = `${base}/Shows/${encodeURIComponent(seriesId)}/Episodes?${query.toString()}`;

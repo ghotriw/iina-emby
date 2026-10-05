@@ -31,9 +31,20 @@ export function useSeriesEpisodes(activeServer: EmbyServer | null, item?: EmbyIt
     const controller = new AbortController();
 
     fetchNextUp(activeServer, item.Id, controller.signal)
-      .then((ep) => {
-        if (!controller.signal.aborted) {
+      .then(async (ep) => {
+        if (controller.signal.aborted) return;
+        if (ep) {
           setNextUpEpisode(ep);
+        } else {
+          // If no watch history exists or series is finished, fall back to first episode (S01E01)
+          try {
+            const [firstEp] = await fetchEpisodes(activeServer, item.Id, undefined, controller.signal, false, 1);
+            if (!controller.signal.aborted && firstEp) {
+              setNextUpEpisode(firstEp);
+            }
+          } catch {
+            // Ignore error
+          }
         }
       })
       .catch((err: unknown) => {
@@ -69,7 +80,9 @@ export function useSeriesEpisodes(activeServer: EmbyServer | null, item?: EmbyIt
             if (nextUpEpisode?.SeasonId && seasonList.some((s) => s.Id === nextUpEpisode.SeasonId)) {
               return nextUpEpisode.SeasonId;
             }
-            return seasonList[0].Id;
+            // Prefer Season 1 (IndexNumber === 1) over Specials (IndexNumber === 0)
+            const season1 = seasonList.find((s) => s.IndexNumber === 1);
+            return (season1 || seasonList[0]).Id;
           });
         }
       })
@@ -118,9 +131,16 @@ export function useSeriesEpisodes(activeServer: EmbyServer | null, item?: EmbyIt
     };
   }, [activeServer, item, selectedSeasonId]);
 
+  // If nextUpEpisode is not resolved yet, fall back to first unplayed episode from loaded episodes
+  const effectiveNextUp =
+    nextUpEpisode ||
+    (isSeries && episodes.length > 0
+      ? episodes.find((e) => !e.UserData?.Played) || episodes[0]
+      : null);
+
   return {
     isSeries,
-    nextUpEpisode,
+    nextUpEpisode: effectiveNextUp,
     seasons,
     selectedSeasonId,
     setSelectedSeasonId,

@@ -29,8 +29,10 @@ export function ItemHero({
 }: ItemHeroProps) {
   const [logoError, setLogoError] = useState(false);
 
-  // The active playable target (episode if Series has NextUp, or the item itself)
-  const targetItem = nextUpEpisode || item;
+  const isSeries = item?.Type === "Series";
+
+  // The active playable target (episode if Series has NextUp, or the movie item itself)
+  const targetItem = isSeries ? nextUpEpisode : item;
 
   // Backdrop image (high-res fanart backdrop priority)
   const backdropUrl = item
@@ -69,18 +71,18 @@ export function ItemHero({
   const genresText = genresList.join(" · ");
 
   // Technical specs & badges
-  const { durationText, premiereDateText, resolutionBadge, hdrBadge, fpsBadge, sizeBadge } = getMediaBadges(targetItem, item);
+  const { durationText, premiereDateText, resolutionBadge, hdrBadge, fpsBadge, sizeBadge } = getMediaBadges(targetItem || undefined, item);
 
   // Resume position
-  const resumeTicks = targetItem?.UserData?.PlaybackPositionTicks || item?.UserData?.PlaybackPositionTicks;
+  const resumeTicks = targetItem?.UserData?.PlaybackPositionTicks;
   const resumeTimeClock = formatResumeTime(resumeTicks);
 
   // Overview / Synopsis with optional prefix
   let overviewPrefix: string | null = null;
-  if (item?.Type === "Series" && nextUpEpisode) {
+  if (isSeries && nextUpEpisode) {
     const sNum = nextUpEpisode.ParentIndexNumber ?? 1;
     const eNum = nextUpEpisode.IndexNumber ?? 1;
-    overviewPrefix = `[${item.Name || "Series"} · Seasons ${sNum}/${sNum} · Episode ${eNum}]`;
+    overviewPrefix = `[${item?.Name || "Series"} · Season ${sNum} · Episode ${eNum}]`;
   } else if (item?.Name) {
     overviewPrefix = `[${item.Name}]`;
   }
@@ -129,7 +131,7 @@ export function ItemHero({
               shape="rounded"
               fullWidth
               onClick={onPlay}
-              disabled={isPlaying}
+              disabled={isPlaying || (isSeries && !nextUpEpisode)}
               aria-label="Play"
               leftSection={<IconPlayerPlayFilled size={18} />}
             >

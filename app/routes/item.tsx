@@ -81,24 +81,35 @@ export default function ItemDetailRoute() {
     return null;
   }
 
-  const targetItem = nextUpEpisode || item;
+  const playTarget = isSeries ? nextUpEpisode || episodes[0] : item;
 
   // Main hero playback execution
   const handlePlay = () => {
-    if (!targetItem || isPlaying) return;
+    if (!playTarget || isPlaying) return;
+
+    // Safety guard: NEVER try to stream a Series container directly
+    if (playTarget.Type === "Series") {
+      console.warn("Cannot stream a Series container directly without an episode");
+      return;
+    }
 
     try {
       setIsPlaying(true);
 
-      let playTitle = targetItem.Name || "Media";
-      if (item?.Type === "Series" && nextUpEpisode) {
-        playTitle = formatFullEpisodeTitle(item.Name, nextUpEpisode.ParentIndexNumber ?? 1, nextUpEpisode.IndexNumber, nextUpEpisode.Name);
+      let playTitle = playTarget.Name || "Media";
+      if (item?.Type === "Series") {
+        playTitle = formatFullEpisodeTitle(
+          item.Name,
+          playTarget.ParentIndexNumber ?? 1,
+          playTarget.IndexNumber,
+          playTarget.Name,
+        );
       }
 
       playMedia({
         title: playTitle,
-        streamUrl: buildStreamUrl(activeServer, targetItem.Id),
-        startPositionTicks: targetItem.UserData?.PlaybackPositionTicks || item?.UserData?.PlaybackPositionTicks,
+        streamUrl: buildStreamUrl(activeServer, playTarget.Id),
+        startPositionTicks: playTarget.UserData?.PlaybackPositionTicks,
       });
     } finally {
       setIsPlaying(false);
