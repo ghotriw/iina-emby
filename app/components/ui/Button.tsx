@@ -6,15 +6,26 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   onClick?: () => void;
   glyph?: string;
   iconOnly?: boolean;
+  size?: "sm" | "md";
   disabled?: boolean;
   className?: string;
 }
 
-export function Button({ children, onClick, glyph, iconOnly = false, disabled, className = "", type = "button", ...props }: ButtonProps) {
+export function Button({
+  children,
+  onClick,
+  glyph,
+  iconOnly = false,
+  size = "md",
+  disabled,
+  className = "",
+  type = "button",
+  ...props
+}: ButtonProps) {
   return (
     <button
       type={type}
-      className={`${styles.button} ${iconOnly ? styles.iconButton : ""} ${className}`.trim()}
+      className={`${styles.button} ${size === "sm" ? styles.buttonSm : ""} ${iconOnly ? styles.iconButton : ""} ${className}`.trim()}
       onClick={onClick}
       disabled={disabled}
       {...props}

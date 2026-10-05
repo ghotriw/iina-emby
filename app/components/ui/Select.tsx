@@ -1,8 +1,10 @@
 import { IconCheck, IconChevronDown } from "@tabler/icons-react";
 import type React from "react";
 import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
-import { usePopoverPosition } from "../../hooks/usePopoverPosition";
+import { type PopoverPlacement, usePopoverPosition } from "../../hooks/usePopoverPosition";
 import classes from "./Select.module.css";
+
+export type { PopoverPlacement };
 
 export interface SelectOption {
   value: string;
@@ -22,6 +24,7 @@ export interface SelectProps {
   icon?: React.ReactNode;
   size?: "sm" | "md";
   disabled?: boolean;
+  placement?: PopoverPlacement;
 }
 
 export function Select({
@@ -34,6 +37,7 @@ export function Select({
   icon,
   size = "md",
   disabled = false,
+  placement = "bottom-start",
 }: SelectProps) {
   const id = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -51,7 +55,7 @@ export function Select({
   const { updatePosition } = usePopoverPosition({
     triggerRef,
     popoverRef: menuRef,
-    placement: "bottom-start",
+    placement,
     offset: 4,
   });
 
@@ -81,13 +85,14 @@ export function Select({
   // Sync position and focus active item when opened
   useLayoutEffect(() => {
     if (!isOpen) return;
-    updatePosition();
 
     const m = menuRef.current;
     const tr = triggerRef.current;
     if (m && tr) {
       m.style.minWidth = `${tr.offsetWidth}px`;
     }
+
+    updatePosition();
 
     const selectedBtn = m?.querySelector<HTMLElement>(`[role="option"][aria-selected="true"]`);
     const firstBtn = m?.querySelector<HTMLElement>(`[role="option"]:not([aria-disabled="true"])`);

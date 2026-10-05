@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useIntersectionSentinel } from "./useIntersectionSentinel";
 
 export interface PaginatedResult<T> {
   items: T[];
@@ -22,7 +23,7 @@ export interface UseInfiniteScrollResult<T> {
   isRefreshing: boolean;
   error: string | null;
   hasMore: boolean;
-  sentinelRef: React.RefObject<HTMLDivElement | null>;
+  sentinelRef: (node: HTMLDivElement | null) => void;
   refresh: (bypassCache?: boolean) => Promise<void>;
   loadMore: () => Promise<void>;
 }
@@ -42,7 +43,6 @@ export function useInfiniteScroll<T>({
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
@@ -110,26 +110,12 @@ export function useInfiniteScroll<T>({
     }
   }, [enabled, isLoadingMore, isLoading, isRefreshing, items.length, pageSize, totalCount]);
 
-  // Observer for sentinel element
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
-        if (entry.isIntersecting) {
-          loadMore();
-        }
-      },
-      { rootMargin },
-    );
-
-    observer.observe(sentinel);
-    return () => {
-      observer.disconnect();
-    };
-  }, [loadMore, rootMargin]);
+  const sentinelRef = useIntersectionSentinel({
+    onIntersect: loadMore,
+    rootMargin,
+    enabled: enabled && items.length < totalCount,
+    resetKey: `${items.length}:${isLoading}:${isLoadingMore}:${isRefreshing}`,
+  });
 
   // Refresh (pull-to-refresh or explicit refresh button)
   const refresh = useCallback(

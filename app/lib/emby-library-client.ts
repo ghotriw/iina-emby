@@ -199,8 +199,6 @@ export async function fetchLatestItems(
   });
 }
 
-export type SectionFilter = "all" | "unplayed" | "inprogress" | "played";
-
 export interface FetchSectionItemsResult {
   items: EmbyItemMetadata[];
   totalRecordCount: number;
@@ -218,7 +216,7 @@ export async function fetchSectionItems(
     limit?: number;
     startIndex?: number;
     includeItemTypes?: string;
-    filter?: SectionFilter;
+    filter?: "all" | "played";
   },
   signal?: AbortSignal,
   bypassCache = false,
@@ -234,57 +232,6 @@ export async function fetchSectionItems(
   const cacheKey = `${base}:${server.userId}:section:${parentId}:${sortBy}:${sortOrder}:${startIndex}:${limit}:${includeItemTypes}:${filter}`;
 
   return getOrFetchCached(cacheKey, DEFAULT_CACHE_TTL_MS, bypassCache, async () => {
-    if (filter === "inprogress" || filter === "unplayed") {
-      // Emby's native IsUnplayed filter considers anything where Played == false as "unplayed",
-      // which wrongly includes items already in progress.
-      // We partition them cleanly so Unplayed only shows completely untouched media.
-      // To accurately partition and paginate, fetch the section items without pagination limit
-      const [sectionData, resumeResult] = await Promise.all([
-        fetchSectionItems(server, parentId, { ...options, limit: 10000, startIndex: 0, filter: "all" }, signal, bypassCache),
-        fetchResumeItems(server, 100, signal).catch(() => ({ items: [], totalRecordCount: 0 })),
-      ]);
-
-      const resumeSeriesIds = new Set(resumeResult.items.map((r) => r.SeriesId).filter((id): id is string => Boolean(id)));
-      const resumeItemIds = new Set(resumeResult.items.map((r) => r.Id));
-
-      const isProgress = (item: EmbyItemMetadata) => {
-        if (item.Type === "Series") {
-          if (resumeSeriesIds.has(item.Id)) return true;
-          if (item.UserData?.Played) return false;
-          if (typeof item.UserData?.PlayedPercentage === "number" && item.UserData.PlayedPercentage > 0) {
-            return true;
-          }
-          const unplayed = item.UserData?.UnplayedItemCount;
-          const total = (item as unknown as { RecursiveItemCount?: number }).RecursiveItemCount;
-          if (typeof unplayed === "number" && typeof total === "number" && total > 0 && unplayed < total) {
-            return true;
-          }
-          return false;
-        }
-
-        // Movies, Videos, Episodes
-        if (resumeItemIds.has(item.Id)) return true;
-        return Boolean(item.UserData?.PlaybackPositionTicks && item.UserData.PlaybackPositionTicks > 0);
-      };
-
-      const filteredItems = sectionData.items.filter((item) => {
-        const inProgress = isProgress(item);
-        if (filter === "inprogress") {
-          return inProgress;
-        }
-        // filter === "unplayed": must not be marked as played and must not be in progress
-        if (item.UserData?.Played) return false;
-        return !inProgress;
-      });
-
-      const paginatedItems = limit > 0 ? filteredItems.slice(startIndex, startIndex + limit) : filteredItems;
-
-      return {
-        items: paginatedItems,
-        totalRecordCount: filteredItems.length,
-      };
-    }
-
     const query = new URLSearchParams({
       ParentId: parentId,
       Recursive: "true",
@@ -294,7 +241,7 @@ export async function fetchSectionItems(
       Limit: String(limit),
       IncludeItemTypes: includeItemTypes,
       Fields:
-        "CommunityRating,ProductionYear,ImageTags,BackdropImageTags,UserData,PrimaryImageAspectRatio,SeriesName,RunTimeTicks,Overview,RecursiveItemCount,ItemCounts",
+        "CommunityRating,ProductionYear,ImageTags,BackdropImageTags,UserData,PrimaryImageAspectRatio,SeriesName,RunTimeTicks,Overview,RecursiveItemCount,ItemCounts,DateCreated,PremiereDate,OriginalTitle",
       EnableImageTypes: "Primary,Backdrop,Thumb",
       ImageTypeLimit: "1",
     });
@@ -321,6 +268,43 @@ export async function fetchSectionItems(
       totalRecordCount: data.TotalRecordCount ?? (data.Items?.length || 0),
     };
   });
+}
+
+export interface SectionAllData {
+  items: EmbyItemMetadata[];
+  resumeSeriesIds: Set<string>;
+  resumeItemIds: Set<string>;
+}
+
+/**
+ * Fetch all items for a library section once, alongside resume data,
+ * enabling instant client-side filtering, searching, and sorting.
+ */
+export async function fetchAllSectionData(
+  server: EmbyServer,
+  parentId: string,
+  signal?: AbortSignal,
+  bypassCache = false,
+): Promise<SectionAllData> {
+  const [sectionResult, resumeResult] = await Promise.all([
+    fetchSectionItems(
+      server,
+      parentId,
+      { limit: 10000, startIndex: 0, filter: "all", sortBy: "SortName", sortOrder: "Ascending" },
+      signal,
+      bypassCache,
+    ),
+    fetchResumeItems(server, 100, signal).catch(() => ({ items: [], totalRecordCount: 0 })),
+  ]);
+
+  const resumeSeriesIds = new Set(resumeResult.items.map((r) => r.SeriesId).filter((id): id is string => Boolean(id)));
+  const resumeItemIds = new Set(resumeResult.items.map((r) => r.Id));
+
+  return {
+    items: sectionResult.items,
+    resumeSeriesIds,
+    resumeItemIds,
+  };
 }
 
 /**

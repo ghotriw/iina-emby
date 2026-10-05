@@ -62,3 +62,15 @@
   background: var(--bg-control-hover);
   color: var(--text-primary);
 }
+
+.buttonSm {
+  height: var(--height-btn-sm);
+  padding: 0 0.625rem;
+  font-size: var(--font-size-sub);
+}
+
+.buttonSm.iconButton {
+  width: var(--height-btn-sm);
+  height: var(--height-btn-sm);
+  padding: 0;
+}

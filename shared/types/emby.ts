@@ -160,6 +160,7 @@ export interface EmbyMediaSource {
 export interface EmbyItemMetadata {
   Id: string;
   Name?: string;
+  OriginalTitle?: string;
   Type?: "Movie" | "Episode" | "Series" | "Season" | string;
   SeriesId?: string;
   SeasonId?: string;
@@ -170,7 +171,9 @@ export interface EmbyItemMetadata {
   RunTimeTicks?: number;
   CommunityRating?: number;
   PremiereDate?: string;
+  DateCreated?: string;
   Overview?: string;
+  RecursiveItemCount?: number;
   OfficialRating?: string;
   Genres?: string[];
   GenreItems?: Array<{ Name: string; Id?: string | number }>;

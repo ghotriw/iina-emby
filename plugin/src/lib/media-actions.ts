@@ -368,7 +368,7 @@ export function createMediaActionsManager({
 
     let reportServerBase = embyInfo.serverBase;
     let reportApiKey = embyInfo.apiKey;
-    let reportUserId: string | undefined = undefined;
+    let reportUserId: string | undefined;
 
     if (getActiveSession) {
       const session = getActiveSession();

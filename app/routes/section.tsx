@@ -1,14 +1,14 @@
-import type { EmbyItemMetadata } from "@shared";
 import { IconAlertCircle } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams } from "react-router";
 import { MediaPoster, MediaPosterSkeleton } from "../components/MediaPoster";
 import { PageHeader } from "../components/PageHeader";
+import { SectionToolbar } from "../components/SectionToolbar";
 import { Alert } from "../components/ui";
-import { WatchStatusTabs } from "../components/WatchStatusTabs";
 import { useIINABridge, useOnWindowReopen } from "../hooks/useIINABridge";
-import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
-import { clearLibraryCache, fetchSectionItems, fetchUserViews, type SectionFilter } from "../lib/emby-library-client";
+import { useProgressiveScroll } from "../hooks/useProgressiveScroll";
+import { clearLibraryCache, fetchAllSectionData, fetchUserViews, type SectionAllData } from "../lib/emby-library-client";
+import { filterAndSortSectionItems, type SectionFilter, type SectionSortBy, type SectionSortOrder } from "../lib/section-items";
 import styles from "./section.module.css";
 
 const PAGE_SIZE = 36;
@@ -26,13 +26,23 @@ export default function SectionRoute() {
   const stateName = location.state?.name as string | undefined;
   const [sectionTitle, setSectionTitle] = useState<string>(stateName || "Library");
   const [filter, setFilter] = useState<SectionFilter>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [sortBy, setSortBy] = useState<SectionSortBy>("name");
+  const [sortOrder, setSortOrder] = useState<SectionSortOrder>("asc");
+
+  const [rawData, setRawData] = useState<SectionAllData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Fetch section title if not provided in route state
   useEffect(() => {
     if (stateName || !activeServer || !id) return;
+    const controller = new AbortController();
 
-    fetchUserViews(activeServer)
+    fetchUserViews(activeServer, controller.signal)
       .then((views) => {
+        if (controller.signal.aborted) return;
         const found = views.find((v) => v.Id === id);
         if (found?.Name) {
           setSectionTitle(found.Name);
@@ -41,25 +51,92 @@ export default function SectionRoute() {
       .catch(() => {
         // Non-critical, fallback remains "Library"
       });
+
+    return () => {
+      controller.abort();
+    };
   }, [activeServer?.id, activeServer?.serverUrl, activeServer?.accessToken, activeServer?.userId, id, stateName]);
 
-  const { items, totalCount, isLoading, isLoadingMore, isRefreshing, error, refresh, sentinelRef } = useInfiniteScroll<EmbyItemMetadata>({
-    fetcher: (startIndex, limit, signal, bypassCache) => {
-      if (!activeServer || !id) return Promise.resolve({ items: [], totalRecordCount: 0 });
-      return fetchSectionItems(activeServer, id, { limit, startIndex, filter }, signal, bypassCache);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const loadData = useCallback(
+    async (bypassCache = false) => {
+      if (!activeServer || !id) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+        return;
+      }
+
+      abortControllerRef.current?.abort();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      const { signal } = controller;
+
+      try {
+        if (bypassCache) {
+          setIsRefreshing(true);
+        } else {
+          setIsLoading(true);
+        }
+        setError(null);
+
+        const data = await fetchAllSectionData(activeServer, id, signal, bypassCache);
+        if (signal.aborted) return;
+        setRawData(data);
+      } catch (err: unknown) {
+        if (signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+          return;
+        }
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(msg);
+      } finally {
+        if (!signal.aborted) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
+      }
     },
-    pageSize: PAGE_SIZE,
-    enabled: Boolean(activeServer && id),
-    dependencies: [activeServer?.id, activeServer?.serverUrl, activeServer?.accessToken, activeServer?.userId, id, filter],
-  });
+    [activeServer?.id, activeServer?.serverUrl, activeServer?.accessToken, activeServer?.userId, id],
+  );
+
+  useEffect(() => {
+    loadData(false);
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, [loadData]);
 
   const handleRefresh = async () => {
     clearLibraryCache();
-    await refresh(true);
+    await loadData(true);
   };
 
   useOnWindowReopen(() => {
     handleRefresh();
+  });
+
+  const handleSortByChange = (newSortBy: SectionSortBy) => {
+    setSortBy(newSortBy);
+    setSortOrder(newSortBy === "name" ? "asc" : "desc");
+  };
+
+  // Client-side filtering and sorting
+  const filteredItems = useMemo(() => {
+    if (!rawData) return [];
+    return filterAndSortSectionItems(rawData.items, {
+      filter,
+      searchQuery,
+      sortBy,
+      sortOrder,
+      resumeSeriesIds: rawData.resumeSeriesIds,
+      resumeItemIds: rawData.resumeItemIds,
+    });
+  }, [rawData, filter, searchQuery, sortBy, sortOrder]);
+
+  // Progressive rendering for DOM performance
+  const { visibleItems, hasMore, sentinelRef } = useProgressiveScroll({
+    items: filteredItems,
+    pageSize: PAGE_SIZE,
   });
 
   if (isBridgeLoading) {
@@ -74,14 +151,22 @@ export default function SectionRoute() {
     navigate("/");
   };
 
+  const totalCount = rawData?.items.length ?? 0;
+  const filteredCount = filteredItems.length;
+
+  const countBadgeText = totalCount === 0 ? null : filteredCount !== totalCount ? `(${filteredCount} / ${totalCount})` : `(${totalCount})`;
+
   const titleNode = (
     <span>
       {sectionTitle}
-      {totalCount > 0 && <span className={styles.countBadge}>({totalCount})</span>}
+      {countBadgeText && <span className={styles.countBadge}>{countBadgeText}</span>}
     </span>
   );
 
   const getEmptyMessage = () => {
+    if (searchQuery.trim()) {
+      return `No media found matching "${searchQuery.trim()}".`;
+    }
     switch (filter) {
       case "unplayed":
         return "No unplayed media in this collection.";
@@ -99,7 +184,16 @@ export default function SectionRoute() {
       <PageHeader onBack={handleBack} backTitle="Home" title={titleNode} onRefresh={handleRefresh} isRefreshing={isRefreshing} />
 
       <main className={styles.content}>
-        <WatchStatusTabs value={filter} onChange={setFilter} />
+        <SectionToolbar
+          filter={filter}
+          onFilterChange={setFilter}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          sortBy={sortBy}
+          onSortByChange={handleSortByChange}
+          sortOrder={sortOrder}
+          onSortOrderChange={setSortOrder}
+        />
 
         {error && <Alert icon={<IconAlertCircle size={18} />}>{error}</Alert>}
 
@@ -109,20 +203,19 @@ export default function SectionRoute() {
               <MediaPosterSkeleton key={`skeleton-${index}`} />
             ))}
           </div>
-        ) : items.length === 0 && !error ? (
+        ) : filteredItems.length === 0 && !error ? (
           <div className={styles.emptyState}>
             <p>{getEmptyMessage()}</p>
           </div>
         ) : (
           <>
             <div className={styles.grid}>
-              {items.map((item) => (
+              {visibleItems.map((item) => (
                 <MediaPoster key={item.Id} item={item} server={activeServer} />
               ))}
-              {isLoadingMore && Array.from({ length: 6 }).map((_, index) => <MediaPosterSkeleton key={`more-skeleton-${index}`} />)}
             </div>
 
-            {items.length < totalCount && <div ref={sentinelRef} className={styles.sentinel} aria-hidden="true" />}
+            {hasMore && <div ref={sentinelRef} className={styles.sentinel} aria-hidden="true" />}
           </>
         )}
       </main>

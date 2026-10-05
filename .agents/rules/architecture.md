@@ -90,9 +90,10 @@ All API calls must reside in `app/lib/emby-*-client.ts`:
    * The app runs inside WKWebView via `HashRouter` (`/#/path`).
    * Never use `BrowserRouter` as it breaks inside file:// or standalone window contexts.
 
-2. **Infinite Scrolling & Paginated Views:**
-   * Never implement raw `IntersectionObserver` loops or manual slice state in routes.
-   * Always use `useInfiniteScroll<T>` from `app/hooks/useInfiniteScroll.ts`.
+2. **Infinite Scrolling & Progressive Rendering:**
+   * Never implement ad-hoc `IntersectionObserver` loops in components; always use the shared `useIntersectionSentinel` hook (`app/hooks/useIntersectionSentinel.ts`).
+   * For server-paginated data (where pages are fetched over HTTP as you scroll), use `useInfiniteScroll<T>` from `app/hooks/useInfiniteScroll.ts`.
+   * For large in-memory collections (loaded once into client memory for instant filtering/sorting), use `useProgressiveScroll<T>` from `app/hooks/useProgressiveScroll.ts` to incrementally render DOM nodes and images.
    * Routes should remain thin presenters focusing on UI composition and headers.
 
 3. **Preventing Infinite Loops in Bridge / Effects:**

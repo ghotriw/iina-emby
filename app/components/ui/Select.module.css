@@ -106,11 +106,24 @@
   box-sizing: border-box;
   opacity: 0;
   transform: scale(0.97);
+  transform-origin: top left;
   transition:
     opacity 0.12s ease,
     transform 0.12s ease,
     overlay 0.12s allow-discrete,
     display 0.12s allow-discrete;
+}
+
+.dropdown[data-align="end"] {
+  transform-origin: top right;
+}
+
+.dropdown[data-side="top"][data-align="start"] {
+  transform-origin: bottom left;
+}
+
+.dropdown[data-side="top"][data-align="end"] {
+  transform-origin: bottom right;
 }
 
 .dropdown:popover-open {

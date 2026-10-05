@@ -3,7 +3,7 @@
 // shared/constants.ts
 var CLIENT_NAME = "IINA Emby Plugin";
 var DEVICE_NAME = "IINA";
-var CLIENT_VERSION = true ? "0.4.6" : "0.1.0";
+var CLIENT_VERSION = true ? "0.5.0" : "0.1.0";
 
 // shared/utils/auth.ts
 function buildAuthorizationHeader(identity, token) {
@@ -922,7 +922,7 @@ function createMediaActionsManager({
     }
     let reportServerBase = embyInfo.serverBase;
     let reportApiKey = embyInfo.apiKey;
-    let reportUserId = void 0;
+    let reportUserId;
     if (getActiveSession) {
       const session = getActiveSession();
       if (session?.userId && isSameEmbyHost(session.serverUrl, reportServerBase)) {
