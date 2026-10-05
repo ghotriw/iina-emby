@@ -1,12 +1,12 @@
-import type { EmbyItemMetadata } from "@shared";
 import { IconAlertCircle } from "@tabler/icons-react";
+import { useCallback } from "react";
 import { Navigate, useNavigate } from "react-router";
 import { MediaThumb, MediaThumbSkeleton } from "../components/MediaThumb";
 import { PageHeader } from "../components/PageHeader";
 import { Alert } from "../components/ui";
+import { useContinueWatching } from "../hooks/useContinueWatching";
 import { useIINABridge, useOnWindowReopen } from "../hooks/useIINABridge";
-import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
-import { clearLibraryCache, fetchResumeItems } from "../lib/emby-library-client";
+import { useProgressiveScroll } from "../hooks/useProgressiveScroll";
 import styles from "./continue-watching.module.css";
 
 const PAGE_SIZE = 24;
@@ -19,20 +19,16 @@ export default function ContinueWatchingRoute() {
   const navigate = useNavigate();
   const { activeServer, servers, isLoading: isBridgeLoading, playMedia } = useIINABridge();
 
-  const { items, totalCount, isLoading, isLoadingMore, isRefreshing, error, refresh, sentinelRef } = useInfiniteScroll<EmbyItemMetadata>({
-    fetcher: (startIndex, limit, signal) => {
-      if (!activeServer) return Promise.resolve({ items: [], totalRecordCount: 0 });
-      return fetchResumeItems(activeServer, { limit, startIndex }, signal);
-    },
+  const { items, loading: isLoading, error, refresh } = useContinueWatching(activeServer, 10000);
+
+  const { visibleItems, hasMore, sentinelRef } = useProgressiveScroll({
+    items,
     pageSize: PAGE_SIZE,
-    enabled: Boolean(activeServer),
-    dependencies: [activeServer?.id, activeServer?.serverUrl, activeServer?.accessToken, activeServer?.userId],
   });
 
-  const handleRefresh = async () => {
-    clearLibraryCache();
-    await refresh(true);
-  };
+  const handleRefresh = useCallback(() => {
+    return refresh();
+  }, [refresh]);
 
   useOnWindowReopen(() => {
     handleRefresh();
@@ -50,6 +46,8 @@ export default function ContinueWatchingRoute() {
     navigate("/");
   };
 
+  const totalCount = items.length;
+
   const titleNode = (
     <span>
       Continue Watching
@@ -59,12 +57,18 @@ export default function ContinueWatchingRoute() {
 
   return (
     <div className={styles.container}>
-      <PageHeader onBack={handleBack} backTitle="Home" title={titleNode} onRefresh={handleRefresh} isRefreshing={isRefreshing} />
+      <PageHeader
+        onBack={handleBack}
+        backTitle="Home"
+        title={titleNode}
+        onRefresh={handleRefresh}
+        isRefreshing={isLoading && items.length > 0}
+      />
 
       <main className={styles.content}>
         {error && <Alert icon={<IconAlertCircle size={18} />}>{error}</Alert>}
 
-        {isLoading ? (
+        {isLoading && items.length === 0 ? (
           <div className={styles.grid}>
             {Array.from({ length: 8 }).map((_, index) => (
               <MediaThumbSkeleton key={`skeleton-${index}`} />
@@ -77,13 +81,13 @@ export default function ContinueWatchingRoute() {
         ) : (
           <>
             <div className={styles.grid}>
-              {items.map((item) => (
+              {visibleItems.map((item) => (
                 <MediaThumb key={item.Id} item={item} server={activeServer} onPlay={playMedia} onUserDataChange={() => handleRefresh()} />
               ))}
-              {isLoadingMore && Array.from({ length: 4 }).map((_, index) => <MediaThumbSkeleton key={`more-skeleton-${index}`} />)}
+              {hasMore && Array.from({ length: 4 }).map((_, index) => <MediaThumbSkeleton key={`more-skeleton-${index}`} />)}
             </div>
 
-            {items.length < totalCount && <div ref={sentinelRef} className={styles.sentinel} aria-hidden="true" />}
+            {hasMore && <div ref={sentinelRef} className={styles.sentinel} aria-hidden="true" />}
           </>
         )}
       </main>

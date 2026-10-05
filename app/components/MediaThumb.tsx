@@ -16,7 +16,7 @@ import { useNavigate } from "react-router";
 import { useItemPlayedStatus } from "../hooks/useItemPlayedStatus";
 import { buildStreamUrl } from "../lib/emby-library-client";
 import classes from "./MediaThumb.module.css";
-import { PlayedConfirmModal, TogglePlayedMenuItem } from "./PlayedConfirmModal";
+import { PlayedConfirmModal, PlayStatusMenuItems } from "./PlayedConfirmModal";
 import { DropdownMenu } from "./ui";
 import glassStyles from "./ui/GlassElement.module.css";
 import { Skeleton } from "./ui/Skeleton";
@@ -73,12 +73,17 @@ export function MediaThumb({
   const navigate = useNavigate();
   const [imageError, setImageError] = useState(false);
   const {
+    userData,
     isPlayed,
     unplayedCount,
     playbackPositionTicks,
+    canMarkPlayed,
+    canMarkUnplayed,
+    pendingAction,
     isUpdating,
     isConfirmOpen,
-    requestTogglePlayed,
+    requestMarkPlayed,
+    requestMarkUnplayed,
     cancelTogglePlayed,
     confirmTogglePlayed,
   } = useItemPlayedStatus({
@@ -211,8 +216,14 @@ export function MediaThumb({
           <DropdownMenu.Item icon={<IconInfoCircle size={16} />} onSelect={() => navigate(`/item/${item.Id}`, { state: { item } })}>
             Details
           </DropdownMenu.Item>
-          <DropdownMenu.Divider />
-          <TogglePlayedMenuItem isPlayed={isPlayed} isUpdating={isUpdating} onSelect={requestTogglePlayed} />
+          {(canMarkPlayed || canMarkUnplayed) && <DropdownMenu.Divider />}
+          <PlayStatusMenuItems
+            canMarkPlayed={canMarkPlayed}
+            canMarkUnplayed={canMarkUnplayed}
+            isUpdating={isUpdating}
+            onRequestMarkPlayed={requestMarkPlayed}
+            onRequestMarkUnplayed={requestMarkUnplayed}
+          />
         </DropdownMenu>
       </div>
 
@@ -241,7 +252,7 @@ export function MediaThumb({
           onClose={cancelTogglePlayed}
           onConfirm={confirmTogglePlayed}
           item={item}
-          isPlayed={isPlayed}
+          action={pendingAction ?? undefined}
           isLoading={isUpdating}
         />
       )}

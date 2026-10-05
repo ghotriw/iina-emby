@@ -1,9 +1,16 @@
-import { type EmbyServer, type PlayMediaPayload, type TypedIinaBridge, WINDOW_DIMENSIONS } from "@shared";
+import {
+  type EmbyServer,
+  type PlaybackProgressUpdatedPayload,
+  type PlayMediaPayload,
+  type TypedIinaBridge,
+  WINDOW_DIMENSIONS,
+} from "@shared";
 import type React from "react";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { setClientIdentity } from "../lib/emby-auth-client";
 import { clearLibraryCache } from "../lib/emby-library-client";
 import { embyWebSocket } from "../lib/emby-websocket-client";
+import { applyUserDataUpdatesToCache } from "../lib/user-data-sync";
 
 declare global {
   interface Window {
@@ -58,6 +65,10 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
   const [isLoading, setIsLoading] = useState<boolean>(hasIina);
   const [reopenCount, setReopenCount] = useState<number>(0);
   const [progressUpdateCount, setProgressUpdateCount] = useState<number>(0);
+
+  const activeServer = servers.find((s) => s.id === activeServerId) || servers[0] || null;
+  const activeServerRef = useRef<EmbyServer | null>(activeServer);
+  activeServerRef.current = activeServer;
 
   // Standalone web dev fallback: synchronize servers and active server ID to localStorage only when NOT in IINA
   useEffect(() => {
@@ -152,8 +163,18 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
         setIsLoading(false);
       });
 
-      window.iina.onMessage("playback-progress-updated", () => {
+      window.iina.onMessage("playback-progress-updated", (data?: PlaybackProgressUpdatedPayload) => {
         setProgressUpdateCount((prev) => prev + 1);
+        if (!data?.itemId || typeof data.positionTicks !== "number") return;
+        const currentServer = activeServerRef.current;
+        if (!currentServer?.id) return;
+
+        applyUserDataUpdatesToCache(currentServer.id, [
+          {
+            ItemId: data.itemId,
+            PlaybackPositionTicks: data.positionTicks,
+          },
+        ]);
       });
 
       // Request window context, identity, and servers list on mount
@@ -250,8 +271,6 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
       console.log("[Dev Playback] play-media:", payload);
     }
   }, []);
-
-  const activeServer = servers.find((s) => s.id === activeServerId) || servers[0] || null;
 
   useEffect(() => {
     embyWebSocket.connect(activeServer);

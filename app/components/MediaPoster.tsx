@@ -8,7 +8,7 @@ import { useItemPlayedStatus } from "../hooks/useItemPlayedStatus";
 import { isIdentifySupported } from "../lib/emby-library-client";
 import { IdentifyModal } from "./IdentifyModal";
 import classes from "./MediaPoster.module.css";
-import { PlayedConfirmModal, TogglePlayedMenuItem } from "./PlayedConfirmModal";
+import { PlayedConfirmModal, PlayStatusMenuItems } from "./PlayedConfirmModal";
 import { DropdownMenu } from "./ui/DropdownMenu";
 import { Skeleton } from "./ui/Skeleton";
 
@@ -49,12 +49,23 @@ export function MediaPoster({ item, server, onClick, onUserDataChange, onIdentif
   const [isIdentifyOpen, setIsIdentifyOpen] = useState(false);
   const canIdentify = Boolean(server.user?.Policy?.IsAdministrator) && isIdentifySupported(item.Type);
 
-  const { isPlayed, unplayedCount, isUpdating, isConfirmOpen, requestTogglePlayed, cancelTogglePlayed, confirmTogglePlayed } =
-    useItemPlayedStatus({
-      item,
-      server,
-      onUserDataChange,
-    });
+  const {
+    isPlayed,
+    unplayedCount,
+    canMarkPlayed,
+    canMarkUnplayed,
+    pendingAction,
+    isUpdating,
+    isConfirmOpen,
+    requestMarkPlayed,
+    requestMarkUnplayed,
+    cancelTogglePlayed,
+    confirmTogglePlayed,
+  } = useItemPlayedStatus({
+    item,
+    server,
+    onUserDataChange,
+  });
 
   const isSyncing = Boolean(item.isIdentifying);
   const pendingImg = item.pendingImageUrl as string | undefined;
@@ -134,8 +145,14 @@ export function MediaPoster({ item, server, onClick, onUserDataChange, onIdentif
               Identify
             </DropdownMenu.Item>
           )}
-          <DropdownMenu.Divider />
-          <TogglePlayedMenuItem isPlayed={isPlayed} isUpdating={isUpdating} onSelect={requestTogglePlayed} />
+          {(canMarkPlayed || canMarkUnplayed) && <DropdownMenu.Divider />}
+          <PlayStatusMenuItems
+            canMarkPlayed={canMarkPlayed}
+            canMarkUnplayed={canMarkUnplayed}
+            isUpdating={isUpdating}
+            onRequestMarkPlayed={requestMarkPlayed}
+            onRequestMarkUnplayed={requestMarkUnplayed}
+          />
         </DropdownMenu>
       </div>
 
@@ -152,7 +169,7 @@ export function MediaPoster({ item, server, onClick, onUserDataChange, onIdentif
           onClose={cancelTogglePlayed}
           onConfirm={confirmTogglePlayed}
           item={item}
-          isPlayed={isPlayed}
+          action={pendingAction ?? undefined}
           isLoading={isUpdating}
         />
       )}

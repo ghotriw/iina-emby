@@ -7,7 +7,8 @@
 ## 1. Tech Stack & Environment
 
 * **Plugin Backend (`plugin/`):** TypeScript, compiled with `tsup` into CommonJS (`dist/plugin/index.js`, `dist/plugin/global.js`) using IINA Plugin API.
-* **Frontend UI (`app/`):** React 19, TypeScript, React Router 7 (`HashRouter`), Vite with `vite-plugin-singlefile` compiling into `dist/client/index.html`.
+* **Frontend UI (`app/`):** React 19, TypeScript, React Router 7 (`HashRouter`), `@tanstack/react-query` (caching & server state), Vite with `vite-plugin-singlefile` compiling into `dist/client/index.html`.
+* **Realtime Sync:** Emby WebSocket (`emby-websocket-client.ts`) for instant cache invalidation upon server library/user changes.
 * **Shared Code (`shared/`):** Shared interfaces, types, and utility functions imported as `@shared`.
 * **Styling:** CSS Modules (`*.module.css`) + strict design tokens in `app/theme/tokens.css`.
 * **Testing:** [Vitest](https://vitest.dev/) for unit and integration testing.
@@ -32,7 +33,7 @@ iina-emby/
 │   ├── components/   # Feature and layout components
 │   │   └── ui/       # Design system primitives (Button, DropdownMenu, GlassElement, etc.)
 │   ├── hooks/        # React hooks (useIINABridge, useInfiniteScroll, useSeriesEpisodes, etc.)
-│   ├── lib/          # Emby API clients (emby-library-client.ts, emby-auth-client.ts)
+│   ├── lib/          # Emby API & Query clients (emby-*-client.ts, query-client.ts, query-keys.ts)
 │   ├── routes/       # React Router route pages (HashRouter)
 │   └── theme/        # CSS design tokens (tokens.css)
 └── shared/           # Cross-boundary shared code (imported as "@shared")
@@ -58,16 +59,13 @@ All API calls must reside in `app/lib/emby-*-client.ts`:
    headers: buildAuthHeaders(server.accessToken, { Accept: "application/json" })
    ```
 
-2. **Caching & Request Coalescing Strategy:**
-   * Heavy or repeated catalog queries (libraries, items, seasons, episodes) must use `getOrFetchCached`:
-     ```ts
-     return getOrFetchCached(cacheKey, DEFAULT_CACHE_TTL_MS, bypassCache, async () => { ... });
-     ```
-   * **LRU Memory Protection:** The client enforces `MAX_CACHE_ENTRIES = 150` with LRU eviction to prevent memory growth in persistent WKWebView windows.
-   * **Request Deduplication:** Parallel simultaneous requests for the same cache key share a single in-flight Promise (prevents thundering herd).
-   * **Cache Invalidation:**
-     * Whenever data changes (e.g. library scan completes, item marked played/unplayed, server updated), call `clearLibraryCache()`.
-     * `useIINABridge` automatically clears the library cache whenever `activeServerId` changes.
+2. **Caching & Request Deduplication Strategy (TanStack Query):**
+   * **Pure Fetchers:** All API functions in `app/lib/emby-*-client.ts` are pure network fetchers accepting `server: EmbyServer`, options, and optional `signal?: AbortSignal`.
+   * **Centralized Query Keys:** Always use centralized query key factories from `app/lib/query-keys.ts` (`embyKeys`). Never hardcode string array keys.
+   * **Cache Lifetimes:** Default `staleTime` is 5 minutes, `gcTime` is 30 minutes (`app/lib/query-client.ts`).
+   * **Realtime Invalidation via WebSocket:**
+     * `embyWebSocket` listens to Emby WebSocket events (`LibraryChanged`, `UserDataChanged`).
+     * On `LibraryChanged` / `UserDataChanged`, it dispatches `queryClient.invalidateQueries({ queryKey: embyKeys.server(serverId) })`, keeping views, shelves, continue watching, and item states synchronized automatically.
 
 3. **Streamability & Container Rule (CRITICAL):**
    * **Only `Episode` and `Movie` items are playable video streams.**
@@ -90,22 +88,25 @@ All API calls must reside in `app/lib/emby-*-client.ts`:
    * The app runs inside WKWebView via `HashRouter` (`/#/path`).
    * Never use `BrowserRouter` as it breaks inside file:// or standalone window contexts.
 
-2. **Infinite Scrolling & Progressive Rendering:**
+2. **State Management & Data Fetching:**
+   * Use TanStack Query (`useQuery`, `useMutation`) for all server-bound state.
+   * Feature hooks (`useContinueWatching`, `useLibrarySections`, `useSeriesEpisodes`) encapsulate `useQuery` calls using keys from `embyKeys`.
+   * **Optimistic Updates:** Use `queryClient.setQueryData` for immediate UI feedback (e.g. metadata identify preview or played toggles).
+   * **WebSocket Lifecycle:** `embyWebSocket` is a singleton manager that handles connection reuse and reconnects. Do not aggressively call `disconnect()` on every effect re-render or during the `CONNECTING` phase.
+
+3. **Infinite Scrolling & Progressive Rendering:**
    * Never implement ad-hoc `IntersectionObserver` loops in components; always use the shared `useIntersectionSentinel` hook (`app/hooks/useIntersectionSentinel.ts`).
    * For server-paginated data (where pages are fetched over HTTP as you scroll), use `useInfiniteScroll<T>` from `app/hooks/useInfiniteScroll.ts`.
    * For large in-memory collections (loaded once into client memory for instant filtering/sorting), use `useProgressiveScroll<T>` from `app/hooks/useProgressiveScroll.ts` to incrementally render DOM nodes and images.
    * Routes should remain thin presenters focusing on UI composition and headers.
 
-3. **Preventing Infinite Loops in Bridge / Effects:**
+4. **Preventing Infinite Loops in Bridge / Effects:**
    * `activeServer` in `useIINABridge` and `item` in parent components are object references.
    * **Never** place full `activeServer` or `item` objects in `useCallback` or `useEffect` dependency arrays.
    * Always decompose dependencies into primitives:
      ```ts
      [activeServer?.id, activeServer?.serverUrl, activeServer?.accessToken, activeServer?.userId, item?.Id, item?.Type]
      ```
-
-4. **Optimistic Updates:**
-   * For user state toggles (e.g. played status, favorites), apply optimistic local state updates immediately, and revert to previous state in the `catch` block if the API call fails.
 
 5. **Resource Cleanup:**
    * All asynchronous API calls in effects must accept an `AbortSignal` and abort on effect cleanup.

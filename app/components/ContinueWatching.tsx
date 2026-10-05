@@ -69,7 +69,7 @@ export const ContinueWatching = forwardRef<ContinueWatchingHandle, ContinueWatch
       >
         {loading && resumeItems.length === 0
           ? [1, 2, 3, 4].map((id) => <MediaThumbSkeleton key={id} />)
-          : resumeItems.map((item) => (
+          : resumeItems.slice(0, 16).map((item) => (
               <MediaThumb key={item.Id} item={item} server={server} onPlay={onPlayMedia} onUserDataChange={() => refresh()} />
             ))}
       </MediaShelf>

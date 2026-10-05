@@ -3,14 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchResumeItems } from "../lib/emby-library-client";
 import { embyKeys } from "../lib/query-keys";
 
-export function useContinueWatching(activeServer: EmbyServer | null) {
+export function useContinueWatching(activeServer: EmbyServer | null, limit = 10000) {
   const isEnabled = Boolean(activeServer?.serverUrl && activeServer.accessToken && activeServer.userId);
 
   const query = useQuery({
     queryKey: activeServer?.id ? embyKeys.continueWatching(activeServer.id) : ["empty-resume"],
     queryFn: async ({ signal }) => {
       if (!activeServer) return [];
-      const result = await fetchResumeItems(activeServer, 12, signal);
+      const result = await fetchResumeItems(activeServer, limit, signal);
       return result.items;
     },
     enabled: isEnabled,

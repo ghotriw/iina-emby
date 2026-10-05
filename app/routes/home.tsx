@@ -5,7 +5,7 @@ import { ContinueWatching } from "../components/ContinueWatching";
 import { LibraryShelf, LibraryShelfSkeleton } from "../components/LibraryShelf";
 import { PageHeader } from "../components/PageHeader";
 import { Alert } from "../components/ui";
-import { useIINABridge, useOnPlaybackProgressUpdated, useOnWindowReopen } from "../hooks/useIINABridge";
+import { useIINABridge, useOnWindowReopen } from "../hooks/useIINABridge";
 import { useLibrarySections } from "../hooks/useLibrarySections";
 import { queryClient } from "../lib/query-client";
 import { embyKeys } from "../lib/query-keys";
@@ -34,13 +34,6 @@ export default function HomeRoute() {
   useOnWindowReopen(() => {
     if (activeServer) {
       queryClient.invalidateQueries({ queryKey: embyKeys.server(activeServer.id) });
-    }
-  });
-
-  // Automatically refresh continue watching when player updates progress to Emby
-  useOnPlaybackProgressUpdated(() => {
-    if (activeServer) {
-      queryClient.invalidateQueries({ queryKey: embyKeys.continueWatching(activeServer.id) });
     }
   });
 

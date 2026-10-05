@@ -2,6 +2,7 @@ import type { EmbyServer } from "@shared";
 import { clearLibraryCache } from "./emby-library-client";
 import { queryClient } from "./query-client";
 import { embyKeys } from "./query-keys";
+import { applyUserDataUpdatesToCache } from "./user-data-sync";
 
 export interface LibraryChangedData {
   ItemsAdded?: string[];
@@ -338,12 +339,14 @@ class EmbyWebSocketManager {
         console.log(`[EmbyWS] Dispatching UserDataChanged to ${this.userDataChangedListeners.size} listener(s):`, data);
 
         const serverId = this.currentServer?.id;
-        if (serverId) {
+        if (serverId && Array.isArray(data.UserDataList) && data.UserDataList.length > 0) {
+          applyUserDataUpdatesToCache(serverId, data.UserDataList);
+          console.log(`[EmbyWS] Applied in-memory UserData updates for ${data.UserDataList.length} item(s)`);
+        } else if (serverId) {
           queryClient.invalidateQueries({ queryKey: embyKeys.server(serverId) });
         } else {
           queryClient.invalidateQueries({ queryKey: embyKeys.all });
         }
-        console.log(`[EmbyWS] UserDataChanged invalidation dispatched for server ${serverId ?? "all"}`);
 
         for (const listener of this.userDataChangedListeners) {
           try {

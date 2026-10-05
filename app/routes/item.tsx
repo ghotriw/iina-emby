@@ -5,7 +5,7 @@ import { useLocation, useNavigate, useParams } from "react-router";
 import { EpisodeDetailModal } from "../components/EpisodeDetailModal";
 import { ItemHero } from "../components/ItemHero";
 import { SeriesEpisodesShelf } from "../components/SeriesEpisodesShelf";
-import { useIINABridge, useOnPlaybackProgressUpdated, useOnWindowReopen } from "../hooks/useIINABridge";
+import { useIINABridge, useOnWindowReopen } from "../hooks/useIINABridge";
 import { useSeriesEpisodes } from "../hooks/useSeriesEpisodes";
 import { buildStreamUrl, fetchItemDetails } from "../lib/emby-library-client";
 import { embyKeys } from "../lib/query-keys";
@@ -44,11 +44,6 @@ export default function ItemDetailRoute() {
   }, [itemQuery]);
 
   useOnWindowReopen(() => {
-    handleRefresh();
-  });
-
-  // Automatically refresh when player reports progress back to Emby
-  useOnPlaybackProgressUpdated(() => {
     handleRefresh();
   });
 
