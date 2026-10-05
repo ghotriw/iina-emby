@@ -1,5 +1,6 @@
 import { IconChevronLeft, IconReload, IconSettings2 } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import { useLocation, useNavigate } from "react-router";
 import styles from "./PageHeader.module.css";
 import { GlassElement } from "./ui/GlassElement";
 
@@ -11,6 +12,7 @@ export interface PageHeaderProps {
   onRefresh?: () => void;
   isRefreshing?: boolean;
   rightSection?: ReactNode;
+  showSettings?: boolean;
   className?: string;
 }
 
@@ -22,8 +24,15 @@ export function PageHeader({
   onRefresh,
   isRefreshing = false,
   rightSection,
+  showSettings,
   className,
 }: PageHeaderProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const isSettingsRoute = location.pathname === "/settings" || location.pathname === "/system-info";
+  const shouldShowSettings = showSettings ?? !isSettingsRoute;
+
   return (
     <header className={`${styles.header} ${className || ""}`}>
       <div className={styles.headerLeft}>
@@ -49,19 +58,24 @@ export function PageHeader({
       </div>
 
       <div className={styles.headerRight}>
-        <GlassElement
-          as="a"
-          href="/#/settings"
-          variant="glass"
-          shape="rounded"
-          size="sm"
-          isIconOnly
-          title="Setting"
-          aria-label="Open settings"
-        >
-          <IconSettings2 size={16} />
-        </GlassElement>
+        {shouldShowSettings && (
+          <GlassElement
+            variant="glass"
+            shape="rounded"
+            size="sm"
+            isIconOnly
+            title="Settings"
+            aria-label="Open settings"
+            onClick={() => {
+              navigate("/settings");
+            }}
+          >
+            <IconSettings2 size={16} />
+          </GlassElement>
+        )}
+
         {rightSection}
+
         {onRefresh && (
           <GlassElement
             variant="glass"

@@ -62,12 +62,12 @@
 }
 
 .danger {
-  color: #ff6b6b;
+  color: var(--danger-text);
 }
 
 .danger:hover,
 .danger:focus-visible {
-  background: #ff453a;
+  background: var(--accent-red);
   color: var(--text-primary);
 }
 

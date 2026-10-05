@@ -493,3 +493,57 @@ export async function setItemPlayedStatus(server: EmbyServer, itemId: string, pl
     return { Played: played };
   }
 }
+
+export interface EmbyScanTaskStatus {
+  /** "Idle" | "Running" | "Cancelling" */
+  state: string;
+  progress: number | null;
+  lastEndTime?: string;
+  lastStatus?: string;
+}
+
+/**
+ * Trigger a scan of all media libraries (admin only). Returns immediately; the scan runs server-side.
+ */
+export async function startLibraryScan(server: EmbyServer): Promise<void> {
+  const base = server.serverUrl.replace(/\/+$/, "");
+  const response = await fetch(`${base}/Library/Refresh`, {
+    method: "POST",
+    headers: buildAuthHeaders(server.accessToken, { Accept: "application/json" }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to start library scan: ${response.status} ${response.statusText}`);
+  }
+}
+
+/**
+ * Read the state of the "Scan media library" scheduled task (admin only).
+ */
+export async function fetchLibraryScanStatus(server: EmbyServer, signal?: AbortSignal): Promise<EmbyScanTaskStatus | null> {
+  const base = server.serverUrl.replace(/\/+$/, "");
+  const response = await fetch(`${base}/ScheduledTasks?IsHidden=false`, {
+    signal,
+    headers: buildAuthHeaders(server.accessToken, { Accept: "application/json" }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch scheduled tasks: ${response.status} ${response.statusText}`);
+  }
+
+  const tasks = (await response.json()) as Array<{
+    Key?: string;
+    State?: string;
+    CurrentProgressPercentage?: number;
+    LastExecutionResult?: { EndTimeUtc?: string; Status?: string };
+  }>;
+  const task = tasks.find((t) => t.Key === "RefreshLibrary");
+  if (!task) return null;
+
+  return {
+    state: task.State ?? "Idle",
+    progress: typeof task.CurrentProgressPercentage === "number" ? task.CurrentProgressPercentage : null,
+    lastEndTime: task.LastExecutionResult?.EndTimeUtc,
+    lastStatus: task.LastExecutionResult?.Status,
+  };
+}

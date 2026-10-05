@@ -55,7 +55,14 @@ export function DropdownMenu({ trigger, children, placement = "bottom-end", offs
     const onToggle = (e: Event) => {
       const isOpen = (e as ToggleEvent).newState === "open";
       setOpen(isOpen);
-      if (!isOpen) triggerRef.current?.focus({ preventScroll: true });
+      if (!isOpen) {
+        const active = document.activeElement;
+        // Don't steal focus if user intentionally clicked another element outside
+        if (active && active !== document.body && !m.contains(active)) {
+          return;
+        }
+        triggerRef.current?.focus({ preventScroll: true });
+      }
     };
     m.addEventListener("toggle", onToggle);
     return () => m.removeEventListener("toggle", onToggle);
