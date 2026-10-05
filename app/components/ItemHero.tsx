@@ -68,7 +68,7 @@ export function ItemHero({
       : Array.isArray(item?.GenreItems)
         ? (item.GenreItems as Array<{ Name: string }>).map((g) => g.Name)
         : [];
-  const genresText = genresList.join(" · ");
+  const genresText = genresList.join(" • ");
 
   // Technical specs & badges
   const { durationText, premiereDateText, resolutionBadge, hdrBadge, fpsBadge, sizeBadge } = getMediaBadges(targetItem || undefined, item);
@@ -82,9 +82,9 @@ export function ItemHero({
   if (isSeries && nextUpEpisode) {
     const sNum = nextUpEpisode.ParentIndexNumber ?? 1;
     const eNum = nextUpEpisode.IndexNumber ?? 1;
-    overviewPrefix = `[${item?.Name || "Series"} · Season ${sNum} · Episode ${eNum}]`;
+    overviewPrefix = `${item?.Name || "Series"} • Season ${sNum} • Episode ${eNum}`;
   } else if (item?.Name) {
-    overviewPrefix = `[${item.Name}]`;
+    overviewPrefix = `${item.Name}`;
   }
 
   const overviewText: string = String(targetItem?.Overview || item?.Overview || "");
@@ -170,7 +170,7 @@ export function ItemHero({
             {/* Row 3: Overview with prefix */}
             {overviewText ? (
               <p className={styles.overview}>
-                {overviewPrefix ? <strong className={styles.overviewPrefix}>{overviewPrefix} </strong> : null}
+                {overviewPrefix ? <strong className={styles.overviewPrefix}>{overviewPrefix} • </strong> : null}
                 {overviewText}
               </p>
             ) : null}

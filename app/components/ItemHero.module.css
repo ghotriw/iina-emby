@@ -195,6 +195,13 @@
 
 .specBadge {
   color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.specBadge + .specBadge::before {
+  content: "•";
+  margin-right: 8px;
+  color: var(--text-secondary);
 }
 
 /* Row 3: Synopsis / Overview */

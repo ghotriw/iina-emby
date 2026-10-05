@@ -17,7 +17,7 @@ body {
 }
 
 /* Custom scrollbars matching macOS dark vibrancy */
-::-webkit-scrollbar {
+/*::-webkit-scrollbar {
   width: 0.5rem;
   height: 0.5rem;
 }
@@ -33,4 +33,4 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--bg-control-active);
-}
+}*/
