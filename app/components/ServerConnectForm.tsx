@@ -13,12 +13,7 @@ export interface ServerConnectFormProps {
   onCancel?: () => void;
 }
 
-export function ServerConnectForm({
-  isFirstServer = false,
-  initialServer,
-  onSuccess,
-  onCancel,
-}: ServerConnectFormProps) {
+export function ServerConnectForm({ isFirstServer = false, initialServer, onSuccess, onCancel }: ServerConnectFormProps) {
   const [serverUrl, setServerUrl] = useState(initialServer?.serverUrl ?? "");
   const [username, setUsername] = useState(initialServer?.username ?? "");
   const [password, setPassword] = useState("");
@@ -69,19 +64,9 @@ export function ServerConnectForm({
     }
   };
 
-  const formTitle = initialServer
-    ? "Edit Emby Server"
-    : isFirstServer
-      ? "Connect to Emby"
-      : "Add Emby Server";
+  const formTitle = initialServer ? "Edit Emby Server" : isFirstServer ? "Connect to Emby" : "Add Emby Server";
 
-  const submitLabel = isLoading
-    ? initialServer
-      ? "Saving..."
-      : "Connecting..."
-    : initialServer
-      ? "Save Changes"
-      : "Connect";
+  const submitLabel = isLoading ? (initialServer ? "Saving..." : "Connecting...") : initialServer ? "Save Changes" : "Connect";
 
   return (
     <div className={styles.formPanel}>
@@ -157,12 +142,7 @@ export function ServerConnectForm({
 
           <div className={styles.formActions}>
             {onCancel && (
-              <button
-                type="button"
-                className={styles.macCancelBtn}
-                onClick={onCancel}
-                disabled={isLoading}
-              >
+              <button type="button" className={styles.macCancelBtn} onClick={onCancel} disabled={isLoading}>
                 Cancel
               </button>
             )}

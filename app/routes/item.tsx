@@ -69,7 +69,7 @@ export default function ItemDetailRoute() {
     return () => {
       controller.abort();
     };
-  }, [activeServer, id, reloadNonce]);
+  }, [activeServer?.id, activeServer?.serverUrl, activeServer?.accessToken, activeServer?.userId, id, reloadNonce]);
 
   // Series next-up, seasons, and episodes management
   const { isSeries, nextUpEpisode, seasons, selectedSeasonId, setSelectedSeasonId, episodes, isEpisodesLoading } = useSeriesEpisodes(
@@ -98,12 +98,7 @@ export default function ItemDetailRoute() {
 
       let playTitle = playTarget.Name || "Media";
       if (item?.Type === "Series") {
-        playTitle = formatFullEpisodeTitle(
-          item.Name,
-          playTarget.ParentIndexNumber ?? 1,
-          playTarget.IndexNumber,
-          playTarget.Name,
-        );
+        playTitle = formatFullEpisodeTitle(item.Name, playTarget.ParentIndexNumber ?? 1, playTarget.IndexNumber, playTarget.Name);
       }
 
       playMedia({

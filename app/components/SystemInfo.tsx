@@ -26,13 +26,15 @@ function formatDate(dateStr?: string): string {
   if (!dateStr) return "—";
   try {
     const d = new Date(dateStr);
-    return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return Number.isNaN(d.getTime())
+      ? dateStr
+      : d.toLocaleDateString(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
   } catch {
     return dateStr;
   }
@@ -88,9 +90,7 @@ export function SystemInfo() {
   const isAdministrator = Boolean(userInfo?.Policy?.IsAdministrator);
   const canDelete = Boolean(userInfo?.Policy?.EnableContentDeletion);
   const canDownload = Boolean(userInfo?.Policy?.EnableContentDownloading);
-  const canTranscode = Boolean(
-    userInfo?.Policy?.EnableVideoPlaybackTranscoding || userInfo?.Policy?.EnableAudioPlaybackTranscoding,
-  );
+  const canTranscode = Boolean(userInfo?.Policy?.EnableVideoPlaybackTranscoding || userInfo?.Policy?.EnableAudioPlaybackTranscoding);
   const autoPlayNext = userInfo?.Configuration?.EnableNextEpisodeAutoPlay;
   const subtitleMode = userInfo?.Configuration?.SubtitleMode;
   const introSkip = userInfo?.Configuration?.IntroSkipMode;
@@ -193,20 +193,11 @@ export function SystemInfo() {
           )}
 
           {(isLoading || systemInfo?.WanAddress) && (
-            <SystemInfoRow
-              label="WAN Address"
-              loading={isLoading}
-              value={systemInfo?.WanAddress || "—"}
-              title={systemInfo?.WanAddress}
-            />
+            <SystemInfoRow label="WAN Address" loading={isLoading} value={systemInfo?.WanAddress || "—"} title={systemInfo?.WanAddress} />
           )}
 
           {systemInfo?.WebSocketPortNumber && (
-            <SystemInfoRow
-              label="WebSocket Port"
-              loading={isLoading}
-              value={String(systemInfo.WebSocketPortNumber)}
-            />
+            <SystemInfoRow label="WebSocket Port" loading={isLoading} value={String(systemInfo.WebSocketPortNumber)} />
           )}
         </div>
       </section>
@@ -253,26 +244,14 @@ export function SystemInfo() {
             }
           />
 
-          <SystemInfoRow
-            label="Transcoding"
-            loading={isLoading && !userInfo}
-            value={canTranscode ? "Enabled" : "Direct Play Only"}
-          />
+          <SystemInfoRow label="Transcoding" loading={isLoading && !userInfo} value={canTranscode ? "Enabled" : "Direct Play Only"} />
 
           {userInfo?.DateCreated && (
-            <SystemInfoRow
-              label="Account Created"
-              loading={isLoading && !userInfo}
-              value={formatDate(userInfo.DateCreated)}
-            />
+            <SystemInfoRow label="Account Created" loading={isLoading && !userInfo} value={formatDate(userInfo.DateCreated)} />
           )}
 
           {userInfo?.LastActivityDate && (
-            <SystemInfoRow
-              label="Last Activity"
-              loading={isLoading && !userInfo}
-              value={formatDate(userInfo.LastActivityDate)}
-            />
+            <SystemInfoRow label="Last Activity" loading={isLoading && !userInfo} value={formatDate(userInfo.LastActivityDate)} />
           )}
         </div>
       </section>
@@ -291,21 +270,10 @@ export function SystemInfo() {
             />
 
             {subtitleMode && (
-              <SystemInfoRow
-                icon={<IconSubtask size={18} />}
-                label="Subtitle Mode"
-                loading={isLoading && !userInfo}
-                value={subtitleMode}
-              />
+              <SystemInfoRow icon={<IconSubtask size={18} />} label="Subtitle Mode" loading={isLoading && !userInfo} value={subtitleMode} />
             )}
 
-            {introSkip && (
-              <SystemInfoRow
-                label="Intro Skip Mode"
-                loading={isLoading && !userInfo}
-                value={introSkip}
-              />
-            )}
+            {introSkip && <SystemInfoRow label="Intro Skip Mode" loading={isLoading && !userInfo} value={introSkip} />}
 
             {userInfo?.Configuration?.ResumeRewindSeconds !== undefined && (
               <SystemInfoRow

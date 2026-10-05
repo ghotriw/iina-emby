@@ -44,7 +44,7 @@ global.onMessage("player-inactive", (data?: { label?: string }, player?: string)
   debugLog("Player reported inactive (retaining player instance for reuse):", { data, player });
 });
 
-global.onMessage("player-unregistered", (data?: unknown, player?: string) => {
+global.onMessage("player-unregistered", (_data?: unknown, player?: string) => {
   debugLog("Player instance unregistered (retaining player instance for reuse):", player);
 });
 

@@ -189,7 +189,9 @@ export function createPlaybackTrackingManager({
       lastKnownPosition = effectiveStart;
 
       // Report playback start with the actual resume position (not 0!)
-      log(`[start] Starting playback for itemId=${itemId}, effectiveStart=${effectiveStart}s (${secondsToTicks(effectiveStart)} ticks), reporting to Emby...`);
+      log(
+        `[start] Starting playback for itemId=${itemId}, effectiveStart=${effectiveStart}s (${secondsToTicks(effectiveStart)} ticks), reporting to Emby...`,
+      );
       reportPlaybackStart(serverBase, itemId, apiKey, playSessionId, mediaSourceId, effectiveStart);
 
       if (effectiveStart >= 15) {

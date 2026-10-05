@@ -57,7 +57,7 @@ export function useSeriesEpisodes(activeServer: EmbyServer | null, item?: EmbyIt
     return () => {
       controller.abort();
     };
-  }, [activeServer, item]);
+  }, [activeServer?.id, activeServer?.serverUrl, activeServer?.accessToken, activeServer?.userId, item?.Id, item?.Type]);
 
   // 2. Fetch seasons for series
   useEffect(() => {
@@ -96,7 +96,15 @@ export function useSeriesEpisodes(activeServer: EmbyServer | null, item?: EmbyIt
     return () => {
       controller.abort();
     };
-  }, [activeServer, item, nextUpEpisode?.SeasonId]);
+  }, [
+    activeServer?.id,
+    activeServer?.serverUrl,
+    activeServer?.accessToken,
+    activeServer?.userId,
+    item?.Id,
+    item?.Type,
+    nextUpEpisode?.SeasonId,
+  ]);
 
   // 3. Fetch episodes when selected season changes
   useEffect(() => {
@@ -129,14 +137,11 @@ export function useSeriesEpisodes(activeServer: EmbyServer | null, item?: EmbyIt
     return () => {
       controller.abort();
     };
-  }, [activeServer, item, selectedSeasonId]);
+  }, [activeServer?.id, activeServer?.serverUrl, activeServer?.accessToken, activeServer?.userId, item?.Id, item?.Type, selectedSeasonId]);
 
   // If nextUpEpisode is not resolved yet, fall back to first unplayed episode from loaded episodes
   const effectiveNextUp =
-    nextUpEpisode ||
-    (isSeries && episodes.length > 0
-      ? episodes.find((e) => !e.UserData?.Played) || episodes[0]
-      : null);
+    nextUpEpisode || (isSeries && episodes.length > 0 ? episodes.find((e) => !e.UserData?.Played) || episodes[0] : null);
 
   return {
     isSeries,

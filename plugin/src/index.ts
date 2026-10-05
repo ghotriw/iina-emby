@@ -16,16 +16,7 @@ const { core, console: iinaConsole, menu, event, http, utils, preferences, mpv, 
 
 const debugLog = createDebugLogger(preferences, iinaConsole, file);
 
-const {
-  getClientIdentity,
-  buildEmbyHeaders,
-  parseEmbyUrl,
-  isEmbyUrl,
-  fetchPlaybackInfo,
-  fetchItemMetadata,
-  secondsToTicks,
-  ticksToSeconds,
-} = createEmbyApi({
+const { buildEmbyHeaders, parseEmbyUrl, isEmbyUrl, fetchPlaybackInfo, fetchItemMetadata, secondsToTicks, ticksToSeconds } = createEmbyApi({
   http,
   preferences,
   log: debugLog,

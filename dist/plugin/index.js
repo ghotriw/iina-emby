@@ -510,7 +510,7 @@ function createEmbyApi({ http: http2, preferences: preferences2, log }) {
     }
     return deviceId;
   }
-  function getClientIdentity2() {
+  function getClientIdentity() {
     return {
       clientName: CLIENT_NAME,
       deviceName: DEVICE_NAME,
@@ -519,10 +519,10 @@ function createEmbyApi({ http: http2, preferences: preferences2, log }) {
     };
   }
   function buildAuthorizationHeader2(apiKey) {
-    return buildAuthorizationHeader(getClientIdentity2(), apiKey);
+    return buildAuthorizationHeader(getClientIdentity(), apiKey);
   }
   function buildEmbyHeaders3(apiKey, extraHeaders) {
-    return buildEmbyHeaders(getClientIdentity2(), apiKey, extraHeaders);
+    return buildEmbyHeaders(getClientIdentity(), apiKey, extraHeaders);
   }
   function parseEmbyUrl2(url) {
     try {
@@ -638,7 +638,7 @@ function createEmbyApi({ http: http2, preferences: preferences2, log }) {
     }
   }
   return {
-    getClientIdentity: getClientIdentity2,
+    getClientIdentity,
     buildAuthorizationHeader: buildAuthorizationHeader2,
     buildEmbyHeaders: buildEmbyHeaders3,
     parseEmbyUrl: parseEmbyUrl2,
@@ -887,11 +887,9 @@ function createMediaActionsManager({
     }
     let reportServerBase = embyInfo.serverBase;
     let reportApiKey = embyInfo.apiKey;
-    let reportUserId = void 0;
     if (getActiveSession) {
       const session = getActiveSession();
       if (session?.userId && isSameEmbyHost(session.serverUrl, reportServerBase)) {
-        reportUserId = session.userId;
         if (preferences2.get("use_connected_account") && session.accessToken) {
           reportApiKey = session.accessToken;
           reportServerBase = session.serverUrl;
@@ -1344,7 +1342,9 @@ function createPlaybackTrackingManager({
         session.resumePosition = effectiveStart;
       }
       lastKnownPosition = effectiveStart;
-      log(`[start] Starting playback for itemId=${itemId}, effectiveStart=${effectiveStart}s (${secondsToTicks3(effectiveStart)} ticks), reporting to Emby...`);
+      log(
+        `[start] Starting playback for itemId=${itemId}, effectiveStart=${effectiveStart}s (${secondsToTicks3(effectiveStart)} ticks), reporting to Emby...`
+      );
       reportPlaybackStart(serverBase, itemId, apiKey, playSessionId, mediaSourceId, effectiveStart);
       if (effectiveStart >= 15) {
         log(`[seek] Scheduled resume seek to ${effectiveStart.toFixed(1)}s for itemId=${itemId} once playback starts`);
@@ -1863,16 +1863,7 @@ function createServerSessionStore({ preferences: preferences2, sidebar, standalo
 // plugin/src/index.ts
 var { core, console: iinaConsole, menu, event, http, utils, preferences, mpv, global: iinaGlobal, file } = iina;
 var debugLog = createDebugLogger(preferences, iinaConsole, file);
-var {
-  getClientIdentity,
-  buildEmbyHeaders: buildEmbyHeaders2,
-  parseEmbyUrl,
-  isEmbyUrl,
-  fetchPlaybackInfo,
-  fetchItemMetadata,
-  secondsToTicks: secondsToTicks2,
-  ticksToSeconds: ticksToSeconds2
-} = createEmbyApi({
+var { buildEmbyHeaders: buildEmbyHeaders2, parseEmbyUrl, isEmbyUrl, fetchPlaybackInfo, fetchItemMetadata, secondsToTicks: secondsToTicks2, ticksToSeconds: ticksToSeconds2 } = createEmbyApi({
   http,
   preferences,
   log: debugLog

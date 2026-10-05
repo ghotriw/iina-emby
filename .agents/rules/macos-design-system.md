@@ -17,58 +17,90 @@ This document defines the strict UI and design standards for the `iina-emby` plu
 ## 2. Strict Units & Scale (Rem Only)
 * **Never use raw pixel values** for typography, heights, paddings, margins, or corner radii in CSS.
 * All measurements must be written in **`rem`** (`1rem = 16px`):
-  * **`0.375rem` (6px):** The official IINA / AppKit native corner radius for controls (buttons, inputs, list row capsules, grouped panel insets).
-  * **`0.5rem` (8px):** Dialog / Alert sheet corner radius and media cards.
+  * **`0.375rem` (6px) — `var(--radius-m)`:** The official IINA / AppKit native corner radius for controls (buttons, inputs, list row capsules, grouped panel insets).
+  * **`0.5rem` (8px) — `var(--radius-l)`:** Dialog / Alert sheet corner radius, media cards, and content cards.
   * **`1.75rem` (28px):** Standard macOS control height (`NSTextField`, `NSButton`).
   * **`1.625rem` (26px):** Compact macOS buttons (Cancel / Connect in sheets).
   * **`2.125rem` (34px):** IINA Open... / Add Server capsule height.
   * **`2.75rem` (44px):** Standard macOS window toolbar height.
 * Typography scale:
-  * Caption / Muted: `0.6875rem` (11px)
-  * Subtitle / Input: `0.75rem` (12px)
-  * Body / List Item: `0.8125rem` (13px, Apple HIG body size)
-  * Dialog Title: `0.875rem` (14px)
-  * H2 / Section Title: `1.125rem` (18px)
-  * H1 / Big Title: `1.375rem` (22px)
+  * Caption / Muted: `0.6875rem` (11px) — `var(--font-size-caption)`
+  * Subtitle / Input: `0.75rem` (12px) — `var(--font-size-sub)`
+  * Body / List Item: `0.8125rem` (13px, Apple HIG body size) — `var(--font-size-body)`
+  * Dialog Title / Card Title: `0.875rem` (14px) — `var(--font-size-title)`
+  * H2 / Section Title: `1.125rem` (18px) — `var(--font-size-h2)`
+  * H1 / Big Title: `1.375rem` (22px) — `var(--font-size-h1)`
 
 ---
 
 ## 3. Design Tokens & Translucent Materials
-Always use the CSS variables defined in [`app/theme/tokens.css`](file:///Users/ghotriw/MyProjects/iina-emby/app/theme/tokens.css):
+Always use the CSS variables defined in [`app/theme/tokens.css`](file:///Users/ghotriw/MyProjects/iina-emby/app/theme/tokens.css). **Never hardcode hex/rgb values in CSS modules.**
 
-| Token | Value | Purpose |
+| Token | Purpose | Example Usage |
 |---|---|---|
-| `--bg-window` | `transparent` | Transparent body for IINA HUD window |
-| `--bg-sidebar` | `rgba(16, 16, 22, 0.45)` | Left sidebar pane with blur |
-| `--bg-panel` | `rgba(255, 255, 255, 0.04)` | Inset grouped boxes / sheets |
-| `--bg-control` | `rgba(255, 255, 255, 0.12)` | Subtle button capsule (Open..., Cancel) |
-| `--bg-control-hover` | `rgba(255, 255, 255, 0.18)` | Hover state for buttons |
-| `--bg-row-hover` | `rgba(255, 255, 255, 0.08)` | Hover highlight for list items |
-| `--bg-input` | `rgba(0, 0, 0, 0.3)` | Translucent text fields |
-| `--bg-dialog` | `rgba(26, 26, 32, 0.92)` | NSAlert sheets / confirm modals |
-| `--text-primary` | `#ffffff` | Primary text |
-| `--text-secondary` | `rgba(255, 255, 255, 0.65)` | Secondary labels |
-| `--text-tertiary` | `rgba(255, 255, 255, 0.42)` | Muted captions |
-| `--accent-blue` | `#007aff` | macOS system action blue |
-| `--accent-teal` | `#12b886` | Active Emby server / media accent |
-| `--accent-red` | `#ff453a` | Destructive actions (Remove server) |
+| `--bg-window` | Main window background | Surface behind content |
+| `--bg-sidebar` | Left sidebar background | Library navigation pane |
+| `--bg-panel` | Glass card background | Settings cards, SystemInfo cards |
+| `--bg-control` | Subtle button capsule / track | Button default, progress track |
+| `--bg-control-hover` | Hover state for buttons | Button hover |
+| `--bg-row-hover` | Hover highlight for list items | Table rows, interactive cards |
+| `--bg-input` | Translucent input background | Text fields |
+| `--bg-dialog` | Modal dialog background | Popups and confirmation sheets |
+| `--bg-tooltip` | Popover / dropdown background | Dropdown menus, tooltips |
+| `--border-subtle` | Fine hairline card border | Card / row borders |
+| `--border-control` | Interactive control border | Inputs, buttons |
+| `--text-primary` | High-contrast white | Primary titles, active labels |
+| `--text-secondary` | 65% opacity white | Subtitles, descriptions, metadata |
+| `--text-tertiary` | 42% opacity white | Section headers, icons, timestamps |
+| `--accent-blue` | macOS system action blue | Primary action buttons, active tabs |
+| `--accent-teal` | Active connection / status | Online status, played checkmark |
+| `--accent-red` | System red | Danger buttons, errors |
+| `--danger-text` | High-visibility warning text | Destructive menu items, error labels |
 
 ---
 
 ## 4. UI Patterns & Best Practices
-1. **Lists (NSTableView style):**
-   * Transparent background by default, no thick card borders.
-   * `min-height: 2.75rem` (44px), `padding: 0.5rem 0.75rem`, `border-radius: var(--radius-m)`.
-   * Action icons (like trash) should be hidden by default (`opacity: 0`) and fade in on row hover (`opacity: 1`) to keep the interface calm.
-2. **Forms & Dialogs (NSAlert / Sheet style):**
-   * Never render web close buttons ("X" in the corner) in alert dialogs.
-   * Action buttons belong on the bottom right: `[ Cancel ]` (gray capsule) and `[ Action ]` (accent blue or red).
-3. **Mantine Components:**
-   * Theme defaults in [`app/theme/theme.ts`](file:///Users/ghotriw/MyProjects/iina-emby/app/theme/theme.ts) automatically wire tokens into Mantine.
-   * Prefer using configured Mantine components (`<Button>`, `<TextInput>`, `<Modal>`) or semantic HTML with token classes.
+
+1. **Card & Section Layout (macOS System Settings Style):**
+   * Group related settings and info into `<section>` blocks with an uppercase header:
+     ```css
+     .sectionTitle {
+       font-size: 0.8125rem;
+       font-weight: 600;
+       text-transform: uppercase;
+       letter-spacing: 0.05em;
+       color: var(--text-tertiary);
+       padding: 0 0.5rem;
+     }
+     ```
+   * Enclose items in a glassmorphic card:
+     ```css
+     .card {
+       background: var(--bg-panel);
+       border: 1px solid var(--border-subtle);
+       border-radius: var(--radius-l);
+       overflow: hidden;
+       backdrop-filter: blur(20px);
+       -webkit-backdrop-filter: blur(20px);
+     }
+     ```
+
+2. **Menus and Overlays (Native Popover API):**
+   * Use native `popover="auto"` so overlays are rendered in the browser's **Top Layer** (never clipped by `overflow: hidden` on parent cards).
+   * Use `@starting-style` for smooth entrance and exit animations.
+   * Do not steal focus on light-dismiss (clicking outside).
+
+3. **Built-in UI Component Library:**
+   * Always prefer reusable UI primitives from [`app/components/ui/`](file:///Users/ghotriw/MyProjects/iina-emby/app/components/ui/):
+     * `<Button>`: Standard macOS button with disabled state support.
+     * `<GlassElement>`: Apple Liquid Glass button/pill/circle with realistic lens lighting.
+     * `<DropdownMenu>`: Top-layer accessible menu with arrow navigation and compound items.
+     * `<Alert>`: Informational, warning, or error banner.
+     * `<Skeleton>`: Shimmer loading placeholders matching Apple HIG.
+     * `<Modal>` & `<ConfirmModal>`: Native macOS-style alert sheets.
 
 ---
 
-## 5. Language Policy
-* Zero Cyrillic characters in code, CSS, or comments.
-* User-facing text in the UI should be in clean, idiomatic English.
+## 5. Language & Commit Policy
+* **English Only:** Zero Cyrillic characters in code, CSS, comments, or user-facing UI text.
+* **Conventional Commits:** Follow `feat(...)`, `fix(...)`, `perf(...)`, `refactor(...)`.

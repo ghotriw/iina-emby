@@ -6,24 +6,82 @@ interface CacheEntry<T> {
   expires: number;
 }
 
-const cache = new Map<string, CacheEntry<unknown>>();
+const MAX_CACHE_ENTRIES = 150;
 const DEFAULT_CACHE_TTL_MS = 60_000; // 1 minute
+
+const cache = new Map<string, CacheEntry<unknown>>();
+const inFlightRequests = new Map<string, Promise<unknown>>();
 
 export function clearLibraryCache(): void {
   cache.clear();
+  inFlightRequests.clear();
+}
+
+/**
+ * Access an entry with LRU touch and expiration check.
+ */
+function getCached<T>(key: string): T | undefined {
+  const entry = cache.get(key);
+  if (!entry) return undefined;
+
+  if (Date.now() >= entry.expires) {
+    cache.delete(key);
+    return undefined;
+  }
+
+  // Refresh position in Map to mark as recently used (LRU)
+  cache.delete(key);
+  cache.set(key, entry);
+  return entry.data as T;
+}
+
+/**
+ * Store an entry with LRU eviction of the oldest entries if capacity is exceeded.
+ */
+function setCached<T>(key: string, data: T, ttlMs: number): void {
+  // If already exists, delete first to move to back
+  if (cache.has(key)) {
+    cache.delete(key);
+  } else if (cache.size >= MAX_CACHE_ENTRIES) {
+    // Evict oldest entry (first key in iteration order)
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey !== undefined) {
+      cache.delete(oldestKey);
+    }
+  }
+
+  cache.set(key, { data, expires: Date.now() + ttlMs });
 }
 
 async function getOrFetchCached<T>(key: string, ttlMs: number, bypassCache: boolean, fetcher: () => Promise<T>): Promise<T> {
   if (!bypassCache) {
-    const existing = cache.get(key);
-    if (existing && Date.now() < existing.expires) {
-      return existing.data as T;
+    const cachedData = getCached<T>(key);
+    if (cachedData !== undefined) {
+      return cachedData;
+    }
+
+    // Coalesce in-flight requests for the same key to prevent duplicate simultaneous fetches
+    const inFlight = inFlightRequests.get(key);
+    if (inFlight) {
+      return inFlight as Promise<T>;
     }
   }
 
-  const result = await fetcher();
-  cache.set(key, { data: result, expires: Date.now() + ttlMs });
-  return result;
+  const fetchPromise = (async () => {
+    try {
+      const result = await fetcher();
+      setCached(key, result, ttlMs);
+      return result;
+    } finally {
+      inFlightRequests.delete(key);
+    }
+  })();
+
+  if (!bypassCache) {
+    inFlightRequests.set(key, fetchPromise);
+  }
+
+  return fetchPromise;
 }
 
 export interface FetchResumeItemsResult {
@@ -180,8 +238,9 @@ export async function fetchSectionItems(
       // Emby's native IsUnplayed filter considers anything where Played == false as "unplayed",
       // which wrongly includes items already in progress.
       // We partition them cleanly so Unplayed only shows completely untouched media.
+      // To accurately partition and paginate, fetch the section items without pagination limit
       const [sectionData, resumeResult] = await Promise.all([
-        fetchSectionItems(server, parentId, { ...options, filter: "all" }, signal, bypassCache),
+        fetchSectionItems(server, parentId, { ...options, limit: 10000, startIndex: 0, filter: "all" }, signal, bypassCache),
         fetchResumeItems(server, 100, signal).catch(() => ({ items: [], totalRecordCount: 0 })),
       ]);
 
@@ -218,8 +277,10 @@ export async function fetchSectionItems(
         return !inProgress;
       });
 
+      const paginatedItems = limit > 0 ? filteredItems.slice(startIndex, startIndex + limit) : filteredItems;
+
       return {
-        items: filteredItems,
+        items: paginatedItems,
         totalRecordCount: filteredItems.length,
       };
     }

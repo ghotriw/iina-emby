@@ -62,6 +62,18 @@ export interface WindowReopenedPayload {
   timestamp?: number;
 }
 
+export interface PlaybackProgressUpdatedPayload {
+  itemId: string;
+  positionTicks: number;
+  isPaused: boolean;
+}
+
+export interface ServerSwitchedPayload {
+  server: EmbyServer;
+  servers: EmbyServer[];
+  activeServerId: string;
+}
+
 /**
  * Messages sent from IINA plugin to WebView (inbound to React)
  */
@@ -69,10 +81,13 @@ export interface BridgeInboundMap {
   "client-identity": ClientIdentity;
   "servers-list": ServersListPayload;
   "servers-updated": ServersListPayload;
+  "server-switched": ServerSwitchedPayload;
   "session-data": StoredSessionPayload | null;
   "session-available": StoredSessionPayload;
+  "session-cleared": Record<string, never>;
   "window-context": WindowContextPayload;
   "window-reopened": WindowReopenedPayload;
+  "playback-progress-updated": PlaybackProgressUpdatedPayload;
 }
 
 /**

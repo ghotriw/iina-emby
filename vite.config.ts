@@ -1,8 +1,9 @@
+/// <reference types="vitest" />
 import fs from "node:fs";
 import path from "node:path";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
+import { defineConfig } from "vitest/config";
 
 const info = JSON.parse(fs.readFileSync(new URL("./Info.json", import.meta.url), "utf-8"));
 
@@ -25,5 +26,9 @@ export default defineConfig({
   build: {
     outDir: "dist/client",
     emptyOutDir: true,
+  },
+  test: {
+    environment: "node",
+    include: ["**/*.test.ts", "**/*.test.tsx"],
   },
 });

@@ -793,7 +793,7 @@ global.onMessage("player-active", (data, player) => {
 global.onMessage("player-inactive", (data, player) => {
   debugLog("Player reported inactive (retaining player instance for reuse):", { data, player });
 });
-global.onMessage("player-unregistered", (data, player) => {
+global.onMessage("player-unregistered", (_data, player) => {
   debugLog("Player instance unregistered (retaining player instance for reuse):", player);
 });
 global.onMessage("player-file-loaded", (data) => {

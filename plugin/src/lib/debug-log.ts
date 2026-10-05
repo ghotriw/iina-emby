@@ -84,7 +84,10 @@ export interface LoggerConsole {
 }
 
 export interface LoggerFileApi {
-  handle?: (path: string, mode: string) => {
+  handle?: (
+    path: string,
+    mode: string,
+  ) => {
     seekToEnd: () => void;
     write: (data: string) => void;
   };
@@ -164,4 +167,3 @@ export function createDebugLogger(
 
   return logger as DebugLogger;
 }
-

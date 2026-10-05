@@ -10,7 +10,12 @@
     "dev": "vite",
     "preview": "vite preview --open",
     "build:preview": "vite build && vite preview --open",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@tabler/icons-react": "^3.48.0",
@@ -19,6 +24,7 @@
     "react-router": "^8.4.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
     "@types/node": "^22",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
@@ -28,6 +34,7 @@
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vite": "^8.0.3",
-    "vite-plugin-singlefile": "^2.3.3"
+    "vite-plugin-singlefile": "^2.3.3",
+    "vitest": "^5.0.3"
   }
 }

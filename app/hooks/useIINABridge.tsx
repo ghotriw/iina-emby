@@ -2,6 +2,7 @@ import { type EmbyServer, type PlayMediaPayload, type TypedIinaBridge, WINDOW_DI
 import type React from "react";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { setClientIdentity } from "../lib/emby-auth-client";
+import { clearLibraryCache } from "../lib/emby-library-client";
 
 declare global {
   interface Window {
@@ -74,6 +75,15 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
     }
   }, [servers, activeServerId, isIinaAvailable]);
 
+  // Automatically clear library cache when active server changes
+  const prevActiveServerIdRef = useRef<string | null>(activeServerId);
+  useEffect(() => {
+    if (prevActiveServerIdRef.current !== null && prevActiveServerIdRef.current !== activeServerId) {
+      clearLibraryCache();
+    }
+    prevActiveServerIdRef.current = activeServerId;
+  }, [activeServerId]);
+
   // Setup IINA bridge listeners on mount
   useEffect(() => {
     setIsIinaAvailable(hasIina);
@@ -111,6 +121,15 @@ export function IINABridgeProvider({ children }: { children: React.ReactNode }) 
           }
         }
         setIsLoading(false);
+      });
+
+      window.iina.onMessage("server-switched", (data) => {
+        if (data?.activeServerId) {
+          setActiveServerId(data.activeServerId);
+        }
+        if (data && Array.isArray(data.servers)) {
+          setServers(data.servers);
+        }
       });
 
       window.iina.onMessage("session-available", (data) => {

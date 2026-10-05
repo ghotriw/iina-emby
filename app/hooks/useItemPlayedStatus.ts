@@ -44,7 +44,7 @@ export function useItemPlayedStatus({ item, server, onUserDataChange }: UseItemP
     } finally {
       setIsUpdating(false);
     }
-  }, [isUpdating, userData, isPlayed, server, item, onUserDataChange]);
+  }, [isUpdating, userData, isPlayed, server.id, server.serverUrl, server.accessToken, server.userId, item.Id, onUserDataChange]);
 
   return {
     userData,

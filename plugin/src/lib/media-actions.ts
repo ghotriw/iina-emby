@@ -325,12 +325,10 @@ export function createMediaActionsManager({
 
     let reportServerBase = embyInfo.serverBase;
     let reportApiKey = embyInfo.apiKey;
-    let reportUserId: string | undefined = undefined;
 
     if (getActiveSession) {
       const session = getActiveSession();
       if (session?.userId && isSameEmbyHost(session.serverUrl, reportServerBase)) {
-        reportUserId = session.userId;
         if (preferences.get("use_connected_account") && session.accessToken) {
           reportApiKey = session.accessToken;
           reportServerBase = session.serverUrl;

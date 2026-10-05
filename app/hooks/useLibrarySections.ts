@@ -94,7 +94,7 @@ export function useLibrarySections(server: EmbyServer | null) {
         }
       }
     },
-    [server],
+    [server?.id, server?.serverUrl, server?.accessToken, server?.userId],
   );
 
   useEffect(() => {

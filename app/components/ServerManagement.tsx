@@ -112,10 +112,8 @@ export function ServerManagement({ onServerSelected }: ServerManagementProps) {
         message={
           <>
             Are you sure you want to remove{" "}
-            <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-              {serverToDelete?.serverName || "this server"}
-            </span>
-            ? You will need to sign in again to reconnect.
+            <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{serverToDelete?.serverName || "this server"}</span>? You will
+            need to sign in again to reconnect.
           </>
         }
         confirmLabel="Remove"

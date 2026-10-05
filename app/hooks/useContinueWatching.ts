@@ -35,7 +35,7 @@ export function useContinueWatching(activeServer: EmbyServer | null) {
         }
       }
     },
-    [activeServer],
+    [activeServer?.id, activeServer?.serverUrl, activeServer?.accessToken, activeServer?.userId],
   );
 
   useEffect(() => {
