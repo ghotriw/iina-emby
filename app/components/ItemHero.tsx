@@ -107,7 +107,9 @@ export function ItemHero({
       ) : null}
 
       {/* Top Floating Navigation Bar with Back & Refresh */}
-      <PageHeader onBack={onBack} backTitle="Back" onRefresh={onRefresh} isRefreshing={isRefreshing} className={styles.pageHeader} />
+      <div className={styles.headerSpacer}>
+        <PageHeader onBack={onBack} backTitle="Back" onRefresh={onRefresh} isRefreshing={isRefreshing} className={styles.pageHeader} />
+      </div>
 
       {/* Hero Bottom Layout */}
       <main className={styles.heroContent}>

@@ -1,16 +1,19 @@
 @import "./theme/tokens.css";
 
 html,
-body,
-#root {
+body {
   margin: 0;
   padding: 0;
   background: var(--bg-window);
   color: var(--text-secondary);
   font-family: var(--font-system);
-  overflow-x: hidden;
+  overflow-x: clip;
   user-select: none;
   -webkit-user-select: none;
+}
+
+#root {
+  min-height: 100vh;
 }
 
 /* Custom scrollbars matching macOS dark vibrancy */
