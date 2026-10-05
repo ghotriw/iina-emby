@@ -1,12 +1,15 @@
+import { IconX } from "@tabler/icons-react";
 import type React from "react";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { Button } from "./Button";
 import classes from "./Modal.module.css";
 
 export interface ModalProps {
   opened: boolean;
   onClose: () => void;
   children?: React.ReactNode;
+  withCloseButton?: boolean;
   size?: string | number;
   closeOnClickOutside?: boolean;
   closeOnEscape?: boolean;
@@ -16,7 +19,16 @@ export interface ModalProps {
   };
 }
 
-export function Modal({ opened, onClose, children, size, closeOnClickOutside = true, closeOnEscape = true, classNames }: ModalProps) {
+export function Modal({
+  opened,
+  onClose,
+  children,
+  withCloseButton = false,
+  size,
+  closeOnClickOutside = true,
+  closeOnEscape = true,
+  classNames,
+}: ModalProps) {
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,11 +62,16 @@ export function Modal({ opened, onClose, children, size, closeOnClickOutside = t
       />
       <div
         ref={contentRef}
-        className={`${classes.content} ${classNames?.content || ""}`}
+        className={`${classes.content} ${classNames?.content || ""}`.trim()}
         style={{ width: widthStyle }}
         role="dialog"
         aria-modal="true"
       >
+        {withCloseButton && (
+          <Button iconOnly onClick={onClose} aria-label="Close dialog" title="Close" className={classes.closeButton}>
+            <IconX size={15} stroke={2} />
+          </Button>
+        )}
         {children}
       </div>
     </div>,

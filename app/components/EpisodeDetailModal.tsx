@@ -1,5 +1,4 @@
 import { type EmbyItemMetadata, formatEpisodeCode } from "@shared";
-import { IconX } from "@tabler/icons-react";
 import styles from "./EpisodeDetailModal.module.css";
 import { Modal } from "./ui/Modal";
 
@@ -14,9 +13,9 @@ export function EpisodeDetailModal({ episode, onClose }: EpisodeDetailModalProps
       opened={Boolean(episode)}
       onClose={onClose}
       size="28rem"
+      withCloseButton={true}
       classNames={{
         content: styles.modalContent,
-        overlay: styles.modalOverlay,
       }}
     >
       {episode && (
@@ -26,10 +25,6 @@ export function EpisodeDetailModal({ episode, onClose }: EpisodeDetailModalProps
               <div className={styles.modalEpisodeCode}>{formatEpisodeCode(episode.ParentIndexNumber, episode.IndexNumber)}</div>
               <h3 className={styles.modalEpisodeTitle}>{episode.Name || "Episode"}</h3>
             </div>
-
-            <button type="button" className={styles.modalCloseButton} onClick={onClose} aria-label="Close" title="Close">
-              <IconX size={16} />
-            </button>
           </div>
 
           <div className={styles.modalOverviewScroll}>

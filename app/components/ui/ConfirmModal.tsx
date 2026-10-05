@@ -27,12 +27,11 @@ export function ConfirmModal({
     <Modal
       opened={opened}
       onClose={onClose}
-      size="21.5rem"
+      size="22rem"
       closeOnClickOutside={!isLoading}
       closeOnEscape={!isLoading}
       classNames={{
         content: styles.modalContent,
-        overlay: styles.modalOverlay,
       }}
     >
       <div className={styles.body}>

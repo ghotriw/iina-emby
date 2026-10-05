@@ -6,27 +6,40 @@
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
-  animation: modalFadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .backdrop {
   position: absolute;
   inset: 0;
-  background: var(--bg-overlay);
-  backdrop-filter: blur(0.25rem);
-  -webkit-backdrop-filter: blur(0.25rem);
+  background: var(--bg-modal-scrim);
+  animation: backdropFadeIn 0.2s ease-out;
 }
 
+/* Default card styling baked into base Modal */
 .content {
   position: relative;
   z-index: 1001;
   max-width: 100%;
   max-height: 90vh;
   outline: none;
-  animation: modalPopIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  background: var(--bg-dialog);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-dialog);
+  box-sizing: border-box;
+  animation: modalPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes modalFadeIn {
+.closeButton {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 10;
+}
+
+@keyframes backdropFadeIn {
   from {
     opacity: 0;
   }
@@ -38,7 +51,7 @@
 @keyframes modalPopIn {
   from {
     opacity: 0;
-    transform: scale(0.96);
+    transform: scale(0.985) translateY(4px);
   }
   to {
     opacity: 1;

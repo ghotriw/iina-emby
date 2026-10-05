@@ -48,27 +48,35 @@ export function ServerList({ servers, activeServerId, onSelectServer, onRequestD
                 </div>
               </button>
 
-              <Tooltip label="Edit server">
-                <button
-                  type="button"
-                  className={`${styles.serverActionBtn} ${styles.editBtn}`}
-                  onClick={() => onRequestEdit?.(server)}
-                  aria-label="Edit server"
-                >
-                  <IconEditCircle size={17} stroke={1.8} />
-                </button>
-              </Tooltip>
+              <div className={styles.serverActions}>
+                <Tooltip label="Edit server">
+                  <button
+                    type="button"
+                    className={`${styles.serverActionBtn} ${styles.editBtn}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRequestEdit?.(server);
+                    }}
+                    aria-label="Edit server"
+                  >
+                    <IconEditCircle size={18} stroke={1.8} />
+                  </button>
+                </Tooltip>
 
-              <Tooltip label="Remove server">
-                <button
-                  type="button"
-                  className={`${styles.serverActionBtn} ${styles.deleteBtn}`}
-                  onClick={() => onRequestDelete(server)}
-                  aria-label="Remove server"
-                >
-                  <IconTrash size={17} stroke={1.8} />
-                </button>
-              </Tooltip>
+                <Tooltip label="Remove server">
+                  <button
+                    type="button"
+                    className={`${styles.serverActionBtn} ${styles.deleteBtn}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRequestDelete(server);
+                    }}
+                    aria-label="Remove server"
+                  >
+                    <IconTrash size={18} stroke={1.8} />
+                  </button>
+                </Tooltip>
+              </div>
             </div>
           );
         })}

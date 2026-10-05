@@ -8,19 +8,34 @@
   background: var(--bg-control);
   border: none;
   color: var(--text-primary);
+  font-family: inherit;
   font-size: var(--font-size-body);
   font-weight: 500;
   cursor: pointer;
+  outline: none;
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
   transition: background 0.12s ease;
   -webkit-app-region: no-drag;
+}
 
-  &:hover {
-    background: var(--bg-control-hover);
-  }
+.button:hover:not(:disabled) {
+  background: var(--bg-control-hover);
+}
 
-  &:active {
-    background: var(--bg-control-active);
-  }
+.button:active:not(:disabled) {
+  background: var(--bg-control-active);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
 }
 
 .glyph {
@@ -29,4 +44,21 @@
   font-family: var(--font-system);
   letter-spacing: 0.05em;
   padding-left: 2rem;
+}
+
+/* Icon button for compact UI (e.g. modal close) matching the same borderless style */
+.iconButton {
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border-radius: var(--radius-m);
+  background: var(--bg-control);
+  border: none;
+  color: var(--text-secondary);
+}
+
+.iconButton:hover:not(:disabled) {
+  background: var(--bg-control-hover);
+  color: var(--text-primary);
 }

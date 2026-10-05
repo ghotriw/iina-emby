@@ -1,4 +1,5 @@
 export * from "./Alert";
+export * from "./Button";
 export * from "./ConfirmModal";
 export * from "./DropdownMenu";
 export * from "./GlassElement";
