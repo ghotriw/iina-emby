@@ -85,51 +85,42 @@ export function applyUserDataUpdatesToCache(serverId: string, entries: UserDataC
     });
 
     // 4. Section Grids: matching ["emby", serverId, "section", ...]
-    queryClient.setQueriesData<SectionAllData>(
-      { queryKey: [...embyKeys.server(serverId), "section"] },
-      (old) => {
-        if (!old || !old.items) return old;
-        let hasItem = false;
-        const nextItems = old.items.map((it) => {
-          if (it.Id === itemId) {
-            hasItem = true;
-            return { ...it, UserData: mergeUserData(it.UserData) };
-          }
-          return it;
-        });
-        return hasItem ? { ...old, items: nextItems } : old;
-      },
-    );
+    queryClient.setQueriesData<SectionAllData>({ queryKey: [...embyKeys.server(serverId), "section"] }, (old) => {
+      if (!old?.items) return old;
+      let hasItem = false;
+      const nextItems = old.items.map((it) => {
+        if (it.Id === itemId) {
+          hasItem = true;
+          return { ...it, UserData: mergeUserData(it.UserData) };
+        }
+        return it;
+      });
+      return hasItem ? { ...old, items: nextItems } : old;
+    });
 
     // 5. Series Episodes: matching ["emby", serverId, "episodes", ...]
-    queryClient.setQueriesData<EmbyItemMetadata[]>(
-      { queryKey: [...embyKeys.server(serverId), "episodes"] },
-      (old) => {
-        if (!old) return old;
-        let hasItem = false;
-        const nextItems = old.map((ep) => {
-          if (ep.Id === itemId) {
-            hasItem = true;
-            return { ...ep, UserData: mergeUserData(ep.UserData) };
-          }
-          return ep;
-        });
-        return hasItem ? nextItems : old;
-      },
-    );
+    queryClient.setQueriesData<EmbyItemMetadata[]>({ queryKey: [...embyKeys.server(serverId), "episodes"] }, (old) => {
+      if (!old) return old;
+      let hasItem = false;
+      const nextItems = old.map((ep) => {
+        if (ep.Id === itemId) {
+          hasItem = true;
+          return { ...ep, UserData: mergeUserData(ep.UserData) };
+        }
+        return ep;
+      });
+      return hasItem ? nextItems : old;
+    });
 
     // 6. NextUp: matching ["emby", serverId, "nextUp", ...]
     if (entry.Played === true) {
       // If an episode was completed, the Next Up episode changes to the following one -> invalidate
       queryClient.invalidateQueries({ queryKey: [...embyKeys.server(serverId), "nextUp"] });
     } else {
-      queryClient.setQueriesData<EmbyItemMetadata | null>(
-        { queryKey: [...embyKeys.server(serverId), "nextUp"] },
-        (old) => {
-          if (!old || old.Id !== itemId) return old;
-          return { ...old, UserData: mergeUserData(old.UserData) };
-        },
-      );
+      queryClient.setQueriesData<EmbyItemMetadata | null>({ queryKey: [...embyKeys.server(serverId), "nextUp"] }, (old) => {
+        if (!old || old.Id !== itemId) return old;
+        return { ...old, UserData: mergeUserData(old.UserData) };
+      });
     }
   }
 }

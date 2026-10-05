@@ -117,9 +117,7 @@ describe("user-data-sync (applyUserDataUpdatesToCache)", () => {
       },
     ]);
 
-    const updatedEpisodes = queryClient.getQueryData<EmbyItemMetadata[]>(
-      embyKeys.seriesEpisodes(serverId, "series-1", "season-1"),
-    );
+    const updatedEpisodes = queryClient.getQueryData<EmbyItemMetadata[]>(embyKeys.seriesEpisodes(serverId, "series-1", "season-1"));
     expect(updatedEpisodes?.[0].UserData?.PlaybackPositionTicks).toBe(123456);
     expect(updatedEpisodes?.[1].UserData?.PlaybackPositionTicks).toBe(0);
   });

@@ -73,7 +73,6 @@ export function MediaThumb({
   const navigate = useNavigate();
   const [imageError, setImageError] = useState(false);
   const {
-    userData,
     isPlayed,
     unplayedCount,
     playbackPositionTicks,

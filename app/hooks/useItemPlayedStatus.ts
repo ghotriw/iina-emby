@@ -11,10 +11,7 @@ export interface UseItemPlayedStatusOptions {
 export function getItemPlayedMenuState(item: EmbyItemMetadata, userData?: EmbyUserData) {
   const currentData = userData ?? item.UserData;
   const isPlayed = Boolean(currentData?.Played);
-  const unplayedCount =
-    currentData?.UnplayedItemCount && currentData.UnplayedItemCount > 0
-      ? currentData.UnplayedItemCount
-      : null;
+  const unplayedCount = currentData?.UnplayedItemCount && currentData.UnplayedItemCount > 0 ? currentData.UnplayedItemCount : null;
   const playbackPositionTicks = currentData?.PlaybackPositionTicks;
 
   const totalEpisodes = item.ChildCount ?? item.RecursiveItemCount;
@@ -27,8 +24,8 @@ export function getItemPlayedMenuState(item: EmbyItemMetadata, userData?: EmbyUs
 
   const hasProgress = Boolean(
     (playbackPositionTicks && playbackPositionTicks > 0) ||
-    (typeof currentData?.PlayedPercentage === "number" && currentData.PlayedPercentage > 0) ||
-    hasSeriesProgress
+      (typeof currentData?.PlayedPercentage === "number" && currentData.PlayedPercentage > 0) ||
+      hasSeriesProgress,
   );
 
   const canMarkPlayed = !isPlayed;
@@ -53,8 +50,10 @@ export function useItemPlayedStatus({ item, server, onUserDataChange }: UseItemP
     setUserData(item.UserData);
   }, [item.Id, item.UserData]);
 
-  const { isPlayed, unplayedCount, playbackPositionTicks, hasProgress, canMarkPlayed, canMarkUnplayed } =
-    getItemPlayedMenuState(item, userData);
+  const { isPlayed, unplayedCount, playbackPositionTicks, hasProgress, canMarkPlayed, canMarkUnplayed } = getItemPlayedMenuState(
+    item,
+    userData,
+  );
 
   const setPlayedStatus = useCallback(
     async (targetPlayed: boolean) => {
@@ -82,7 +81,7 @@ export function useItemPlayedStatus({ item, server, onUserDataChange }: UseItemP
         setIsUpdating(false);
       }
     },
-    [isUpdating, userData, server, item, onUserDataChange]
+    [isUpdating, userData, server, item, onUserDataChange],
   );
 
   const requestMarkPlayed = useCallback(() => {

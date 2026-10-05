@@ -13,15 +13,7 @@ export interface PlayedConfirmModalProps {
   isLoading?: boolean;
 }
 
-export function PlayedConfirmModal({
-  opened,
-  onClose,
-  onConfirm,
-  item,
-  action,
-  isPlayed,
-  isLoading = false,
-}: PlayedConfirmModalProps) {
+export function PlayedConfirmModal({ opened, onClose, onConfirm, item, action, isPlayed, isLoading = false }: PlayedConfirmModalProps) {
   if (!opened) return null;
 
   const targetAction: "played" | "unplayed" = action ?? (isPlayed ? "unplayed" : "played");
@@ -57,11 +49,7 @@ export interface TogglePlayedMenuItemProps {
 
 export function TogglePlayedMenuItem({ isPlayed, isUpdating = false, onSelect }: TogglePlayedMenuItemProps) {
   return (
-    <DropdownMenu.Item
-      icon={isPlayed ? <IconEyeOff size={16} /> : <IconCheck size={16} />}
-      disabled={isUpdating}
-      onSelect={onSelect}
-    >
+    <DropdownMenu.Item icon={isPlayed ? <IconEyeOff size={16} /> : <IconCheck size={16} />} disabled={isUpdating} onSelect={onSelect}>
       {isPlayed ? "Mark as unplayed" : "Mark as played"}
     </DropdownMenu.Item>
   );
